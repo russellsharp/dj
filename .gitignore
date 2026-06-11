@@ -1,0 +1,7 @@
+.vscode/
+.zig-cache/
+zig-out/
+obj/
+bin/
+logs/
+*.lscache

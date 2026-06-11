@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/cli/cli.csproj" />
+  </Folder>
+  <Folder Name="/shared/">
+    <Project Path="src/shared/shared.csproj" />
+  </Folder>
+  <Folder Name="/test/">
+    <Project Path="test/dj.test.csproj" />
+  </Folder>
+</Solution>
