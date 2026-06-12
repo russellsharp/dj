@@ -22,13 +22,17 @@ public class MediaCollection : IMediaCollection
 {
     private readonly MediaReaderConfiguration _configuration;
 
-    private ConcurrentDictionary<string, FileInfo> _mediaRepo;
+    private Dictionary<string, FileInfo> _mediaRepo;
 
-    private ConcurrentDictionary<string, DirectoryInfo> _directoryRepo;
+    private Dictionary<string, DirectoryInfo> _directoryRepo;
 
     public MediaCollection(IOptions<MediaReaderConfiguration> configuration)
     {
         _configuration = configuration.Value;
+
+        _mediaRepo = [];
+
+        _directoryRepo = [];
     }
 
     public async Task Populate(CancellationToken token)
@@ -44,47 +48,58 @@ public class MediaCollection : IMediaCollection
             MaxRecursionDepth = _configuration.DirectoryRecursionDepth
         };
 
-        if (!Directory.Exists(_configuration.BaseDirectory))
+        var mediaDirectory = Path.GetFullPath(_configuration.BaseDirectory);
+        if (!Directory.Exists(mediaDirectory))
         {
-            throw new ArgumentException($"Configured basedirectory does not exist: \r\n\t\t {_configuration.BaseDirectory}");
+            throw new ArgumentException($"Configured basedirectory does not exist: \r\n\t\t {mediaDirectory}");
         }
 
         try
         {
-            var tempDirectoryInfo = Directory.EnumerateDirectories(_configuration.BaseDirectory)
+            _directoryRepo = Directory.EnumerateDirectories(mediaDirectory)
                 .AsParallel().WithCancellation(token)
                 .ToDictionary(x => x, x => new DirectoryInfo(x));
-            _directoryRepo = new ConcurrentDictionary<string, DirectoryInfo>(tempDirectoryInfo);
 
-            var tempFileInfo = tempDirectoryInfo.Keys
+            // add the base directory to include files in it
+            _directoryRepo.Add(mediaDirectory, new DirectoryInfo(mediaDirectory));
+
+            _mediaRepo = _directoryRepo.Keys
                 .AsParallel().WithCancellation(token)
                 .SelectMany(x => Directory.EnumerateFiles(x))
                 .ToDictionary(x => x, x => new FileInfo(x));
-            _mediaRepo = new ConcurrentDictionary<string, FileInfo>(tempFileInfo);
         }
         catch (OperationCanceledException)
         {
             throw;
         }
-
-        _mediaRepo.Values.ToList().ForEach(x => Debug.WriteLine(x));
     }
 
     public async Task<IEnumerable<string>> Search(string pattern, CancellationToken token)
     {
-        return _mediaRepo.AsParallel().WithCancellation(token)
-            .Where(x => Regex.IsMatch(x.Value.Name, pattern, RegexOptions.IgnoreCase))
-            .Select(x => x.Key)
-            .ToImmutableList();
+        if (string.IsNullOrEmpty(pattern)) throw new ArgumentNullException($"Pattern is null or empty: {pattern}");
+
+        if (_mediaRepo is null || !_mediaRepo.Any())
+        {
+            return Enumerable.Empty<string>();
+        }
+
+        var filtered = _mediaRepo.AsParallel().WithCancellation(token).Where(x => Regex.IsMatch(x.Value.Name, pattern, RegexOptions.IgnoreCase)).ToList();
+
+        if (!filtered.Any())
+        {
+            return Enumerable.Empty<string>();
+        }
+
+        return filtered.Select(x => x.Key).ToImmutableList();
     }
 
     public FileInfo? GetFile(string filePath)
     {
-        var access = FileHelper.CanAccessFile(filePath, FileAccess.Read);
+        var availability = FileHelper.CanAccessFile(filePath, FileAccess.Read);
 
-        if (access != FileAccessResult.Available)
+        if (availability != FileAccessResult.Available)
         {
-            throw new FileLoadException(FileHelper.AccessMessage(filePath, FileAccess.Read, access));
+            throw new FileLoadException(availability.AccessMessage(filePath, FileAccess.Read));
         }
 
         if (_mediaRepo.TryGetValue(filePath, out FileInfo? fileInfo))
@@ -93,7 +108,7 @@ public class MediaCollection : IMediaCollection
         }
         else
         {
-            throw new FileNotFoundException($"File was not found: {filePath}");
+            throw new FileNotFoundException($"FileInfo was not found: {filePath}");
         }
     }
 }

@@ -1,13 +1,12 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using cli;
-using Newtonsoft.Json;
 using shared;
 
 var builder = Host.CreateApplicationBuilder(args);
-builder.Services.Configure<MediaReaderConfiguration>(builder.Configuration.GetSection(MediaReaderConfiguration.SectionName))
-    .AddTransient<Application>()
-     .AddSingleton<IMediaCollection, MediaCollection>();
+builder.Services.AddTransient<Application>();
+builder.AddConfiguration()
+    .AddServices();
 
 using var host = builder.Build();
 

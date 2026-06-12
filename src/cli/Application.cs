@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
@@ -18,12 +19,27 @@ public class Application(IMediaCollection _mediaCollection)
         {
             Console.WriteLine($"Arguments passed: {string.Join(", ", args)}");
         }
+
         CancellationTokenSource source = new();
 
         await _mediaCollection.Populate(source.Token);
 
-        await _mediaCollection.Search("*.avi", source.Token);
+        var patterns = @".+\.avi$".Split(';');
 
+        try
+        {
+            var tasks = patterns.Select(x => _mediaCollection.Search(x, source.Token));
+
+            var searchCollection = await Task.WhenAll(tasks);
+
+            var fileMatches = searchCollection.SelectMany(x => x).OrderBy(x => x).ToList();
+
+            fileMatches.ForEach(x => Debug.WriteLine(x));
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         await Task.CompletedTask;
     }
 }

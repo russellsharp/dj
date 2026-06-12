@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection.Metadata.Ecma335;
+using System.Runtime.InteropServices.Marshalling;
 using System.Threading.Tasks;
 
 namespace shared;
@@ -19,7 +21,22 @@ public class Configuration
 public class MediaReaderConfiguration
 {
     public const string SectionName = nameof(MediaReaderConfiguration);
-    public required string BaseDirectory { init; get; } = string.Empty;
+
+    private string _baseDirectory = string.Empty;
+
+    public string BaseDirectory
+    {
+        get
+        {
+            return Path.GetFullPath(_baseDirectory);
+        }
+        init
+        {
+            _baseDirectory = value;
+
+        }
+    }
+
     public required string Filter { init; get; } = "*.*;*.";
     public required int DirectoryRecursionDepth { init; get; } = 50;
 
