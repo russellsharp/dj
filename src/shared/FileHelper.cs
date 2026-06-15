@@ -2,7 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-
+using System.Security.Cryptography;
+using System.Buffers;
+using System.Diagnostics;
+using System.Text;
 namespace shared;
 
 public enum FileAccessResult
@@ -16,7 +19,7 @@ public enum FileAccessResult
 public static class FileHelper
 {
 
-    public static FileAccessResult CanAccessFile(string filePath, FileAccess accessType)
+    public static FileAccessResult CanAccessFile(string filePath, FileAccess accessType = FileAccess.Read)
     {
         // First check if the file even exists
         if (!File.Exists(filePath)) return FileAccessResult.DoesNotExist;
@@ -52,4 +55,111 @@ public static class FileHelper
             _ => "Unsupported result type."
         };
     }
+
+    public static async Task<bool> CreateFile(string filePath, long lengthKBytes, byte filler)
+    {
+
+        var fileDirectory = Path.GetDirectoryName(Path.GetFullPath(filePath));
+
+        Directory.CreateDirectory(fileDirectory);
+
+        long totalBytes = lengthKBytes * 1024;
+
+        int chunkSize = 4096;
+
+        byte[] buffer = new byte[chunkSize];
+
+        buffer = Enumerable.Repeat(filler, chunkSize).ToArray();
+
+        using var fs = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None);
+        long bytesWritten = 0;
+        while (bytesWritten < totalBytes)
+        {
+            int bytesLeft = (int)(totalBytes - bytesWritten);
+            int bytesToWrite = Math.Min(chunkSize, bytesLeft);
+
+            fs.Write(buffer, 0, bytesToWrite);
+            bytesWritten += bytesToWrite;
+        }
+
+        return File.Exists(filePath);
+    }
+
+    public static async Task<shared.data.File> PathToFile(string path, CancellationToken token)
+    {
+
+        var fileInfo = new FileInfo(path);
+
+        var fileHash = await shared.FileHashes.HashFsStackSpan(path, token);
+
+        var fullPath = Path.GetFullPath(path);
+
+        return new()
+        {
+            path = fullPath,
+            path_hash = HashString(fullPath),
+            date_modified = File.GetLastWriteTimeUtc(path),
+            date_created = File.GetCreationTimeUtc(path),
+            size = fileInfo.Length,
+            extension = Path.GetExtension(fullPath),
+            hash = fileHash.ToString(),
+            attributes = File.GetAttributes(path).ToString()
+        };
+    }
+
+    public static string HashString(string subject)
+    {
+        byte[] unicodeBytes = Encoding.Unicode.GetBytes(subject);
+        byte[] pathHash = SHA256.HashData(unicodeBytes);
+        return Convert.ToHexString(pathHash);
+    }
+}
+
+public static class FileHashes
+{
+
+    public static async Task<string> HashOpenRead(string filePath)
+    {
+        byte[] hashBytes = SHA256.HashData(File.OpenRead(filePath));
+        return Convert.ToHexString(hashBytes);
+    }
+
+    public static async Task<string> HashFsStackSpan(string filePath, CancellationToken token)
+    {
+        using FileStream fs = File.OpenRead(filePath);
+        Span<byte> hashBuffer = stackalloc byte[32];
+        int bytesWritten = SHA256.HashData(fs, hashBuffer);
+        fs.Close();
+        return Convert.ToHexString(hashBuffer);
+    }
+
+    public static async Task<string> HashFsMemoryBuffer(string filePath, CancellationToken token)
+    {
+        Memory<byte> memoryBuffer = new byte[32];
+        using FileStream fs = File.OpenRead(filePath);
+        int bytesWritten = await SHA256.HashDataAsync(fs, memoryBuffer, token);
+        return Convert.ToHexString(memoryBuffer.Span);
+    }
+
+    public static async Task<string> HashFsArrayPool(string filePath, CancellationToken token)
+    {
+        byte[] rentedArray = ArrayPool<byte>.Shared.Rent(32);
+
+        string result = string.Empty;
+
+        try
+        {
+            Memory<byte> memory = rentedArray.AsMemory(0, 32);
+            using FileStream fs = File.OpenRead(filePath);
+            int bytesWritten = await SHA256.HashDataAsync(fs, memory, token);
+            result = Convert.ToHexString(memory.Span);
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(rentedArray);
+        }
+
+        return result;
+    }
+
 }

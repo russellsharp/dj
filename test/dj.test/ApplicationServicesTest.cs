@@ -4,81 +4,67 @@ using Xunit;
 using shared;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
-using Xunit.Abstractions;
 using System.Runtime.CompilerServices;
 using System.Net.Mail;
 using System.Diagnostics;
 using SQLitePCL;
+using Microsoft.Extensions.Options;
+using shared.data;
 
-namespace dj;
+namespace dj.test;
 
-public class ApplicationServicesTest : IDisposable
+public class ApplicationServices : IDisposable
 {
 
     private HostApplicationBuilder _builder;
-
     private IHost _host;
     private ITestOutputHelper _output;
     private List<string> _filesToDelete = new();
 
-    public ApplicationServicesTest(ITestOutputHelper output)
+    private const string testfileDirectory = "testfiles";
+    public ApplicationServices(ITestOutputHelper output)
     {
         _output = output;
 
         var args = new string[] { "", "" };
         _builder = Host.CreateApplicationBuilder(args);
-        _builder.AddConfiguration()
-            .AddServices();
+        _builder.Services.AddServices();
 
-        //load our inmemory config before we build services
-        LoadConfig();
+        //load our inmemory config for testing before we build services
+        LoadTestConfigs();
 
         _host = _builder.Build();
-
-        CreateTestFile();
     }
 
-    private void LoadConfig()
+    private void LoadTestConfigs()
     {
-        string baseDir = AppContext.BaseDirectory;
-
-        var inlineData = new Dictionary<string, string?>
+        var mediaConfig = new MediaReaderConfiguration
         {
-            { "BaseDirectory", "testData" },
-            { "Filter", "*.avi" },
-            { "DirectoryRecursionDepth", "50" }
+            DirectoryRecursionDepth = 50,
+            BaseDirectory = "testMedia",
+            Filter = "*.avi",
         };
 
-        _builder.Configuration.AddInMemoryCollection(inlineData);
+        _builder.Services.AddSingleton(Options.Create(mediaConfig));
 
-        _builder.Services.Configure<MediaReaderConfiguration>(_builder.Configuration);
-    }
+        var databaseConfig = new DatabaseConfiguration
+        {
+            DataFile = "testdatabase/testmedia.db",
+        };
 
-    private void CreateTestFile()
-    {
-        var config = _builder.Configuration.Get<MediaReaderConfiguration>();
-
-        config.Should().NotBeNull();
-
-        var fileDirectory = Path.GetFullPath(config.BaseDirectory);
-
-        var filePath = Path.Combine(fileDirectory, $"{Guid.NewGuid()}.avi");
-
-        fileDirectory.Should().NotBeNullOrEmpty();
-
-        Directory.CreateDirectory(fileDirectory);
-
-        using var file = File.CreateText(filePath);
-
-        file.WriteLine("test file to be deleted");
-
-        File.Exists(filePath).Should().BeTrue();
-
-        _filesToDelete.Add(filePath);
+        _builder.Services.AddSingleton(Options.Create(databaseConfig));
     }
 
     [Fact]
     public void ServicesRegistered()
+    {
+        var media = _host.Services.GetService<IMediaCollection>();
+
+        media.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task GetMediaService()
     {
         var media = _host.Services.GetService<IMediaCollection>();
 
@@ -92,9 +78,11 @@ public class ApplicationServicesTest : IDisposable
 
         media.Should().NotBeNull();
 
+        await CreateTestFile(10, 500);
+
         CancellationTokenSource source = new();
 
-        await media.Populate(source.Token);
+        await media.UpdateRepos(testfileDirectory, source.Token);
 
         var pattern = @".+\.avi$";
 
@@ -108,13 +96,17 @@ public class ApplicationServicesTest : IDisposable
     [Fact]
     public async Task SearchMultiplePatterns()
     {
+
+        await CreateTestFile(20, 250, (byte)'a', "avi");
+        await CreateTestFile(20, 250, (byte)'m', "mp3");
+
         var media = _host.Services.GetService<IMediaCollection>();
 
         media.Should().NotBeNull();
 
         CancellationTokenSource source = new();
 
-        await media.Populate(source.Token);
+        await media.UpdateRepos(testfileDirectory, source.Token);
 
         var patterns = @".+\.avi$;\.mp3$".Split(';');
 
@@ -132,13 +124,15 @@ public class ApplicationServicesTest : IDisposable
     [Fact]
     public async Task GetFileInfo()
     {
+        await CreateTestFile(1);
+
         var media = _host.Services.GetService<IMediaCollection>();
 
         media.Should().NotBeNull();
 
         CancellationTokenSource source = new();
 
-        await media.Populate(source.Token);
+        await media.UpdateRepos(testfileDirectory, source.Token);
 
         var patterns = @"\.avi$".Split(';');
 
@@ -155,8 +149,26 @@ public class ApplicationServicesTest : IDisposable
         info.Should().NotBeNull();
 
         _output.WriteLine(info.ToString());
-        // info.CreationTime.Should().Be
 
+    }
+
+    private async Task CreateTestFile(int count, long sizeKb = 250, byte filler = (byte)'w', string extension = "avi")
+    {
+        var config = _host.Services.GetRequiredService<IOptions<MediaReaderConfiguration>>();
+
+        config.Should().NotBeNull();
+
+        var fileDirectory = Path.GetFullPath(config.Value.BaseDirectory);
+
+        for (int i = 0; i < count; i++)
+        {
+            var fileName = Path.ChangeExtension($"{Guid.NewGuid()}", extension);
+            var filePath = Path.Combine(fileDirectory, fileName);
+            if (await FileHelper.CreateFile(filePath, sizeKb, filler))
+            {
+                _filesToDelete.Add(filePath);
+            }
+        }
     }
 
     #region IDisposable
@@ -170,17 +182,14 @@ public class ApplicationServicesTest : IDisposable
 
         try
         {
-            _filesToDelete.ForEach(x => _output.WriteLine(x));
-            _filesToDelete.ForEach(x => Debug.WriteLine($"File to delete: {x}"));
-            _filesToDelete.ForEach(x => File.Delete(x));
+            _filesToDelete.ForEach(x => _output.WriteLine($"File to delete: {x}"));
+            _filesToDelete.ForEach(x => Console.WriteLine($"File to delete: {x}"));
+            _filesToDelete.ForEach(x => System.IO.File.Delete(x));
         }
         catch (Exception ex)
         {
             _output.WriteLine($"Failed to clean up a test artifact: {ex}");
             throw;
-        }
-        finally
-        {
         }
     }
     #endregion IDisposable

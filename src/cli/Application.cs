@@ -12,6 +12,7 @@ namespace cli;
 
 public class Application(IMediaCollection _mediaCollection)
 {
+    const string baseDirectory = "appData";
 
     public async Task RunAsync(string[] args)
     {
@@ -22,7 +23,9 @@ public class Application(IMediaCollection _mediaCollection)
 
         CancellationTokenSource source = new();
 
-        await _mediaCollection.Populate(source.Token);
+        await _mediaCollection.Initialize(source.Token);
+
+        await _mediaCollection.UpdateRepos(baseDirectory, source.Token);
 
         var patterns = @".+\.avi$".Split(';');
 

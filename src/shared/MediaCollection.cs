@@ -1,20 +1,16 @@
-using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Diagnostics;
-using System.Linq;
-using System.Security.Principal;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Options;
+using shared.data;
 
 namespace shared;
 
 public interface IMediaCollection
 {
-    FileInfo? GetFile(string filePath);
-    Task Populate(CancellationToken token);
+    Task Initialize(CancellationToken token);
+    Task Clear(CancellationToken token);
+    Task<shared.data.File?> GetFile(string filePath);
+    Task UpdateRepos(string baseDirectory, CancellationToken token);
     Task<IEnumerable<string>> Search(string pattern, CancellationToken token);
 }
 
@@ -22,25 +18,58 @@ public class MediaCollection : IMediaCollection
 {
     private readonly MediaReaderConfiguration _configuration;
 
-    private Dictionary<string, FileInfo> _mediaRepo;
-
+    private Dictionary<string, shared.data.File> _mediaRepo;
     private Dictionary<string, DirectoryInfo> _directoryRepo;
 
-    public MediaCollection(IOptions<MediaReaderConfiguration> configuration)
+    private CancellationTokenSource _tokenSource = new();
+
+    private shared.data.IDatabase _db;
+
+    public MediaCollection(IOptions<MediaReaderConfiguration> configuration, IDatabase db)
     {
         _configuration = configuration.Value;
 
         _mediaRepo = [];
 
         _directoryRepo = [];
+
+        _db = db;
     }
 
-    public async Task Populate(CancellationToken token)
+    public async Task Initialize(CancellationToken token)
     {
-        await GetRepos(token);
+        _db.EnsureConnected();
+
+        _db.Create();
+
+        await LoadDatabase(token);
+
+        _db.Disconnect();
     }
 
-    private async Task GetRepos(CancellationToken token)
+    public async Task Clear(CancellationToken token)
+    {
+        _db.EnsureConnected();
+
+        await _db.Truncate();
+
+        _mediaRepo.Clear();
+
+        _db.Disconnect();
+    }
+
+    private async Task LoadDatabase(CancellationToken token)
+    {
+        _db.EnsureConnected();
+
+        var fileData = await _db.Files();
+
+        _db.Disconnect();
+
+        _mediaRepo = fileData.ToDictionary(x => x.path, x => x);
+    }
+
+    public async Task UpdateRepos(string baseDirectory, CancellationToken token)
     {
         EnumerationOptions options = new()
         {
@@ -51,7 +80,8 @@ public class MediaCollection : IMediaCollection
         var mediaDirectory = Path.GetFullPath(_configuration.BaseDirectory);
         if (!Directory.Exists(mediaDirectory))
         {
-            throw new ArgumentException($"Configured basedirectory does not exist: \r\n\t\t {mediaDirectory}");
+            _mediaRepo = new Dictionary<string, data.File>();
+            return;
         }
 
         try
@@ -63,10 +93,25 @@ public class MediaCollection : IMediaCollection
             // add the base directory to include files in it
             _directoryRepo.Add(mediaDirectory, new DirectoryInfo(mediaDirectory));
 
-            _mediaRepo = _directoryRepo.Keys
+            var fileList = _directoryRepo.Keys
                 .AsParallel().WithCancellation(token)
-                .SelectMany(x => Directory.EnumerateFiles(x))
-                .ToDictionary(x => x, x => new FileInfo(x));
+                .SelectMany(x => Directory.EnumerateFiles(x)).ToList();
+
+            var filesTaks = fileList.Select(async x => await FileHelper.PathToFile(x, _tokenSource.Token)).ToList();
+
+            var filesData = await Task.WhenAll(filesTaks);
+
+            _mediaRepo = filesData.ToDictionary(x => x.path, x => x);
+
+            _db.EnsureConnected();
+
+            await _db.Truncate();
+
+            await _db.InsertOrUpdate(filesData);
+
+            _mediaRepo = (await _db.Files()).ToDictionary(x => x.path, x => x);
+
+            _db.Disconnect();
         }
         catch (OperationCanceledException)
         {
@@ -83,7 +128,9 @@ public class MediaCollection : IMediaCollection
             return Enumerable.Empty<string>();
         }
 
-        var filtered = _mediaRepo.AsParallel().WithCancellation(token).Where(x => Regex.IsMatch(x.Value.Name, pattern, RegexOptions.IgnoreCase)).ToList();
+        var filtered = _mediaRepo
+                .AsParallel().WithCancellation(token)
+                .Where(x => Regex.IsMatch(Path.GetFileName(x.Value.path), pattern, RegexOptions.IgnoreCase)).ToList();
 
         if (!filtered.Any())
         {
@@ -93,7 +140,7 @@ public class MediaCollection : IMediaCollection
         return filtered.Select(x => x.Key).ToImmutableList();
     }
 
-    public FileInfo? GetFile(string filePath)
+    public async Task<shared.data.File?> GetFile(string filePath)
     {
         var availability = FileHelper.CanAccessFile(filePath, FileAccess.Read);
 
@@ -102,9 +149,9 @@ public class MediaCollection : IMediaCollection
             throw new FileLoadException(availability.AccessMessage(filePath, FileAccess.Read));
         }
 
-        if (_mediaRepo.TryGetValue(filePath, out FileInfo? fileInfo))
+        if (_mediaRepo.TryGetValue(filePath, out shared.data.File? file))
         {
-            return fileInfo;
+            return file;
         }
         else
         {

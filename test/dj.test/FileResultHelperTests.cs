@@ -1,11 +1,21 @@
 ﻿using System.Diagnostics;
-using Xunit.Abstractions;
 using FluentAssertions;
 using shared;
-namespace dj;
+using BenchmarkDotNet.Attributes;
+using BenchmarkDotNet.Running;
+using dj.benchmarks;
+using Microsoft.VisualStudio.TestPlatform.ObjectModel;
+using BenchmarkDotNet.Exporters;
+using BenchmarkDotNet.Loggers;
+using Xunit.Internal;
 
-public class FileResultHelperTests(ITestOutputHelper _output)
+namespace dj.test;
+
+public class FileResultHelper(ITestOutputHelper _output)
 {
+
+    private static readonly CancellationTokenSource source = new();
+
     [Fact]
     public void Available()
     {
@@ -41,5 +51,15 @@ public class FileResultHelperTests(ITestOutputHelper _output)
         var path = @"c:/media/metal/AngelOfDeath.mp3";
         var message = result.AccessMessage(path, FileAccess.Read);
         message.Should().Be($"File is locked by another process: {FileAccess.Read}, " + path);
+    }
+
+    [Fact, Trait("Purpose", "Benchmark")]
+    public void FileHashBenchmark()
+    {
+        // Act: Run the benchmarks programmatically
+        var summary = BenchmarkRunner.Run<FileHelperBenchmarks>();
+        MarkdownExporter.Default.ExportToLog(summary, ConsoleLogger.Default);
+
+        summary.Reports.ForEach(x => _output.WriteLine(x.ResultStatistics.ToString()));
     }
 }

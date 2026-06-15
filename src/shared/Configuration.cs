@@ -30,15 +30,14 @@ public class MediaReaderConfiguration
         {
             return Path.GetFullPath(_baseDirectory);
         }
-        init
+        set
         {
             _baseDirectory = value;
-
         }
     }
 
-    public required string Filter { init; get; } = "*.*;*.";
-    public required int DirectoryRecursionDepth { init; get; } = 50;
+    public required string Filter { set; get; } = "*.*;*.";
+    public required int DirectoryRecursionDepth { set; get; } = 50;
 
     public override string ToString()
     {
