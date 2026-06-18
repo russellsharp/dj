@@ -8,6 +8,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Options;
 using shared;
 using shared.data;
+using shared.TMDB.Models;
 using Xunit.Internal;
 
 namespace dj.test
@@ -38,13 +39,12 @@ namespace dj.test
             IMediaCollection media = new shared.MediaCollection(BasicConfig, db);
 
             db.EnsureConnected();
-            await db.Truncate();
 
             await media.UpdateRepos(BasicConfig.Value.BaseDirectory, _tokenSource.Token);
 
             var keywords = SearchHelpers.SanitizeForSearch("Training Day", false, _tokenSource.Token);
 
-            var matches = await media.Match(keywords, _tokenSource.Token);
+            var matches = (await media.Match<shared.data.File>(keywords, _tokenSource.Token)).Select(x => x.Details);
 
             matches.Should().BeEmpty();
 
@@ -52,11 +52,28 @@ namespace dj.test
 
             keywords = SearchHelpers.SanitizeForSearch("Inglourious Basterds", false, _tokenSource.Token);
 
-            matches = await media.Match(keywords, _tokenSource.Token);
+            var matcheScores = (await media.Match<shared.data.File>(keywords, _tokenSource.Token)).ToList();
 
-            matches.Should().NotBeEmpty();
+            matcheScores.Should().NotBeEmpty();
 
-            matches.ForEach(x => Debug.WriteLine(x.path));
+            matcheScores.ForEach(x => Debug.WriteLine(x.Hits));
+        }
+
+        [Fact]
+        public async Task MatchLocalFilesDictionaryAction()
+        {
+            IDatabase db = new shared.data.Database(BasicDatabaseConfig);
+            IMediaCollection media = new shared.MediaCollection(BasicConfig, db);
+
+            await media.Initialize(_tokenSource.Token);
+
+            var keywords = SearchHelpers.SanitizeForSearch("Inglourious Basterds", false, _tokenSource.Token);
+
+            var matcheScores = (await media.Match<shared.data.File>(keywords, _tokenSource.Token)).ToList();
+
+            matcheScores.Should().NotBeEmpty();
+
+            matcheScores.Select(x => x.Details as shared.data.File).ForEach(x => Debug.WriteLine(x.path));
         }
     }
 }

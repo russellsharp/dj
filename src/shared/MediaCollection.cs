@@ -1,10 +1,15 @@
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Linq.Expressions;
+using System.Net.Mime;
+using System.Reflection;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
 using shared.data;
+using SQLitePCL;
 using WeCantSpell.Hunspell;
 
 namespace shared;
@@ -16,7 +21,7 @@ public interface IMediaCollection
     Task<shared.data.File?> GetFile(string filePath);
     Task UpdateRepos(string baseDirectory, CancellationToken token);
     Task<IEnumerable<string>> Search(IEnumerable<string> patterns, CancellationToken token);
-    Task<IEnumerable<shared.data.File>> Match(IEnumerable<string> keywords, CancellationToken token);
+    Task<IEnumerable<MatchScore<ResponseType>>> Match<ResponseType>(IEnumerable<string> keywords, CancellationToken token) where ResponseType : class;
 }
 
 public class MediaCollection : IMediaCollection
@@ -24,7 +29,7 @@ public class MediaCollection : IMediaCollection
     private readonly MediaReaderConfiguration _configuration;
 
     private Dictionary<string, shared.data.File> _mediaRepo;
-    // private Dictionary<string, DirectoryInfo> _directoryRepo;
+    private Dictionary<string, DirectoryInfo> _directoryRepo;
 
     private CancellationTokenSource _tokenSource = new();
 
@@ -36,7 +41,7 @@ public class MediaCollection : IMediaCollection
 
         _mediaRepo = [];
 
-        // _directoryRepo = [];
+        _directoryRepo = [];
 
         _db = db;
     }
@@ -91,12 +96,17 @@ public class MediaCollection : IMediaCollection
 
         try
         {
-            List<string> extensions = _configuration.VideoExtensions.ToLower().Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
-            extensions.AddRange(_configuration.AudioExtensions.ToLower().Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+
+            _directoryRepo = Directory.EnumerateDirectories(_configuration.BaseDirectory, "*", SearchOption.AllDirectories).ToDictionary(x => x, x => new DirectoryInfo(x));
+            _directoryRepo.Add(_configuration.BaseDirectory, new DirectoryInfo(_configuration.BaseDirectory));
+
+            List<string> extensions = _configuration.VideoExtensions.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+            extensions.AddRange(_configuration.AudioExtensions.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
             extensions = extensions.Select(x =>
             {
-                if (x[0] != '.') return '.' + x;
-                else { return x; }
+                //get file extension leaves the . prefixed.
+                if (x[0] != '.') return '.' + x.ToLower();
+                else { return x.ToLower(); }
             }).ToList();
 
             var fileList = Directory.EnumerateFiles(mediaDirectory, "*", SearchOption.AllDirectories).Where(x => extensions.Contains(Path.GetExtension(x).ToLower()));
@@ -187,23 +197,35 @@ public class MediaCollection : IMediaCollection
         return filtered.ToImmutableList();
     }
 
-    public async Task<IEnumerable<shared.data.File>> Match(IEnumerable<string> keywords, CancellationToken token)
+    public async Task<IEnumerable<MatchScore<ContainedType>>> Match<ContainedType>(IEnumerable<string> keywords, CancellationToken token) where ContainedType : class
     {
         if (!keywords.Any()) throw new ArgumentNullException("Keywords are empty");
 
         if (_mediaRepo is null || !_mediaRepo.Any())
         {
-            return Enumerable.Empty<shared.data.File>();
+            return Enumerable.Empty<MatchScore<ContainedType>>();
         }
 
-        var filtered = new List<shared.data.File>();
+        var scoredMatches = new Dictionary<string, MatchScore<ContainedType>>();
 
         foreach (var keyword in keywords)
         {
-            filtered.AddRange(_mediaRepo.Values.Where(x => x.path.ToLower().Contains(keyword.ToLower())));
+            foreach (var file in _mediaRepo.Values)
+            {
+                if (file.path.ToLower().Contains(keyword))
+                {
+                    if (scoredMatches.ContainsKey(file.path))
+                    {
+                        scoredMatches[file.path].Hits++;
+                    }
+                    else
+                    {
+                        scoredMatches.Add(file.path, new MatchScore<ContainedType>() { Hits = 1, Details = file as ContainedType });
+                    }
+                }
+            }
         }
-
-        return filtered.DistinctBy(x => x.path);
+        return scoredMatches.Values;
     }
 
     public async Task<shared.data.File?> GetFile(string filePath)

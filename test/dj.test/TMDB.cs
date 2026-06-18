@@ -144,13 +144,13 @@ public class TMDB(ITestOutputHelper _output)
 
         var resultDetails = queryHits.Where(x => x.Hits > 1).Select(x => x.Details as MovieQueryResponse);
 
-        var movies = new List<MovieDetailsResponse>();
+        var movies = new List<MovieDetailsResponse?>();
 
         var resultMovies = resultDetails.SelectMany(x => x.results).DistinctBy(x => x.id).Where(x => x.adult == false);
 
         foreach (var result in resultMovies)
         {
-            if (repo.TryMovie((long)result.id, out MovieDetailsResponse movie))
+            if (repo.TryMovie((long)result.id, out MovieDetailsResponse? movie))
             {
                 movies.Add(movie);
             }

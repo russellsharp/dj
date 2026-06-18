@@ -17,7 +17,7 @@ public interface IRepo
     MovieDetailsResponse? Movie(long id);
     bool TryMovieGenres(out GenreResponse? genre);
     GenreResponse? MovieGenres();
-    Task<IEnumerable<MatchScore>> FindQueryHits<T>(IEnumerable<string> keywords, int v, CancellationToken token);
+    Task<IEnumerable<MatchScore<ResponseType>>> FindQueryHits<ResponseType>(IEnumerable<string> keywords, int v, CancellationToken token) where ResponseType : class;
 }
 
 public class Repo : IDisposable, IRepo
@@ -101,7 +101,7 @@ public class Repo : IDisposable, IRepo
         return genres;
     }
 
-    public async Task<IEnumerable<MatchScore>> FindQueryHits<ResponseType>(IEnumerable<string> keywords, int minimum_hits, CancellationToken token)
+    public async Task<IEnumerable<MatchScore<ResponseType>>> FindQueryHits<ResponseType>(IEnumerable<string> keywords, int minimum_hits, CancellationToken token) where ResponseType : class
     {
         return await _cache.FindQueryHits<ResponseType>(keywords, minimum_hits, token);
     }

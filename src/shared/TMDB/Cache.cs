@@ -22,16 +22,10 @@ public interface ICache
     bool IsConnected();
     void Create();
     Task Truncate();
-    Task<IEnumerable<MatchScore>> FindQueryHits<ResponseType>(IEnumerable<string> keywords, int minimum_hits, CancellationToken token);
+    Task<IEnumerable<MatchScore<ResponseType>>> FindQueryHits<ResponseType>(IEnumerable<string> keywords, int minimum_hits, CancellationToken token) where ResponseType : class;
     bool Get<ResponseType>(string tmdb_request_url, out ResponseType? response);
     Task Store<ResponseType>(string requestUrl, string? content);
     IAsyncEnumerable<ContentType?> GetAllStream<ContentType>(CancellationToken token);
-}
-
-public class MatchScore
-{
-    public int Hits { get; init; } = 0;
-    public object? Details { get; init; }
 }
 
 public class Cache : IDisposable, ICache
@@ -122,7 +116,7 @@ public class Cache : IDisposable, ICache
     }
 
     // search movie fields from tmdb for keywords and count hits for each movie
-    public async Task<IEnumerable<MatchScore>> FindQueryHits<ResponseType>(IEnumerable<string> keywords, int minimum_hits, CancellationToken token)
+    public async Task<IEnumerable<MatchScore<ResponseType>>> FindQueryHits<ResponseType>(IEnumerable<string> keywords, int minimum_hits, CancellationToken token) where ResponseType : class
     {
         //         SELECT url_hash, response, 
         //                          (CASE WHEN description_field LIKE '%apple%' THEN 1 ELSE 0 END +
@@ -141,9 +135,8 @@ public class Cache : IDisposable, ICache
 
             Debug.WriteLine(sql);
 
-            using var command = new SqliteCommand(sql, _connection);
-            var matches = await _connection.QueryAsync<MatchScore>(sql);
-            var typedMatches = matches.Select(x => new MatchScore() { Hits = x.Hits, Details = JsonConvert.DeserializeObject<ResponseType>(x.Details as string) });
+            var matches = await _connection.QueryAsync(sql);
+            var typedMatches = matches.Select(x => new MatchScore<ResponseType>() { Hits = x.Hits, Details = JsonConvert.DeserializeObject<ResponseType>(x.Details as string) });
             return typedMatches;
         }
         catch (Exception ex)

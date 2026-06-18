@@ -11,6 +11,7 @@ using SQLitePCL;
 using Microsoft.Extensions.Options;
 using shared.data;
 using Newtonsoft.Json;
+using Xunit.Internal;
 
 namespace dj.test;
 
@@ -21,6 +22,8 @@ public class ApplicationServices : IDisposable
     private IHost _host;
     private ITestOutputHelper _output;
     private List<string> _filesToDelete = new();
+
+    private CancellationTokenSource _tokenSource = new();
 
     private const string testfileDirectory = "testfiles";
     public ApplicationServices(ITestOutputHelper output)
@@ -138,13 +141,11 @@ public class ApplicationServices : IDisposable
 
         media.Should().NotBeNull();
 
-        CancellationTokenSource source = new();
-
-        await media.UpdateRepos(testfileDirectory, source.Token);
+        await media.UpdateRepos(testfileDirectory, _tokenSource.Token);
 
         var patterns = @"\.avi$".Split(';');
 
-        var results = await media.Search(patterns, source.Token);
+        var results = await media.Search(patterns, _tokenSource.Token);
 
         results.Should().NotBeEmpty();
 
@@ -192,6 +193,47 @@ public class ApplicationServices : IDisposable
         movie.Should().NotBeNull();
 
         log(JsonConvert.SerializeObject(movie));
+    }
+
+
+    [Fact]
+    public async Task QueryLocalAndRemoteMovies()
+    {
+        var client = _host.Services.GetRequiredService<shared.TMDB.ITMDB>();
+
+        var movieName = "Inglourious Basterds";
+
+        var remoteMatches = await client.QueryMovies(movieName);
+
+        remoteMatches.Should().NotBeNull();
+
+        remoteMatches.results.Should().NotBeNull();
+
+        remoteMatches.results.Count().Should().BeGreaterThan(0);
+
+        remoteMatches.results.ForEach(x => log(x.id.ToString()));
+
+        remoteMatches.results[0].id.Should().NotBeNull();
+
+        var movie = client.GetMovie((int)remoteMatches.results[0]!.id!);
+
+        movie.Should().NotBeNull();
+
+        log("Remote movie details");
+
+        log(JsonConvert.SerializeObject(movie));
+
+        var media = _host.Services.GetRequiredService<IMediaCollection>();
+
+        await media.Initialize(_tokenSource.Token);
+
+        var keywords = SearchHelpers.SanitizeForSearch(movieName, false, _tokenSource.Token);
+
+        var localMatches = await media.Match<shared.data.File>(keywords, _tokenSource.Token);
+
+        localMatches.Should().NotBeNullOrEmpty();
+
+        localMatches.Select(x => x.Details as shared.data.File).ForEach(x => Debug.WriteLine(Path.GetFileName(x.path)));
     }
 
 
