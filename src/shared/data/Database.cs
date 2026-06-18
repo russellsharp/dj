@@ -34,6 +34,7 @@ public interface IDatabase
     void Dispose();
     void EnsureConnected();
     Task<File?> File(string path);
+    Task<bool> FileExists(string filePath);
     Task<IEnumerable<File>> Files();
     Task<IEnumerable<File>> Files(IEnumerable<string> paths);
     Task<IEnumerable<File>> FilesByDirectory(IEnumerable<string> paths);
@@ -249,6 +250,21 @@ public class Database : IDisposable, IDatabase
         catch (Exception ex)
         {
             Debug.WriteLine($"WHAT {ex}");
+        }
+    }
+
+    public async Task<bool> FileExists(string filePath)
+    {
+        const string sql = @"SELECT EXISTS (SELECT 1 FROM file WHERE path_hash = @path_hash)";
+        try
+        {
+            var path_hash = FileHelper.HashString(filePath);
+            return await _connection.ExecuteScalarAsync<bool>(sql, new { path_hash = path_hash });
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Exception while checking for file entry: {ex}");
+            throw;
         }
     }
 

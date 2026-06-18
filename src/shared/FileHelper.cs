@@ -126,11 +126,15 @@ public static class FileHashes
 
     public static async Task<string> HashFsStackSpan(string filePath, CancellationToken token)
     {
-        using FileStream fs = File.OpenRead(filePath);
-        Span<byte> hashBuffer = stackalloc byte[32];
-        int bytesWritten = SHA256.HashData(fs, hashBuffer);
-        fs.Close();
-        return Convert.ToHexString(hashBuffer);
+        using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 4096, FileOptions.SequentialScan);
+
+        // using FileStream fs = File.OpenRead(filePath);
+        // Span<byte> hashBuffer = stackalloc byte[32];
+        // int bytesWritten = SHA256.HashData(fs, hashBuffer);
+        // fs.Close();
+        // return Convert.ToHexString(hashBuffer);
+        byte[] hashBytes = SHA256.HashData(fs);
+        return Convert.ToHexStringLower(hashBytes);
     }
 
     public static async Task<string> HashFsMemoryBuffer(string filePath, CancellationToken token)

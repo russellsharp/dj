@@ -1,7 +1,11 @@
+using System.Collections.Concurrent;
 using System.Collections.Immutable;
+using System.Diagnostics;
+using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
 using shared.data;
+using WeCantSpell.Hunspell;
 
 namespace shared;
 
@@ -11,7 +15,8 @@ public interface IMediaCollection
     Task Clear(CancellationToken token);
     Task<shared.data.File?> GetFile(string filePath);
     Task UpdateRepos(string baseDirectory, CancellationToken token);
-    Task<IEnumerable<string>> Search(string pattern, CancellationToken token);
+    Task<IEnumerable<string>> Search(IEnumerable<string> patterns, CancellationToken token);
+    Task<IEnumerable<shared.data.File>> Match(IEnumerable<string> keywords, CancellationToken token);
 }
 
 public class MediaCollection : IMediaCollection
@@ -19,7 +24,7 @@ public class MediaCollection : IMediaCollection
     private readonly MediaReaderConfiguration _configuration;
 
     private Dictionary<string, shared.data.File> _mediaRepo;
-    private Dictionary<string, DirectoryInfo> _directoryRepo;
+    // private Dictionary<string, DirectoryInfo> _directoryRepo;
 
     private CancellationTokenSource _tokenSource = new();
 
@@ -31,7 +36,7 @@ public class MediaCollection : IMediaCollection
 
         _mediaRepo = [];
 
-        _directoryRepo = [];
+        // _directoryRepo = [];
 
         _db = db;
     }
@@ -86,28 +91,27 @@ public class MediaCollection : IMediaCollection
 
         try
         {
-            _directoryRepo = Directory.EnumerateDirectories(mediaDirectory)
-                .AsParallel().WithCancellation(token)
-                .ToDictionary(x => x, x => new DirectoryInfo(x));
+            List<string> extensions = _configuration.VideoExtensions.ToLower().Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+            extensions.AddRange(_configuration.AudioExtensions.ToLower().Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+            extensions = extensions.Select(x =>
+            {
+                if (x[0] != '.') return '.' + x;
+                else { return x; }
+            }).ToList();
 
-            // add the base directory to include files in it
-            _directoryRepo.Add(mediaDirectory, new DirectoryInfo(mediaDirectory));
-
-            var fileList = _directoryRepo.Keys
-                .AsParallel().WithCancellation(token)
-                .SelectMany(x => Directory.EnumerateFiles(x)).ToList();
-
-            var filesTaks = fileList.Select(async x => await FileHelper.PathToFile(x, _tokenSource.Token)).ToList();
-
-            var filesData = await Task.WhenAll(filesTaks);
-
-            _mediaRepo = filesData.ToDictionary(x => x.path, x => x);
+            var fileList = Directory.EnumerateFiles(mediaDirectory, "*", SearchOption.AllDirectories).Where(x => extensions.Contains(Path.GetExtension(x).ToLower()));
 
             _db.EnsureConnected();
 
-            await _db.Truncate();
+            var filesTasks = fileList.Select(async x => await ProcessFile(x, _tokenSource.Token)).ToList();
 
-            await _db.InsertOrUpdate(filesData);
+            //process all files in ~MaximumBagSize chunks
+            await Task.WhenAll(filesTasks);
+
+            //files remaining to store
+            Debug.WriteLine(_filesToStore.Count());
+            await _db.InsertOrUpdate(_filesToStore);
+            _filesToStore.Clear();
 
             _mediaRepo = (await _db.Files()).ToDictionary(x => x.path, x => x);
 
@@ -119,25 +123,87 @@ public class MediaCollection : IMediaCollection
         }
     }
 
-    public async Task<IEnumerable<string>> Search(string pattern, CancellationToken token)
+    private ConcurrentBag<shared.data.File> _filesToStore = new();
+    private int MaximumBagSize = 20;
+    private Lock _processFileQueueLock = new();
+    private static int _fileCount = 0;
+
+    public async Task ProcessFile(string filePath, CancellationToken token)
     {
-        if (string.IsNullOrEmpty(pattern)) throw new ArgumentNullException($"Pattern is null or empty: {pattern}");
+        if (!await _db.FileExists(filePath))
+        {
+            var newFile = await FileHelper.PathToFile(filePath, token);
+            _filesToStore.Add(newFile);
+        }
+
+        int count = Interlocked.Increment(ref _fileCount);
+        Debug.WriteLine($"Files processed: {count}");
+
+        if (_filesToStore.Count() > MaximumBagSize)
+        {
+            if (Monitor.TryEnter(_processFileQueueLock))
+            {
+                _ = Task.Run(() =>
+                {
+                    try
+                    {
+                        Debug.WriteLine($"Files stored: {_filesToStore.Count()}");
+                        _db.InsertOrUpdate(_filesToStore);
+                        _filesToStore.Clear();
+                    }
+                    finally
+                    {
+                        if (Monitor.IsEntered(_processFileQueueLock))
+                        {
+                            Monitor.Exit(_processFileQueueLock);
+                        }
+                    }
+                }
+                , token);
+            }
+        }
+
+    }
+
+    public async Task<IEnumerable<string>> Search(IEnumerable<string> patterns, CancellationToken token)
+    {
+        if (patterns is null || !patterns.Any()) throw new ArgumentNullException($"Patterns are empty.");
 
         if (_mediaRepo is null || !_mediaRepo.Any())
         {
             return Enumerable.Empty<string>();
         }
 
-        var filtered = _mediaRepo
-                .AsParallel().WithCancellation(token)
-                .Where(x => Regex.IsMatch(Path.GetFileName(x.Value.path), pattern, RegexOptions.IgnoreCase)).ToList();
+        var filtered = new List<string>();
 
-        if (!filtered.Any())
+        _mediaRepo.Keys.ToList().ForEach(x => Debug.WriteLine(x));
+        foreach (var pattern in patterns)
         {
-            return Enumerable.Empty<string>();
+            filtered.AddRange(_mediaRepo.Keys
+                    .AsParallel().WithCancellation(token)
+                    .Where(x => Regex.IsMatch(x, pattern, RegexOptions.IgnoreCase)));
         }
 
-        return filtered.Select(x => x.Key).ToImmutableList();
+        return filtered.ToImmutableList();
+    }
+
+    public async Task<IEnumerable<shared.data.File>> Match(IEnumerable<string> keywords, CancellationToken token)
+    {
+        if (!keywords.Any()) throw new ArgumentNullException("Keywords are empty");
+
+        if (_mediaRepo is null || !_mediaRepo.Any())
+        {
+            return Enumerable.Empty<shared.data.File>();
+        }
+
+        var filtered = new List<shared.data.File>();
+
+        foreach (var keyword in keywords)
+        {
+            filtered.AddRange(_mediaRepo.Values.Where(x => x.path.ToLower().Contains(keyword.ToLower())));
+        }
+
+        return filtered.DistinctBy(x => x.path);
     }
 
     public async Task<shared.data.File?> GetFile(string filePath)

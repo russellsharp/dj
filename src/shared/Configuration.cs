@@ -7,17 +7,6 @@ using System.Threading.Tasks;
 
 namespace shared;
 
-public class Configuration
-{
-    public const string SectionName = nameof(Configuration);
-    public MediaReaderConfiguration Reader { init; get; } = new()
-    {
-        BaseDirectory = string.Empty,
-        Filter = string.Empty,
-        DirectoryRecursionDepth = 50
-    };
-}
-
 public class MediaReaderConfiguration
 {
     public const string SectionName = nameof(MediaReaderConfiguration);
@@ -38,6 +27,8 @@ public class MediaReaderConfiguration
 
     public required string Filter { set; get; } = "*.*;*.";
     public required int DirectoryRecursionDepth { set; get; } = 50;
+    public string VideoExtensions { get; set; } = @"avi;mp4$;mkv;wmv;mpg;mkv";
+    public string AudioExtensions { get; set; } = @"mp3;m4a;aac;";
 
     public override string ToString()
     {

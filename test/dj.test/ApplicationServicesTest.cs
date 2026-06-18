@@ -10,6 +10,7 @@ using System.Diagnostics;
 using SQLitePCL;
 using Microsoft.Extensions.Options;
 using shared.data;
+using Newtonsoft.Json;
 
 namespace dj.test;
 
@@ -36,6 +37,14 @@ public class ApplicationServices : IDisposable
         _host = _builder.Build();
     }
 
+    internal void log(object? message)
+    {
+        var msg = Convert.ToString(message) ?? "Message was null!";
+        Debug.WriteLine(msg);
+        Console.WriteLine(msg);
+        _output.WriteLine(msg);
+    }
+
     private void LoadTestConfigs()
     {
         var mediaConfig = new MediaReaderConfiguration
@@ -49,10 +58,11 @@ public class ApplicationServices : IDisposable
 
         var databaseConfig = new DatabaseConfiguration
         {
-            DataFile = "testdatabase/testmedia.db",
+            DataFile = "testdata/testmedia.db",
         };
 
-        _builder.Services.AddSingleton(Options.Create(databaseConfig));
+        _builder.Services.AddSingleton(Options.Create(databaseConfig))
+                        .Configure<shared.EndpointConfig>(_builder.Configuration.GetSection("TMDB"));
     }
 
     [Fact]
@@ -86,7 +96,7 @@ public class ApplicationServices : IDisposable
 
         var pattern = @".+\.avi$";
 
-        var searchResult = await media.Search(pattern, source.Token);
+        var searchResult = await media.Search([pattern], source.Token);
 
         searchResult.Should().NotBeNull();
 
@@ -110,9 +120,7 @@ public class ApplicationServices : IDisposable
 
         var patterns = @".+\.avi$;\.mp3$".Split(';');
 
-        var searchTasks = patterns?.Select(async x => await media.Search(x, source.Token)) ?? Enumerable.Empty<Task<IEnumerable<string>>>();
-
-        var searchResults = await Task.WhenAll(searchTasks);
+        var searchResults = await media.Search(patterns, source.Token);
 
         var searchResult = searchResults.ToList().SelectMany(x => x);
 
@@ -136,21 +144,56 @@ public class ApplicationServices : IDisposable
 
         var patterns = @"\.avi$".Split(';');
 
-        var searchTasks = patterns?.Select(async x => await media.Search(x, source.Token)) ?? Enumerable.Empty<Task<IEnumerable<string>>>();
+        var results = await media.Search(patterns, source.Token);
 
-        var results = await Task.WhenAll(searchTasks);
+        results.Should().NotBeEmpty();
 
-        var searchResult = results.ToList().SelectMany(x => x).ToList();
-
-        searchResult.Should().NotBeEmpty();
-
-        var info = media.GetFile(searchResult[0]);
+        var info = media.GetFile(results.ToList()[0]);
 
         info.Should().NotBeNull();
 
         _output.WriteLine(info.ToString());
 
     }
+
+    [Fact]
+    public async Task GetMovieDetails()
+    {
+        var client = _host.Services.GetRequiredService<shared.TMDB.ITMDB>();
+
+        var movieDetails = await client.GetMovie(11);
+
+        movieDetails.Should().NotBeNull();
+
+        movieDetails.adult.Should().BeFalse();
+
+        movieDetails.budget.Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task QueryMovieAndDetails()
+    {
+        var client = _host.Services.GetRequiredService<shared.TMDB.ITMDB>();
+
+        var matches = await client.QueryMovies("Star Wars");
+
+        matches.Should().NotBeNull();
+
+        matches.results.Should().NotBeNull();
+
+        matches.results.Count().Should().BeGreaterThan(0);
+
+        matches.results.ForEach(x => log(x.id.ToString()));
+
+        matches.results[0].id.Should().NotBeNull();
+
+        var movie = client.GetMovie((int)matches.results[0]!.id!);
+
+        movie.Should().NotBeNull();
+
+        log(JsonConvert.SerializeObject(movie));
+    }
+
 
     private async Task CreateTestFile(int count, long sizeKb = 250, byte filler = (byte)'w', string extension = "avi")
     {

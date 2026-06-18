@@ -1,0 +1,316 @@
+using System.Data;
+using Microsoft.Data.Sqlite;
+using Dapper;
+using Microsoft.Extensions.Options;
+using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
+using System.Collections.Concurrent;
+using shared.TMDB.Models;
+using System.Net.Mime;
+using SQLitePCL;
+using Newtonsoft.Json;
+using System.Text.Json;
+namespace shared.TMDB;
+
+public interface ICache
+{
+    void Connect();
+    void Disconnect();
+    void Dispose();
+    void EnsureConnected();
+    bool IsConnected();
+    void Create();
+    Task Truncate();
+    Task<IEnumerable<MatchScore>> FindQueryHits<ResponseType>(IEnumerable<string> keywords, int minimum_hits, CancellationToken token);
+    bool Get<ResponseType>(string tmdb_request_url, out ResponseType? response);
+    Task Store<ResponseType>(string requestUrl, string? content);
+    IAsyncEnumerable<ContentType?> GetAllStream<ContentType>(CancellationToken token);
+}
+
+public class MatchScore
+{
+    public int Hits { get; init; } = 0;
+    public object? Details { get; init; }
+}
+
+public class Cache : IDisposable, ICache
+{
+    private EndpointConfig _config;
+    private SqliteConnection? _connection = null;
+    private static readonly ConcurrentDictionary<string, object> s_databaseLocks = new();
+
+    public Cache(IOptions<EndpointConfig> config)
+    {
+        _config = config.Value;
+
+        Connect();
+
+        Create();
+    }
+
+    private string ConnectionString
+    {
+        get
+        {
+            var builder = new SqliteConnectionStringBuilder
+            {
+                DataSource = _config.DatabasePath,
+                Mode = SqliteOpenMode.ReadWriteCreate,
+                Cache = SqliteCacheMode.Shared,
+                Pooling = true
+            };
+
+            return builder.ToString();
+        }
+    }
+
+    public bool Get<ResponseType>(string tmdb_request_url, out ResponseType? response)
+    {
+        var sql = $"SELECT response FROM tmdb_cache WHERE url_hash = @request_hash AND response_type = @type";
+
+        var requestHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(tmdb_request_url)));
+        using var command = new SqliteCommand(sql, _connection);
+        try
+        {
+            command.Parameters.AddWithValue("request_hash", requestHash);
+            command.Parameters.AddWithValue("type", typeof(ResponseType).ToString());
+
+            var result = command.ExecuteScalar();
+
+            if (result != null)
+            {
+                response = JsonConvert.DeserializeObject<ResponseType>(Convert.ToString(result));
+
+                return true;
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Error while executing sql: {sql}, {ex}");
+            response = default(ResponseType);
+            throw;
+        }
+        response = default(ResponseType);
+        return false;
+    }
+
+    public async Task Store<ResponseType>(string requestUrl, string? content)
+    {
+        var sql = "INSERT INTO tmdb_cache (url_hash, response, response_type) VALUES (@request_hash, @response, @response_type) ON CONFLICT(url_hash) DO UPDATE SET response = excluded.response, response_type = excluded.response_type";
+
+        var requestHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(requestUrl)));
+        using var command = new SqliteCommand(sql, _connection);
+        command.Parameters.AddWithValue("request_hash", requestHash);
+        command.Parameters.AddWithValue("response", content);
+        command.Parameters.AddWithValue("response_type", typeof(ResponseType).ToString());
+
+        await command.ExecuteNonQueryAsync();
+    }
+
+    public async IAsyncEnumerable<ContentType?> GetAllStream<ContentType>(CancellationToken token)
+    {
+        const string sql = "SELECT * FROM tmdb_cache";
+        var dataSet = _connection.QueryUnbufferedAsync<(string hash, string response)>(sql);
+
+        await foreach (var row in dataSet.WithCancellation(token))
+        {
+            if (string.IsNullOrEmpty(row.response)) continue;
+
+            yield return JsonConvert.DeserializeObject<ContentType>(row.response);
+        }
+    }
+
+    // search movie fields from tmdb for keywords and count hits for each movie
+    public async Task<IEnumerable<MatchScore>> FindQueryHits<ResponseType>(IEnumerable<string> keywords, int minimum_hits, CancellationToken token)
+    {
+        //         SELECT url_hash, response, 
+        //                          (CASE WHEN description_field LIKE '%apple%' THEN 1 ELSE 0 END +
+        //                          CASE WHEN description_field LIKE '%banana%' THEN 1 ELSE 0 END +
+        //                          CASE WHEN description_field LIKE '%orange%' THEN 1 ELSE 0 END) AS hit_counts
+        //         FROM products
+        //         WHERE hit_count >= minimum_hits and response_type = ResponseType
+        //         ORDER BY hit_counts;
+
+        try
+        {
+            const string sqlPrefix = "SELECT response as Details, ";
+            string suffix = $" AS Hits \n FROM tmdb_cache \n WHERE Hits >= {minimum_hits} AND response_type = '{typeof(ResponseType).ToString()}' \n ORDER BY Hits;";
+            var caseStatements = keywords.Where(x => !string.IsNullOrEmpty(x)).Select(x => $"CASE WHEN response LIKE '%{x}%' THEN 1 ELSE 0 END");
+            string sql = $"{sqlPrefix} ({string.Join(" + \n", caseStatements)}) {suffix}";
+
+            Debug.WriteLine(sql);
+
+            using var command = new SqliteCommand(sql, _connection);
+            var matches = await _connection.QueryAsync<MatchScore>(sql);
+            var typedMatches = matches.Select(x => new MatchScore() { Hits = x.Hits, Details = JsonConvert.DeserializeObject<ResponseType>(x.Details as string) });
+            return typedMatches;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Error while building hit list: {ex}");
+            throw;
+        }
+
+    }
+
+    public void Connect()
+    {
+        var rootDir = Path.GetDirectoryName(Environment.ProcessPath);
+
+#pragma warning disable CS8604 // Possible null reference argument.
+        var dbPath = Path.GetFullPath(Path.Combine(rootDir, _config.DatabasePath));
+        Directory.CreateDirectory(Path.GetDirectoryName(dbPath));
+#pragma warning restore CS8604 // Possible null reference argument.
+
+        var lockObject = s_databaseLocks.GetOrAdd(dbPath, _ => new object());
+        lock (lockObject)
+        {
+            _connection = new SqliteConnection(ConnectionString);
+
+            _connection.Open();
+
+            // WAL mode allows one writer + multiple readers concurrently across connections.
+            // busy_timeout tells SQLite retry on a locked write for up to 5 s rather than
+            // immediately returning SQLITE_BUSY.
+            _connection.Execute("PRAGMA journal_mode=WAL;");
+            _connection.Execute("PRAGMA busy_timeout=5000;");
+
+            Debug.Assert(_connection.Database == "main", $"Expected main, found: {_connection.Database}");
+            Create();
+        }
+    }
+    public bool IsConnected()
+    {
+        return _connection is not null && _connection.State == ConnectionState.Open;
+    }
+
+    public void EnsureConnected()
+    {
+        if (_connection is null)
+        {
+            Connect();
+            return;
+        }
+
+        if (_connection.State != ConnectionState.Open)
+        {
+            _connection.Open();
+        }
+    }
+
+    public void Disconnect()
+    {
+        var rootDir = Path.GetDirectoryName(Environment.ProcessPath);
+
+#pragma warning disable CS8604 // Possible null reference argument.
+        var dbPath = Path.GetFullPath(Path.Combine(rootDir, _config.DatabasePath));
+#pragma warning restore CS8604 // Possible null reference argument.
+
+        var lockObject = s_databaseLocks.GetOrAdd(dbPath, _ => new object());
+        lock (lockObject)
+        {
+            SqliteConnection.ClearAllPools();
+            _connection?.Close();
+            _connection?.Dispose();
+            _connection = null;
+        }
+    }
+
+    public void Create()
+    {
+        string query = GetQueryFromResource<shared.TMDB.Cache>(QueryFiles.CreateDatabase);
+
+        using (var transaction = _connection?.BeginTransaction() ?? throw new NullReferenceException("Null database connection or failure to create transaction"))
+        {
+            try
+            {
+                using var command = new SqliteCommand(query, _connection, transaction);
+                command.ExecuteNonQuery();
+                transaction.Commit();
+            }
+            catch
+            {
+                transaction.Rollback();
+                throw;
+            }
+        }
+    }
+
+    public async Task Truncate()
+    {
+        string query = GetQueryFromResource<shared.TMDB.Cache>(QueryFiles.TruncateDatabase);
+        using (var transaction = _connection?.BeginTransaction() ?? throw new NullReferenceException("Null database connection or failure to create transaction"))
+        {
+            try
+            {
+                using var command = new SqliteCommand(query, _connection, transaction);
+                command.ExecuteNonQuery();
+                transaction.Commit();
+            }
+            catch
+            {
+                transaction.Rollback();
+                throw;
+            }
+        }
+    }
+
+    private string GetQueryFromResource<ModuleName>(string resourceName)
+    {
+        //find embedded resources in shared library
+        var assembly = typeof(ModuleName).Assembly;
+
+        string? query = null;
+
+        // assembly.GetManifestResourceNames().ToList().ForEach(x => Debug.WriteLine(x));
+
+        using (var stream = assembly.GetManifestResourceStream(resourceName))
+        {
+            if (stream is null) throw new ArgumentNullException(resourceName);
+
+            using (var reader = new StreamReader(stream))
+            {
+                query = reader.ReadToEnd();
+            }
+        }
+        return query!;
+    }
+
+    internal static class QueryFiles
+    {
+        public static string CreateDatabase = @"shared.TMDB.sql.TMDB_Create.sql";
+
+        public static string TruncateDatabase = @"shared.TMDB.sql.TMDB_Truncate.sql";
+    }
+
+    #region IDisposable
+    private int _disposed = 0;
+
+
+    public virtual void Dispose(bool disposing)
+    {
+        if (Interlocked.CompareExchange(ref _disposed, 1, 0) == 0)
+        {
+            if (disposing)
+                if (_connection != null && _connection.State == ConnectionState.Open)
+                    _connection?.Close();
+
+            //dispose unmanaged objects
+        }
+    }
+
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    ~Cache()
+    {
+        Dispose();
+    }
+
+    #endregion IDisposable
+
+}
