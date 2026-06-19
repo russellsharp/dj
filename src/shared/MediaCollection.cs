@@ -9,17 +9,25 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
 using shared.data;
+using shared.TMDB;
 using SQLitePCL;
 using WeCantSpell.Hunspell;
 
 namespace shared;
 
+public enum MediaType
+{
+    Video,
+    Audio
+}
+
 public interface IMediaCollection
 {
     Task Initialize(CancellationToken token);
     Task Clear(CancellationToken token);
-    Task<shared.data.File?> GetFile(string filePath);
     Task UpdateRepos(string baseDirectory, CancellationToken token);
+    Task<shared.data.File?> GetFile(string filePath);
+    Task<IEnumerable<shared.data.File>> Files(MediaType type);
     Task<IEnumerable<string>> Search(IEnumerable<string> patterns, CancellationToken token);
     Task<IEnumerable<MatchScore<ResponseType>>> Match<ResponseType>(IEnumerable<string> keywords, CancellationToken token) where ResponseType : class;
 }
@@ -35,7 +43,7 @@ public class MediaCollection : IMediaCollection
 
     private shared.data.IDatabase _db;
 
-    public MediaCollection(IOptions<MediaReaderConfiguration> configuration, IDatabase db)
+    public MediaCollection(IOptions<MediaReaderConfiguration> configuration, IDatabase db, ITMDB tmdb)
     {
         _configuration = configuration.Value;
 
@@ -112,6 +120,7 @@ public class MediaCollection : IMediaCollection
             var fileList = Directory.EnumerateFiles(mediaDirectory, "*", SearchOption.AllDirectories).Where(x => extensions.Contains(Path.GetExtension(x).ToLower()));
 
             _db.EnsureConnected();
+            await _db.Truncate();
 
             var filesTasks = fileList.Select(async x => await ProcessFile(x, _tokenSource.Token)).ToList();
 
@@ -119,7 +128,7 @@ public class MediaCollection : IMediaCollection
             await Task.WhenAll(filesTasks);
 
             //files remaining to store
-            Debug.WriteLine(_filesToStore.Count());
+            Debug.WriteLine($"Remaining files to store: {_filesToStore.Count()}");
             await _db.InsertOrUpdate(_filesToStore);
             _filesToStore.Clear();
 
@@ -245,5 +254,19 @@ public class MediaCollection : IMediaCollection
         {
             throw new FileNotFoundException($"FileInfo was not found: {filePath}");
         }
+    }
+
+    public async Task<IEnumerable<data.File>> Files(MediaType type)
+    {
+        var requestExtensions = type switch
+        {
+            MediaType.Audio => _configuration.AudioExtensions.Split(';').Select(x => { if (x[0] != '.') { return $".{x}"; } else { return x; } }),
+            MediaType.Video => _configuration.VideoExtensions.Split(';').Select(x => { if (x[0] != '.') { return $".{x}"; } else { return x; } }),
+            _ => ["*"]
+        };
+
+        var files = _mediaRepo.Values.Where(x => requestExtensions.Contains(Path.GetExtension(x.path)));
+
+        return files;
     }
 }

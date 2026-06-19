@@ -12,12 +12,12 @@ namespace shared.TMDB;
 public interface IRepo
 {
     void Dispose();
-    Task<MovieQueryResponse?> QueryMovie(string query, int page = 1);
+    Task<MovieQueryResponse?> Query(string query, int page = 1);
     bool TryMovie(long id, out MovieDetailsResponse? movie);
     MovieDetailsResponse? Movie(long id);
     bool TryMovieGenres(out GenreResponse? genre);
     GenreResponse? MovieGenres();
-    Task<IEnumerable<MatchScore<ResponseType>>> FindQueryHits<ResponseType>(IEnumerable<string> keywords, int v, CancellationToken token) where ResponseType : class;
+    Task<IEnumerable<MatchScore<ResponseType>>> QueryTitle<ResponseType>(IEnumerable<string> keywords, int v, CancellationToken token) where ResponseType : class;
 }
 
 public class Repo : IDisposable, IRepo
@@ -49,7 +49,7 @@ public class Repo : IDisposable, IRepo
     private string Language = "en-US";
     private bool IncludeAdult = true;
 
-    public async Task<MovieQueryResponse?> QueryMovie(string query, int page = 1)
+    public async Task<MovieQueryResponse?> Query(string query, int page = 1)
     {
         var request = new RestRequest("search/movie", Method.Get);
         request.AddQueryParameter("query", query);
@@ -94,14 +94,13 @@ public class Repo : IDisposable, IRepo
         return genre != null;
     }
 
-    public GenreResponse? MovieGenres()
+    public GenreResponse MovieGenres()
     {
-        GenreResponse genres;
-        TryMovieGenres(out genres);
+        TryMovieGenres(out GenreResponse genres);
         return genres;
     }
 
-    public async Task<IEnumerable<MatchScore<ResponseType>>> FindQueryHits<ResponseType>(IEnumerable<string> keywords, int minimum_hits, CancellationToken token) where ResponseType : class
+    public async Task<IEnumerable<MatchScore<ResponseType>>> QueryTitle<ResponseType>(IEnumerable<string> keywords, int minimum_hits, CancellationToken token) where ResponseType : class
     {
         return await _cache.FindQueryHits<ResponseType>(keywords, minimum_hits, token);
     }
@@ -130,6 +129,45 @@ public class Repo : IDisposable, IRepo
                 return new ResponseType();
             }
         }
+    }
+
+    public async Task<List<MatchScore<MovieDetailsResponse>>> QueryMatches(string searchTerm, int minimumHitCount = 100, CancellationToken? token = null)
+    {
+        var keywords = SearchHelpers.SanitizeForSearch(searchTerm, token ?? _tokenSource.Token, 3, true); ;
+
+        //query results
+        var queryHits = await QueryTitle<MovieQueryResponse>(keywords, 1, token ?? _tokenSource.Token);
+
+        var resultDetails = queryHits.Where(x => x.Hits > 1).Select(x => x.Details);
+
+        //get full movie details
+        var movies = new List<MovieDetailsResponse?>();
+
+        var resultMovies = resultDetails.SelectMany(x => x.results).DistinctBy(x => x.id).Where(x => x.adult == false);
+
+        resultMovies.ToList().ForEach(x => movies.Add(Movie((long)x.id)));
+
+        // match movie titles
+        var matchedMovies = new Dictionary<int, MatchScore<MovieDetailsResponse>>();
+
+        foreach (var movie in movies)
+        {
+            if (movie is null) continue;
+
+            var matchCount = SearchHelpers.MatchString(keywords, movie.title, token ?? _tokenSource.Token) * _config.TitleWeight;
+            matchCount += SearchHelpers.MatchString(keywords, movie.overview, token ?? _tokenSource.Token) * _config.OverviewWeight;
+
+            if (matchedMovies.ContainsKey(movie.id))
+            {
+                matchedMovies[movie.id].Hits += matchCount;
+            }
+            else
+            {
+                matchedMovies.Add(movie.id, new MatchScore<MovieDetailsResponse> { Hits = matchCount, Details = movie });
+            }
+        }
+
+        return matchedMovies.Values.ToList();
     }
 
     #region IDisposable

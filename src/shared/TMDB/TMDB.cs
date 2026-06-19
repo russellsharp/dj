@@ -8,6 +8,7 @@ namespace shared.TMDB
     {
         Task<MovieDetailsResponse?> GetMovie(int id);
         Task<MovieQueryResponse> QueryMovies(string query, int page = 1);
+        List<Genre> GetGenres();
     }
 
     public class TMDB : ITMDB
@@ -19,6 +20,11 @@ namespace shared.TMDB
             _repo = repo;
         }
 
+        public List<Genre> GetGenres()
+        {
+            return _repo.MovieGenres().Genres;
+        }
+
         public async Task<MovieDetailsResponse?> GetMovie(int id)
         {
             var result = _repo.TryMovie(id, out MovieDetailsResponse? movie);
@@ -28,7 +34,7 @@ namespace shared.TMDB
 
         public async Task<MovieQueryResponse> QueryMovies(string query, int page = 1)
         {
-            return await _repo.QueryMovie(query, page);
+            return await _repo.Query(query, page);
         }
     }
 }

@@ -7,6 +7,7 @@ using shared;
 using Xunit.Internal;
 using System.Text.Json;
 using Newtonsoft.Json;
+using System.Data.Common;
 
 namespace dj.test;
 
@@ -18,7 +19,9 @@ public class TMDB(ITestOutputHelper _output)
         ApiKey = Repo.SUPER_SECRET_API_KEY,
         DatabasePath = "testdata/tmdb.db",
         RequestLimit = 40,
-        RequestWindowSeconds = 10
+        RequestWindowSeconds = 10,
+        TitleWeight = 100,
+        OverviewWeight = 1
     });
 
     internal void log(string msg)
@@ -34,7 +37,7 @@ public class TMDB(ITestOutputHelper _output)
         CancellationTokenSource tokenSource = new();
         using Repo client = new(BasicOptions, new Cache(BasicOptions), tokenSource);
 
-        var movies = await client.QueryMovie("Star Wars", 1);
+        var movies = await client.Query("Star Wars", 1);
 
         movies.Should().NotBeNull();
 
@@ -93,11 +96,11 @@ public class TMDB(ITestOutputHelper _output)
 
         var searchTerm = "Star Wars".ToLower();
 
-        var queryResult = await repo.QueryMovie(searchTerm);
+        var queryResult = await repo.Query(searchTerm);
 
-        var keywords = SearchHelpers.SanitizeForSearch(searchTerm, true, tokenSource.Token); ;
+        var keywords = SearchHelpers.SanitizeForSearch(searchTerm, tokenSource.Token, -1, true); ;
 
-        var queryHits = await repo.FindQueryHits<MovieQueryResponse>(keywords, 1, tokenSource.Token);
+        var queryHits = await repo.QueryTitle<MovieQueryResponse>(keywords, 1, tokenSource.Token);
 
         queryHits.Should().NotBeNull();
 
@@ -131,19 +134,20 @@ public class TMDB(ITestOutputHelper _output)
 
         var searchTerm = "Training Day";
 
-        var queryResult = await repo.QueryMovie(searchTerm);
+        var queryResult = await repo.Query(searchTerm);
 
-        var keywords = SearchHelpers.SanitizeForSearch(searchTerm, true, tokenSource.Token); ;
+        var keywords = SearchHelpers.SanitizeForSearch(searchTerm, tokenSource.Token, -1, true); ;
 
         //query results
-        var queryHits = await repo.FindQueryHits<MovieQueryResponse>(keywords, 1, tokenSource.Token);
+        var queryHits = await repo.QueryTitle<MovieQueryResponse>(keywords, 1, tokenSource.Token);
 
         queryHits.Should().NotBeNull();
 
         queryHits.Count().Should().BeGreaterThan(0);
 
-        var resultDetails = queryHits.Where(x => x.Hits > 1).Select(x => x.Details as MovieQueryResponse);
+        var resultDetails = queryHits.Where(x => x.Hits > 1).Select(x => x.Details);
 
+        //get full movie details
         var movies = new List<MovieDetailsResponse?>();
 
         var resultMovies = resultDetails.SelectMany(x => x.results).DistinctBy(x => x.id).Where(x => x.adult == false);
@@ -158,10 +162,45 @@ public class TMDB(ITestOutputHelper _output)
 
         movies.Should().NotBeEmpty();
 
-        var matchedMovies = movies.ToList().Where(x => keywords.Count() / SearchHelpers.MatchFileName(keywords, x.title, tokenSource.Token) > 0.45);
+        // match movie titles
+        var matchedMovies = new Dictionary<int, MatchScore<MovieDetailsResponse>>();
+
+        foreach (var movie in movies)
+        {
+            if (movie is null) continue;
+
+            var matchCount = SearchHelpers.MatchString(keywords, movie.title, tokenSource.Token) * BasicOptions.Value.TitleWeight;
+            matchCount += SearchHelpers.MatchString(keywords, movie.overview, tokenSource.Token) * BasicOptions.Value.OverviewWeight;
+
+            if (matchedMovies.ContainsKey(movie.id))
+            {
+                matchedMovies[movie.id].Hits += matchCount;
+            }
+            else
+            {
+                matchedMovies.Add(movie.id, new MatchScore<MovieDetailsResponse> { Hits = matchCount, Details = movie });
+            }
+        }
+
+        int minimumHitCount = keywords.Count();
+        Debug.WriteLine("----------------------------");
+        matchedMovies.Where(x => x.Value.Hits >= minimumHitCount).ForEach(x => Debug.WriteLine($"{x.Value.Hits} - {x.Value.Details.title}"));
+    }
+
+    [Fact]
+    public async Task GetTotalScoreForQuery()
+    {
+        CancellationTokenSource tokenSource = new();
+
+        var minimumHitCount = 100;
+
+        using Repo repo = new(BasicOptions, new Cache(BasicOptions), tokenSource);
+
+        var searchTerm = "Training Day";
+
+        var queryMatches = await repo.QueryMatches(searchTerm, minimumHitCount);
 
         Debug.WriteLine("----------------------------");
-
-        matchedMovies.ForEach(x => Debug.WriteLine(x.title));
+        queryMatches.Where(x => x.Hits >= minimumHitCount).ToList().ForEach(x => Debug.WriteLine($"{x.Hits} - {x.Details.id} - {x.Details.title} - {x.Details.vote_count} - {x.Details.budget} - {x.Details.overview.Substring(0, 20)}"));
     }
 }

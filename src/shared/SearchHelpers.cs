@@ -10,26 +10,28 @@ namespace shared
 {
     public static class SearchHelpers
     {
-        private const string CharsToRemove = " ()[],-.";
+        //do not remove spaces to preserve tokens for keywords
+        private const string CharsToRemove = "()[],-.";
 
-        public static int MatchFileName(IEnumerable<string> keywords, string filePath, CancellationToken token)
+        //split on spaces to create keywords
+        private const string CharsToSplitOn = " ()[],-.";
+
+        public static int MatchString(IEnumerable<string> keywords, string content, CancellationToken token)
         {
-
-            if (string.Join(' ', keywords) == SanitizeFileName(filePath, token)) return 1;
-            var fileWords = SanitizeForSearch(filePath, false, token);
-            return fileWords.Union(keywords).Count();
+            if (string.Join(' ', keywords) == SanitizeContent(content, token)) return keywords.Count();
+            var fileWords = SanitizeForSearch(content, token, 3, false);
+            return fileWords.Intersect(keywords).Count();
         }
 
-        public static string SanitizeFileName(string filePath, CancellationToken token)
+        public static string SanitizeContent(string content, CancellationToken token)
         {
-            var fileName = Path.GetFileNameWithoutExtension(filePath).ToLower();
-            return new string(fileName.Where(c => !CharsToRemove.Contains(c)).ToArray()).Trim();
+            var fileName = Path.GetFileNameWithoutExtension(content).ToLower();
+            return fileName.Where(c => !CharsToRemove.Contains(c)).ToString().Trim();
         }
 
-        public static IEnumerable<string> SanitizeForSearch(string filePath, bool enforceDictionary, CancellationToken token)
+        public static IEnumerable<string> SanitizeForSearch(string filePath, CancellationToken token, int pathDepth = 3, bool enforceDictionary = true)
         {
-            var movieFileName = Path.GetFileNameWithoutExtension(filePath).ToLower();
-            var movieKeywords = movieFileName.Split(CharsToRemove.ToCharArray(), StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            var movieKeywords = filePath.Split(CharsToSplitOn.ToCharArray(), StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
             var sanitizedKeywords = new List<string>();
 
@@ -44,6 +46,7 @@ namespace shared
 
                 foreach (var word in movieKeywords)
                 {
+
                     //exempt large numbers.  Years screw with the TMDB search.
                     if (dictionary.Check(word.ToLower(), token) && (!int.TryParse(word, out int value) || word.Length < 3))
                     {

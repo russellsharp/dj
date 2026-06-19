@@ -140,7 +140,7 @@ public class MovieDetailsResponse
     public string homepage;
 
     [JsonPropertyName("id")]
-    public int? id;
+    public int id;
 
     [JsonPropertyName("imdb_id")]
     public string imdb_id;

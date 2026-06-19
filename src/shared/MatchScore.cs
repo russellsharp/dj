@@ -7,7 +7,7 @@ namespace shared
 {
     public class MatchScore<ContainedType> where ContainedType : class
     {
-        public int Hits { get; set; } = 0;
+        public long Hits { get; set; } = 0;
         public ContainedType? Details { get; set; }
     }
 }

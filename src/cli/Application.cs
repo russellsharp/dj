@@ -44,11 +44,11 @@ public class Application(IMediaCollection _mediaCollection, IRepo _repo, Cancell
 
             foreach (var movieFilePath in fileMatches.Take(600))
             {
-                var keywords = SearchHelpers.SanitizeForSearch(movieFilePath, true, _tokenSource.Token);
+                var keywords = SearchHelpers.SanitizeForSearch(movieFilePath, _tokenSource.Token, 3, true);
 
                 Debug.WriteLine(string.Join(" ", keywords));
 
-                var result = await _repo.QueryMovie(string.Join(" ", keywords));
+                var result = await _repo.Query(string.Join(" ", keywords));
 
                 if (result != null && result!.results.Any())
                 {

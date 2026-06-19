@@ -227,7 +227,7 @@ public class ApplicationServices : IDisposable
 
         await media.Initialize(_tokenSource.Token);
 
-        var keywords = SearchHelpers.SanitizeForSearch(movieName, false, _tokenSource.Token);
+        var keywords = SearchHelpers.SanitizeForSearch(movieName, _tokenSource.Token, 3, false);
 
         var localMatches = await media.Match<shared.data.File>(keywords, _tokenSource.Token);
 

@@ -11,4 +11,6 @@ public class EndpointConfig
     public int RequestWindowSeconds { init; get; } = 10;
     public int AttemptCountMax { init; get; } = 10;
     public int BackOffTimeMs { init; get; } = 1000;
+    public int TitleWeight { init; get; } = 100;
+    public int OverviewWeight { init; get; } = 1;
 }
