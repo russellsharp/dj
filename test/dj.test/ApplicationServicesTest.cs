@@ -95,7 +95,7 @@ public class ApplicationServices : IDisposable
 
         CancellationTokenSource source = new();
 
-        await media.UpdateRepos(testfileDirectory, source.Token);
+        await media.UpdateRepos(testfileDirectory, false, source.Token);
 
         var pattern = @".+\.avi$";
 
@@ -119,7 +119,7 @@ public class ApplicationServices : IDisposable
 
         CancellationTokenSource source = new();
 
-        await media.UpdateRepos(testfileDirectory, source.Token);
+        await media.UpdateRepos(testfileDirectory, false, source.Token);
 
         var patterns = @".+\.avi$;\.mp3$".Split(';');
 
@@ -141,7 +141,7 @@ public class ApplicationServices : IDisposable
 
         media.Should().NotBeNull();
 
-        await media.UpdateRepos(testfileDirectory, _tokenSource.Token);
+        await media.UpdateRepos(testfileDirectory, false, _tokenSource.Token);
 
         var patterns = @"\.avi$".Split(';');
 
@@ -229,7 +229,7 @@ public class ApplicationServices : IDisposable
 
         var keywords = SearchHelpers.SanitizeForSearch(movieName, _tokenSource.Token, 3, false);
 
-        var localMatches = await media.Match<shared.data.File>(keywords, _tokenSource.Token);
+        var localMatches = await media.FindInPath<shared.data.File>(keywords, _tokenSource.Token);
 
         localMatches.Should().NotBeNullOrEmpty();
 

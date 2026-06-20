@@ -53,7 +53,7 @@ public class Repo : IDisposable, IRepo
     {
         var request = new RestRequest("search/movie", Method.Get);
         request.AddQueryParameter("query", query);
-        request.AddQueryParameter("include_adult", IncludeAdult);
+        request.AddQueryParameter("include_adult", _config.IncludeAdult);
         request.AddQueryParameter("page", page);
         request.AddQueryParameter("language", Language);
         request.AddHeader("accept", "application/json");

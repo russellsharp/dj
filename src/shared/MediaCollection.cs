@@ -10,6 +10,7 @@ using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
 using shared.data;
 using shared.TMDB;
+using shared.TMDB.Models;
 using SQLitePCL;
 using WeCantSpell.Hunspell;
 
@@ -25,11 +26,11 @@ public interface IMediaCollection
 {
     Task Initialize(CancellationToken token);
     Task Clear(CancellationToken token);
-    Task UpdateRepos(string baseDirectory, CancellationToken token);
+    Task UpdateRepos(string baseDirectory, bool truncateDatabase = false, CancellationToken? token = null);
     Task<shared.data.File?> GetFile(string filePath);
     Task<IEnumerable<shared.data.File>> Files(MediaType type);
-    Task<IEnumerable<string>> Search(IEnumerable<string> patterns, CancellationToken token);
-    Task<IEnumerable<MatchScore<ResponseType>>> Match<ResponseType>(IEnumerable<string> keywords, CancellationToken token) where ResponseType : class;
+    Task<IEnumerable<string>> Search(IEnumerable<string> patterns, CancellationToken? token);
+    Task<IEnumerable<MatchScore<ResponseType>>> FindInPath<ResponseType>(IEnumerable<string> keywords, CancellationToken? token) where ResponseType : class;
 }
 
 public class MediaCollection : IMediaCollection
@@ -87,8 +88,10 @@ public class MediaCollection : IMediaCollection
         _mediaRepo = fileData.ToDictionary(x => x.path, x => x);
     }
 
-    public async Task UpdateRepos(string baseDirectory, CancellationToken token)
+    public async Task UpdateRepos(string baseDirectory, bool truncateDatabase = false, CancellationToken? token = null)
     {
+        token ??= _tokenSource.Token;
+
         EnumerationOptions options = new()
         {
             RecurseSubdirectories = true,
@@ -104,7 +107,6 @@ public class MediaCollection : IMediaCollection
 
         try
         {
-
             _directoryRepo = Directory.EnumerateDirectories(_configuration.BaseDirectory, "*", SearchOption.AllDirectories).ToDictionary(x => x, x => new DirectoryInfo(x));
             _directoryRepo.Add(_configuration.BaseDirectory, new DirectoryInfo(_configuration.BaseDirectory));
 
@@ -120,7 +122,11 @@ public class MediaCollection : IMediaCollection
             var fileList = Directory.EnumerateFiles(mediaDirectory, "*", SearchOption.AllDirectories).Where(x => extensions.Contains(Path.GetExtension(x).ToLower()));
 
             _db.EnsureConnected();
-            await _db.Truncate();
+
+            if (truncateDatabase)
+            {
+                await _db.Truncate();
+            }
 
             var filesTasks = fileList.Select(async x => await ProcessFile(x, _tokenSource.Token)).ToList();
 
@@ -129,7 +135,21 @@ public class MediaCollection : IMediaCollection
 
             //files remaining to store
             Debug.WriteLine($"Remaining files to store: {_filesToStore.Count()}");
-            await _db.InsertOrUpdate(_filesToStore);
+
+            {
+                try
+                {
+                    Monitor.Enter(_processFileQueueLock);
+                    await _db.InsertOrUpdate(_filesToStore);
+                }
+                finally
+                {
+                    if (Monitor.IsEntered(_processFileQueueLock))
+                    {
+                        Monitor.Exit(_processFileQueueLock);
+                    }
+                }
+            }
             _filesToStore.Clear();
 
             _mediaRepo = (await _db.Files()).ToDictionary(x => x.path, x => x);
@@ -153,10 +173,9 @@ public class MediaCollection : IMediaCollection
         {
             var newFile = await FileHelper.PathToFile(filePath, token);
             _filesToStore.Add(newFile);
+            int count = Interlocked.Increment(ref _fileCount);
+            Debug.WriteLine($"Files processed: {count}");
         }
-
-        int count = Interlocked.Increment(ref _fileCount);
-        Debug.WriteLine($"Files processed: {count}");
 
         if (_filesToStore.Count() > MaximumBagSize)
         {
@@ -184,8 +203,10 @@ public class MediaCollection : IMediaCollection
 
     }
 
-    public async Task<IEnumerable<string>> Search(IEnumerable<string> patterns, CancellationToken token)
+    public async Task<IEnumerable<string>> Search(IEnumerable<string> patterns, CancellationToken? token)
     {
+        token ??= _tokenSource.Token;
+
         if (patterns is null || !patterns.Any()) throw new ArgumentNullException($"Patterns are empty.");
 
         if (_mediaRepo is null || !_mediaRepo.Any())
@@ -199,15 +220,17 @@ public class MediaCollection : IMediaCollection
         foreach (var pattern in patterns)
         {
             filtered.AddRange(_mediaRepo.Keys
-                    .AsParallel().WithCancellation(token)
+                    .AsParallel().WithCancellation(token.Value)
                     .Where(x => Regex.IsMatch(x, pattern, RegexOptions.IgnoreCase)));
         }
 
         return filtered.ToImmutableList();
     }
 
-    public async Task<IEnumerable<MatchScore<ContainedType>>> Match<ContainedType>(IEnumerable<string> keywords, CancellationToken token) where ContainedType : class
+    public async Task<IEnumerable<MatchScore<ContainedType>>> FindInPath<ContainedType>(IEnumerable<string> keywords, CancellationToken? token = null) where ContainedType : class
     {
+        token ??= _tokenSource.Token;
+
         if (!keywords.Any()) throw new ArgumentNullException("Keywords are empty");
 
         if (_mediaRepo is null || !_mediaRepo.Any())
@@ -217,9 +240,9 @@ public class MediaCollection : IMediaCollection
 
         var scoredMatches = new Dictionary<string, MatchScore<ContainedType>>();
 
-        foreach (var keyword in keywords)
+        foreach (var file in _mediaRepo.Values)
         {
-            foreach (var file in _mediaRepo.Values)
+            foreach (var keyword in keywords.Select(x => x.ToLower()))
             {
                 if (file.path.ToLower().Contains(keyword))
                 {
@@ -234,7 +257,11 @@ public class MediaCollection : IMediaCollection
                 }
             }
         }
-        return scoredMatches.Values;
+
+        // var searchTerm = new string(string.Join(' ', keywords)).ToLower();
+        // var scoredMatches = _mediaRepo.Values.Select(x => new MatchScore<ContainedType> { Details = x as ContainedType, Hits = SearchHelpers.Levenshtein(x.path, searchTerm) });
+        // return scoredMatches.Where(x => x.Hits <= 60).OrderBy(x => x.Hits);
+        return scoredMatches.Values.Where(x => x.Hits >= keywords.Count());
     }
 
     public async Task<shared.data.File?> GetFile(string filePath)

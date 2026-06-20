@@ -13,4 +13,5 @@ public class EndpointConfig
     public int BackOffTimeMs { init; get; } = 1000;
     public int TitleWeight { init; get; } = 100;
     public int OverviewWeight { init; get; } = 1;
+    public bool IncludeAdult { init; get; } = false;
 }
