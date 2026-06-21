@@ -183,7 +183,7 @@ public class ApplicationServices : IDisposable
     {
         var client = _host.Services.GetRequiredService<shared.TMDB.ITMDB>();
 
-        var matches = await client.QueryMovies("Star Wars");
+        var matches = await client.QueryTitle("Star Wars");
 
         matches.Should().NotBeNull();
 
@@ -212,7 +212,7 @@ public class ApplicationServices : IDisposable
 
         var movieName = "Inglourious Basterds";
 
-        var remoteMatches = await client.QueryMovies(movieName);
+        var remoteMatches = await client.QueryTitle(movieName);
 
         remoteMatches.Should().NotBeNull();
 
@@ -238,7 +238,7 @@ public class ApplicationServices : IDisposable
 
         await media.UpdateRepos(null, true, _tokenSource.Token);
 
-        var keywords = SearchHelpers.SanitizeForSearch(movieName, _tokenSource.Token, 3, false);
+        var keywords = SearchHelpers.SanitizeForSearch(movieName, _tokenSource.Token, false);
 
         var localMatches = await media.FindInPath<shared.data.File>(keywords, _tokenSource.Token);
 

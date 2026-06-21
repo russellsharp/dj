@@ -22,7 +22,7 @@ public static class SearchHelpers
     public static int MatchString(IEnumerable<string> keywords, string content, CancellationToken token)
     {
         if (string.Join(' ', keywords) == SanitizePath(content)) return keywords.Count();
-        var fileWords = SanitizeForSearch(content, token, 3, false);
+        var fileWords = SanitizeForSearch(content, token, false);
         return fileWords.Intersect(keywords).Count();
     }
 
@@ -31,7 +31,7 @@ public static class SearchHelpers
         return new string(content.ToLower().Select(c => !CharsToRemove.Contains(c) ? c : ' ').ToArray());
     }
 
-    public static IEnumerable<string> SanitizeForSearch(string filePath, CancellationToken token, int pathDepth = 3, bool enforceDictionary = true)
+    public static IEnumerable<string> SanitizeForSearch(string filePath, CancellationToken token, bool enforceDictionary = true)
     {
         var cleanedFilePath = new string(filePath.Select(c => !CharsToRemove.Contains(c) ? c : ' ').ToArray()).Trim();
         var movieKeywords = cleanedFilePath.Split(CharsToSplitOn.ToCharArray(), StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);

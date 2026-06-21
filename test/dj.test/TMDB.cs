@@ -122,9 +122,9 @@ public class TMDB(ITestOutputHelper _output)
 
         var queryResult = await repo.QueryTitle(searchTerm);
 
-        var keywords = SearchHelpers.SanitizeForSearch(searchTerm, tokenSource.Token, -1, true); ;
+        var keywords = SearchHelpers.SanitizeForSearch(searchTerm, tokenSource.Token, true); ;
 
-        var queryHits = await repo.QueryTitle<MovieQueryResponse>(keywords, 1, tokenSource.Token);
+        var queryHits = await repo.QueryTitle<MovieQueryResponse>(keywords, keywords.Count(), tokenSource.Token);
 
         queryHits.Should().NotBeNull();
 
@@ -160,7 +160,7 @@ public class TMDB(ITestOutputHelper _output)
 
         var queryResult = await repo.QueryTitle(searchTerm);
 
-        var keywords = SearchHelpers.SanitizeForSearch(searchTerm, tokenSource.Token, -1, true); ;
+        var keywords = SearchHelpers.SanitizeForSearch(searchTerm, tokenSource.Token, true); ;
 
         //query results
         var queryHits = await repo.QueryTitle<MovieQueryResponse>(keywords, 1, tokenSource.Token);
@@ -241,19 +241,30 @@ public class TMDB(ITestOutputHelper _output)
     }
 
     [Fact]
-    public async Task MatchByReview()
+    public async Task MatchByOverview()
     {
-        // var minimumHitCount = 10;
 
-        // using Repo repo = new(BasicOptions, new Cache(BasicOptions), _tokenSource);
+        using Repo repo = new(BasicOptions, new Cache(BasicOptions), _tokenSource);
+        ITMDB tmdb = new shared.TMDB.TMDB(repo, _tokenSource);
 
-        // var searchTerm = "First day";
+        var movies = await tmdb.QueryTitle("Training Day");
 
-        // var queryMatches = await repo.QueryMatches(searchTerm, minimumHitCount);
+        // movie details will be stored in database
+        foreach (var movie in movies.results)
+        {
+            _ = await tmdb.GetMovie(movie.id.Value);
+        }
 
-        // Debug.WriteLine("----------------------------");
-        // queryMatches.Where(x => x.Hits >= minimumHitCount).ToList().ForEach(x => Debug.WriteLine($"{x.Hits} - {x.Details.id} - {x.Details.title} - {x.Details.vote_count} - {x.Details.budget} - {x.Details.overview.Substring(0, 20)}"));
+        //search movie details in database by matching terms in their overview
+        var searchTerm = "First day".ToLower();
 
-        // ITMDB tmdb =
+        var minimumHitCount = searchTerm.Split(' ').Count();
+
+        var queryMatches = await tmdb.QueryOverviews(searchTerm, minimumHitCount);
+
+        queryMatches.Should().NotBeNullOrEmpty();
+
+        Debug.WriteLine("----------------------------");
+        queryMatches.ForEach(x => Debug.WriteLine($"Hits: {x.Hits} - TMDB ID: {x.Details.id} - {x.Details.title} - {x.Details.vote_count} - {new string(x.Details.overview.Take(20).ToArray())}..."));
     }
 }

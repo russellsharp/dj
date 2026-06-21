@@ -27,7 +27,7 @@ public interface ICache
     Task StoreTypedData<ResponseType>(ResponseType contents, CancellationToken? token = null);
     Task StoreMovieDetails(MovieDetailsResponse details, CancellationToken? token = null);
     Task<IEnumerable<MatchScore<ResponseType>>> FindQueryHits<ResponseType>(IEnumerable<string> keywords, int minimum_hits, CancellationToken token) where ResponseType : class;
-
+    Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryOverviews(IEnumerable<string> keywords, int minimumHits, CancellationToken? token = null);
 }
 
 public class Cache : IDisposable, ICache
@@ -160,7 +160,7 @@ public class Cache : IDisposable, ICache
         try
         {
             const string sqlPrefix = "SELECT response as Details, ";
-            string suffix = $" AS Hits \n FROM tmdb_cache \n WHERE Hits >= {minimum_hits} AND response_type = '{typeof(ResponseType).ToString()}' \n ORDER BY Hits;";
+            string suffix = $" AS Hits \n FROM tmdb_cache \n WHERE Hits >= {minimum_hits} AND response_type = '{typeof(ResponseType)}' \n ORDER BY Hits;";
             var caseStatements = keywords.Where(x => !string.IsNullOrEmpty(x)).Select(x => $"CASE WHEN response LIKE '%{x}%' THEN 1 ELSE 0 END");
             string sql = $"{sqlPrefix} ({string.Join(" + \n", caseStatements)}) {suffix}";
 
@@ -174,6 +174,38 @@ public class Cache : IDisposable, ICache
             throw;
         }
 
+    }
+
+    public async Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryOverviews(IEnumerable<string> keywords, int minimumHits, CancellationToken? token = null)
+    {
+        {
+            //         SELECT url_hash, response, 
+            //                          (CASE WHEN description_field LIKE '%apple%' THEN 1 ELSE 0 END +
+            //                          CASE WHEN description_field LIKE '%banana%' THEN 1 ELSE 0 END +
+            //                          CASE WHEN description_field LIKE '%orange%' THEN 1 ELSE 0 END) AS hit_counts
+            //         FROM tmdb_cache
+            //         WHERE hit_count >= minimum_hits and response_type = ResponseType
+            //         ORDER BY hit_counts;
+
+            try
+            {
+                const string sqlPrefix = "SELECT response as details, ";
+                string suffix = $" AS Hits \n FROM tmdb_cache \n WHERE response_type = '{typeof(MovieDetailsResponse)}' AND Hits >= {minimumHits} \n ORDER BY Hits;";
+                var caseStatements = keywords.Where(x => !string.IsNullOrEmpty(x)).Select(x => $"CASE WHEN response LIKE '%{x}%' THEN 1 ELSE 0 END");
+                string sql = $"{sqlPrefix} ({string.Join(" + \n", caseStatements)}) {suffix}";
+
+                Debug.WriteLine($"Querying overview: {sql}");
+
+                var matches = await _connection.QueryAsync(sql);
+                return matches.Select(x => new MatchScore<MovieDetailsResponse>() { Hits = x.Hits, Details = JsonSerializer.Deserialize<MovieDetailsResponse>(x.details as string) });
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error while building hit list: {ex}");
+                throw;
+            }
+
+        }
     }
 
     public void Connect()

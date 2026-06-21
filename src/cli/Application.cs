@@ -35,7 +35,7 @@ public class Application(IMediaCollection _mediaCollection, IRepo _repo, Cancell
 
             foreach (var movieFilePath in fileMatches.Take(600))
             {
-                var keywords = SearchHelpers.SanitizeForSearch(movieFilePath, _tokenSource.Token, 3, true);
+                var keywords = SearchHelpers.SanitizeForSearch(movieFilePath, _tokenSource.Token, true);
 
                 Debug.WriteLine(string.Join(" ", keywords));
 

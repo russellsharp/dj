@@ -58,7 +58,7 @@ public class MediaCollection
 
         await media.UpdateRepos(BasicMediaOptions.Value.BaseDirectory, false, _tokenSource.Token);
 
-        var keywords = SearchHelpers.SanitizeForSearch("Trainingwah wahDay wee", _tokenSource.Token, 3, false);
+        var keywords = SearchHelpers.SanitizeForSearch("Trainingwah wahDay wee", _tokenSource.Token, false);
 
         var matches = (await media.FindInPath<shared.data.File>(keywords, _tokenSource.Token)).Select(x => x.Details);
 
@@ -66,7 +66,7 @@ public class MediaCollection
 
         matches.ForEach(x => Debug.WriteLine(x.path));
 
-        keywords = SearchHelpers.SanitizeForSearch("Inglourious Basterds", _tokenSource.Token, 3, true);
+        keywords = SearchHelpers.SanitizeForSearch("Inglourious Basterds", _tokenSource.Token, true);
 
         var matcheScores = (await media.FindInPath<shared.data.File>(keywords, _tokenSource.Token)).ToList();
 
@@ -86,7 +86,7 @@ public class MediaCollection
 
         await media.Initialize(_tokenSource.Token);
 
-        var keywords = SearchHelpers.SanitizeForSearch("Inglourious Basterds", _tokenSource.Token, 3, false);
+        var keywords = SearchHelpers.SanitizeForSearch("Inglourious Basterds", _tokenSource.Token, false);
 
         var matcheScores = (await media.FindInPath<shared.data.File>(keywords, _tokenSource.Token)).ToList();
 
