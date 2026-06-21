@@ -49,14 +49,11 @@ public static class SearchHelpers
             var affPath = Path.GetFullPath(@"dic/index.aff");
             var dictionary = WordList.CreateFromFiles(dicPath, affPath);
 
-            Debug.WriteLine($"dic: {dicPath}, aff: {affPath}");
             foreach (var word in movieKeywords)
             {
-                Debug.WriteLine(word.ToLower());
                 //exempt large numbers.  Years screw with the TMDB search.
                 if (dictionary.Check(word.ToLower(), token) && (!int.TryParse(word, out int value)))
                 {
-                    Debug.WriteLine("diced:" + word.ToLower());
                     sanitizedKeywords.Add(word);
                 }
             }

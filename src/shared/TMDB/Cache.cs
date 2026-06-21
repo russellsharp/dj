@@ -9,7 +9,6 @@ using System.Collections.Concurrent;
 using shared.TMDB.Models;
 using System.Net.Mime;
 using SQLitePCL;
-using Newtonsoft.Json;
 using System.Text.Json;
 namespace shared.TMDB;
 
@@ -22,10 +21,13 @@ public interface ICache
     bool IsConnected();
     void Create();
     Task Truncate();
-    Task<IEnumerable<MatchScore<ResponseType>>> FindQueryHits<ResponseType>(IEnumerable<string> keywords, int minimum_hits, CancellationToken token) where ResponseType : class;
     bool Get<ResponseType>(string tmdb_request_url, out ResponseType? response);
     Task Store<ResponseType>(string requestUrl, string? content);
     IAsyncEnumerable<ContentType?> GetAllStream<ContentType>(CancellationToken token);
+    Task StoreTypedData<ResponseType>(ResponseType contents, CancellationToken? token = null);
+    Task StoreMovieDetails(MovieDetailsResponse details, CancellationToken? token = null);
+    Task<IEnumerable<MatchScore<ResponseType>>> FindQueryHits<ResponseType>(IEnumerable<string> keywords, int minimum_hits, CancellationToken token) where ResponseType : class;
+
 }
 
 public class Cache : IDisposable, ICache
@@ -74,7 +76,7 @@ public class Cache : IDisposable, ICache
 
             if (result != null)
             {
-                response = JsonConvert.DeserializeObject<ResponseType>(Convert.ToString(result));
+                response = JsonSerializer.Deserialize<ResponseType>(Convert.ToString(result));
 
                 return true;
             }
@@ -91,13 +93,16 @@ public class Cache : IDisposable, ICache
 
     public async Task Store<ResponseType>(string requestUrl, string? content)
     {
-        var sql = "INSERT INTO tmdb_cache (url_hash, response, response_type) VALUES (@request_hash, @response, @response_type) ON CONFLICT(url_hash) DO UPDATE SET response = excluded.response, response_type = excluded.response_type";
+        var sql = "INSERT INTO tmdb_cache (url_hash, url, id, response, response_type) VALUES (@request_hash, @request, @response, @response_type) ON CONFLICT(url_hash) DO UPDATE SET response = excluded.response, response_type = excluded.response_type";
 
         var requestHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(requestUrl)));
         using var command = new SqliteCommand(sql, _connection);
         command.Parameters.AddWithValue("request_hash", requestHash);
         command.Parameters.AddWithValue("response", content);
         command.Parameters.AddWithValue("response_type", typeof(ResponseType).ToString());
+        command.Parameters.AddWithValue("request", requestUrl);
+
+        await StoreTypedData(JsonSerializer.Deserialize<ResponseType>(content));
 
         await command.ExecuteNonQueryAsync();
     }
@@ -111,8 +116,34 @@ public class Cache : IDisposable, ICache
         {
             if (string.IsNullOrEmpty(row.response)) continue;
 
-            yield return JsonConvert.DeserializeObject<ContentType>(row.response);
+            yield return JsonSerializer.Deserialize<ContentType>(row.response);
         }
+    }
+
+    public async Task StoreTypedData<ResponseType>(ResponseType contents, CancellationToken? token = null)
+    {
+        switch (contents)
+        {
+            case MovieDetailsResponse details:
+            {
+                await StoreMovieDetails(contents as MovieDetailsResponse, token);
+                break;
+            }
+            default:
+            {
+                throw new NotSupportedException($"{nameof(ResponseType)} is not supported for typed storage.");
+            }
+        }
+    }
+
+    public async Task StoreMovieDetails(MovieDetailsResponse details, CancellationToken? token = null)
+    {
+        const string sql = "INSERT INTO movie_details (id, details) VALUES (@id, @Details) ON CONFLICT(id) DO UPDATE SET details = EXCLUDED.details";
+        var detailString = JsonSerializer.Serialize(details);
+        using var command = new SqliteCommand(sql, _connection);
+        command.Parameters.AddWithValue("details", detailString);
+
+        await command.ExecuteNonQueryAsync();
     }
 
     // search movie fields from tmdb for keywords and count hits for each movie
@@ -133,10 +164,8 @@ public class Cache : IDisposable, ICache
             var caseStatements = keywords.Where(x => !string.IsNullOrEmpty(x)).Select(x => $"CASE WHEN response LIKE '%{x}%' THEN 1 ELSE 0 END");
             string sql = $"{sqlPrefix} ({string.Join(" + \n", caseStatements)}) {suffix}";
 
-            Debug.WriteLine(sql);
-
             var matches = await _connection.QueryAsync(sql);
-            var typedMatches = matches.Select(x => new MatchScore<ResponseType>() { Hits = x.Hits, Details = JsonConvert.DeserializeObject<ResponseType>(x.Details as string) });
+            var typedMatches = matches.Select(x => new MatchScore<ResponseType>() { Hits = x.Hits, Details = JsonSerializer.Deserialize<ResponseType>(x.Details as string) });
             return typedMatches;
         }
         catch (Exception ex)

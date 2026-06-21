@@ -26,7 +26,7 @@ public interface IMediaCollection
 {
     Task Initialize(CancellationToken token);
     Task Clear(CancellationToken token);
-    Task UpdateRepos(string baseDirectory, bool truncateDatabase = false, CancellationToken? token = null);
+    Task UpdateRepos(string? baseDirectory = null, bool truncateDatabase = false, CancellationToken? token = null);
     Task<shared.data.File?> GetFile(string filePath);
     Task<IEnumerable<shared.data.File>> Files(MediaType type);
     Task<IEnumerable<string>> Search(IEnumerable<string> patterns, CancellationToken? token);
@@ -88,9 +88,11 @@ public class MediaCollection : IMediaCollection
         _mediaRepo = fileData.ToDictionary(x => x.path, x => x);
     }
 
-    public async Task UpdateRepos(string baseDirectory, bool truncateDatabase = false, CancellationToken? token = null)
+    public async Task UpdateRepos(string? baseDirectory = null, bool truncateDatabase = false, CancellationToken? token = null)
     {
         token ??= _tokenSource.Token;
+
+        var mediaDirectory = baseDirectory != null ? Path.GetFullPath(baseDirectory) : Path.GetFullPath(_configuration.BaseDirectory);
 
         EnumerationOptions options = new()
         {
@@ -98,7 +100,6 @@ public class MediaCollection : IMediaCollection
             MaxRecursionDepth = _configuration.DirectoryRecursionDepth
         };
 
-        var mediaDirectory = Path.GetFullPath(_configuration.BaseDirectory);
         if (!Directory.Exists(mediaDirectory))
         {
             _mediaRepo = new Dictionary<string, data.File>();
@@ -128,7 +129,7 @@ public class MediaCollection : IMediaCollection
                 await _db.Truncate();
             }
 
-            var filesTasks = fileList.Select(async x => await ProcessFile(x, _tokenSource.Token)).ToList();
+            var filesTasks = fileList.Select(async x => await ProcessFile(Path.GetFullPath(x), _tokenSource.Token)).ToList();
 
             //process all files in ~MaximumBagSize chunks
             await Task.WhenAll(filesTasks);
@@ -141,6 +142,11 @@ public class MediaCollection : IMediaCollection
                 {
                     Monitor.Enter(_processFileQueueLock);
                     await _db.InsertOrUpdate(_filesToStore);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error while calling InsertOrUpdate: {ex}");
+                    throw;
                 }
                 finally
                 {
@@ -169,35 +175,36 @@ public class MediaCollection : IMediaCollection
 
     public async Task ProcessFile(string filePath, CancellationToken token)
     {
-        if (!await _db.FileExists(filePath))
+        if (!await _db.FileExists(Path.GetFullPath(filePath)))
         {
             var newFile = await FileHelper.PathToFile(filePath, token);
             _filesToStore.Add(newFile);
             int count = Interlocked.Increment(ref _fileCount);
-            Debug.WriteLine($"Files processed: {count}");
+            Debug.WriteLine($"Files processed: {count}, bag: {_filesToStore.Count()}");
         }
 
         if (_filesToStore.Count() > MaximumBagSize)
         {
             if (Monitor.TryEnter(_processFileQueueLock))
             {
-                _ = Task.Run(() =>
+                try
                 {
-                    try
+                    Debug.WriteLine($"Files stored: {_filesToStore.Count()}");
+                    _db.InsertOrUpdate(_filesToStore);
+                    _filesToStore.Clear();
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error while calling InsertOrUpdate: {ex}");
+                    throw;
+                }
+                finally
+                {
+                    if (Monitor.IsEntered(_processFileQueueLock))
                     {
-                        Debug.WriteLine($"Files stored: {_filesToStore.Count()}");
-                        _db.InsertOrUpdate(_filesToStore);
-                        _filesToStore.Clear();
-                    }
-                    finally
-                    {
-                        if (Monitor.IsEntered(_processFileQueueLock))
-                        {
-                            Monitor.Exit(_processFileQueueLock);
-                        }
+                        Monitor.Exit(_processFileQueueLock);
                     }
                 }
-                , token);
             }
         }
 
@@ -216,7 +223,7 @@ public class MediaCollection : IMediaCollection
 
         var filtered = new List<string>();
 
-        _mediaRepo.Keys.ToList().ForEach(x => Debug.WriteLine(x));
+        // _mediaRepo.Keys.ToList().ForEach(x => Debug.WriteLine(x));
         foreach (var pattern in patterns)
         {
             filtered.AddRange(_mediaRepo.Keys

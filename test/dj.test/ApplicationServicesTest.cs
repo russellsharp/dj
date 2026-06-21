@@ -25,7 +25,6 @@ public class ApplicationServices : IDisposable
 
     private CancellationTokenSource _tokenSource = new();
 
-    private const string testfileDirectory = "testfiles";
     public ApplicationServices(ITestOutputHelper output)
     {
         _output = output;
@@ -54,14 +53,14 @@ public class ApplicationServices : IDisposable
         {
             DirectoryRecursionDepth = 50,
             BaseDirectory = "testMedia",
-            Filter = "*.avi",
+            Filter = "*.avi;*.mkv",
         };
 
         _builder.Services.AddSingleton(Options.Create(mediaConfig));
 
         var databaseConfig = new DatabaseConfiguration
         {
-            DataFile = "testdata/testmedia.db",
+            DataFile = "testdata/appservices.db",
         };
 
         _builder.Services.AddSingleton(Options.Create(databaseConfig))
@@ -91,13 +90,17 @@ public class ApplicationServices : IDisposable
 
         media.Should().NotBeNull();
 
+        var config = _host.Services.GetRequiredService<IOptions<MediaReaderConfiguration>>();
+
+        config.Should().NotBeNull();
+
         await CreateTestFile(10, 500);
 
         CancellationTokenSource source = new();
 
-        await media.UpdateRepos(testfileDirectory, false, source.Token);
+        await media.UpdateRepos(null, false, source.Token);
 
-        var pattern = @".+\.avi$";
+        var pattern = @".+\.avi";
 
         var searchResult = await media.Search([pattern], source.Token);
 
@@ -119,9 +122,9 @@ public class ApplicationServices : IDisposable
 
         CancellationTokenSource source = new();
 
-        await media.UpdateRepos(testfileDirectory, false, source.Token);
+        await media.UpdateRepos(null, false, source.Token);
 
-        var patterns = @".+\.avi$;\.mp3$".Split(';');
+        var patterns = @".+\.avi$;\.mp3$.+\.mkv".Split(';');
 
         var searchResults = await media.Search(patterns, source.Token);
 
@@ -135,15 +138,19 @@ public class ApplicationServices : IDisposable
     [Fact]
     public async Task GetFileInfo()
     {
+        var config = _host.Services.GetRequiredService<IOptions<MediaReaderConfiguration>>();
+
+        config.Should().NotBeNull();
+
         await CreateTestFile(1);
 
         var media = _host.Services.GetService<IMediaCollection>();
 
         media.Should().NotBeNull();
 
-        await media.UpdateRepos(testfileDirectory, false, _tokenSource.Token);
+        await media.UpdateRepos(config.Value.BaseDirectory, true, _tokenSource.Token);
 
-        var patterns = @"\.avi$".Split(';');
+        var patterns = @"\.avi$;.+\.mkv".Split(';');
 
         var results = await media.Search(patterns, _tokenSource.Token);
 
@@ -199,6 +206,8 @@ public class ApplicationServices : IDisposable
     [Fact]
     public async Task QueryLocalAndRemoteMovies()
     {
+        await CreateTestFile(1, 250, (byte)'w', "avi", "Inglourious Basterds");
+
         var client = _host.Services.GetRequiredService<shared.TMDB.ITMDB>();
 
         var movieName = "Inglourious Basterds";
@@ -227,6 +236,8 @@ public class ApplicationServices : IDisposable
 
         await media.Initialize(_tokenSource.Token);
 
+        await media.UpdateRepos(null, true, _tokenSource.Token);
+
         var keywords = SearchHelpers.SanitizeForSearch(movieName, _tokenSource.Token, 3, false);
 
         var localMatches = await media.FindInPath<shared.data.File>(keywords, _tokenSource.Token);
@@ -237,7 +248,7 @@ public class ApplicationServices : IDisposable
     }
 
 
-    private async Task CreateTestFile(int count, long sizeKb = 250, byte filler = (byte)'w', string extension = "avi")
+    private async Task CreateTestFile(int count, long sizeKb = 250, byte filler = (byte)'w', string extension = "avi", string fileName = null)
     {
         var config = _host.Services.GetRequiredService<IOptions<MediaReaderConfiguration>>();
 
@@ -247,8 +258,9 @@ public class ApplicationServices : IDisposable
 
         for (int i = 0; i < count; i++)
         {
-            var fileName = Path.ChangeExtension($"{Guid.NewGuid()}", extension);
-            var filePath = Path.Combine(fileDirectory, fileName);
+
+            var name = Path.ChangeExtension(fileName is not null ? fileName : Guid.NewGuid().ToString(), extension);
+            var filePath = Path.Combine(fileDirectory, name);
             if (await FileHelper.CreateFile(filePath, sizeKb, filler))
             {
                 _filesToDelete.Add(filePath);

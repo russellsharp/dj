@@ -24,6 +24,7 @@ public class TMDB(ITestOutputHelper _output)
         OverviewWeight = 1
     });
 
+    private CancellationTokenSource _tokenSource = new();
     internal void log(string msg)
     {
         Debug.WriteLine(msg);
@@ -31,13 +32,14 @@ public class TMDB(ITestOutputHelper _output)
         _output.WriteLine(msg);
     }
 
+
     [Fact]
     public async Task QueryMovies()
     {
         CancellationTokenSource tokenSource = new();
         using Repo client = new(BasicOptions, new Cache(BasicOptions), tokenSource);
 
-        var movies = await client.Query("Star Wars", 1);
+        var movies = await client.QueryTitle("Star Wars", 1);
 
         movies.Should().NotBeNull();
 
@@ -88,6 +90,28 @@ public class TMDB(ITestOutputHelper _output)
     }
 
     [Fact]
+    public async Task StoreMovieDetails()
+    {
+        const int StarWarsId = 11;
+
+        using Repo client = new(BasicOptions, new Cache(BasicOptions), _tokenSource);
+        var found = client.TryMovie(11, out MovieDetailsResponse details);
+
+        found.Should().BeTrue();
+
+        details.Should().NotBeNull();
+
+        details.genres.Should().NotBeNull();
+
+        details.genres.Count().Should().BeGreaterThan(0);
+
+        details.id.Should().Be(StarWarsId);
+
+        details.title.Should().Be("Star Wars");
+    }
+
+
+    [Fact]
     public async Task GetScore()
     {
         CancellationTokenSource tokenSource = new();
@@ -96,7 +120,7 @@ public class TMDB(ITestOutputHelper _output)
 
         var searchTerm = "Star Wars".ToLower();
 
-        var queryResult = await repo.Query(searchTerm);
+        var queryResult = await repo.QueryTitle(searchTerm);
 
         var keywords = SearchHelpers.SanitizeForSearch(searchTerm, tokenSource.Token, -1, true); ;
 
@@ -134,7 +158,7 @@ public class TMDB(ITestOutputHelper _output)
 
         var searchTerm = "Training Day";
 
-        var queryResult = await repo.Query(searchTerm);
+        var queryResult = await repo.QueryTitle(searchTerm);
 
         var keywords = SearchHelpers.SanitizeForSearch(searchTerm, tokenSource.Token, -1, true); ;
 
@@ -202,5 +226,34 @@ public class TMDB(ITestOutputHelper _output)
 
         Debug.WriteLine("----------------------------");
         queryMatches.Where(x => x.Hits >= minimumHitCount).ToList().ForEach(x => Debug.WriteLine($"{x.Hits} - {x.Details.id} - {x.Details.title} - {x.Details.vote_count} - {x.Details.budget} - {x.Details.overview.Substring(0, 20)}"));
+    }
+
+    [Fact]
+    public async Task DiscoverMovie()
+    {
+        var minimumHitCount = 10;
+
+        using Repo repo = new(BasicOptions, new Cache(BasicOptions), _tokenSource);
+
+        var searchTerm = "First|day";
+
+        var response = await repo.DiscoverMovie(searchTerm);
+    }
+
+    [Fact]
+    public async Task MatchByReview()
+    {
+        // var minimumHitCount = 10;
+
+        // using Repo repo = new(BasicOptions, new Cache(BasicOptions), _tokenSource);
+
+        // var searchTerm = "First day";
+
+        // var queryMatches = await repo.QueryMatches(searchTerm, minimumHitCount);
+
+        // Debug.WriteLine("----------------------------");
+        // queryMatches.Where(x => x.Hits >= minimumHitCount).ToList().ForEach(x => Debug.WriteLine($"{x.Hits} - {x.Details.id} - {x.Details.title} - {x.Details.vote_count} - {x.Details.budget} - {x.Details.overview.Substring(0, 20)}"));
+
+        // ITMDB tmdb =
     }
 }

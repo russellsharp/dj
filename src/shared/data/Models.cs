@@ -2,8 +2,6 @@ using System.ComponentModel.DataAnnotations.Schema;
 using System.Data;
 using System.Globalization;
 using Dapper;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 
 namespace shared.data;
 

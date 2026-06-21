@@ -14,119 +14,151 @@ using shared.data;
 using shared.TMDB;
 using Xunit.Internal;
 
-namespace dj.test
+namespace dj.test;
+
+public class MediaCollection
 {
-    public class MediaCollection
+    private IOptions<MediaReaderConfiguration> BasicMediaOptions = Options.Create(new MediaReaderConfiguration
     {
-        private IOptions<MediaReaderConfiguration> BasicConfig = Options.Create(new MediaReaderConfiguration
+        Filter = "*.*",
+        // BaseDirectory = "C:/dev/mediaReference",
+        BaseDirectory = @"//Fatty//existing",
+        DirectoryRecursionDepth = 50,
+        AudioExtensions = @"mp3",
+        VideoExtensions = @"avi;mkv;mp4",
+    });
+
+    private IOptions<DatabaseConfiguration> BasicDatabaseConfig = Options.Create(new DatabaseConfiguration
+    {
+        DataFile = "testdata/testmedia.db",
+    });
+
+    private static IOptions<EndpointConfig> BasicEndpointOptions = Options.Create(new EndpointConfig
+    {
+        BaseUrl = "https://api.themoviedb.org/3",
+        ApiKey = Repo.SUPER_SECRET_API_KEY,
+        DatabasePath = "testdata/tmdb.db",
+        RequestLimit = 40,
+        RequestWindowSeconds = 10,
+        TitleWeight = 100,
+        OverviewWeight = 1
+    });
+
+    private CancellationTokenSource _tokenSource = new();
+
+    [Fact]
+    public async Task MatchLocalFiles()
+    {
+        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions), _tokenSource);
+        ITMDB tmdb = new shared.TMDB.TMDB(repo, _tokenSource);
+        IDatabase db = new shared.data.Database(BasicDatabaseConfig);
+        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb);
+
+        await media.Initialize(_tokenSource.Token);
+
+        await media.UpdateRepos(BasicMediaOptions.Value.BaseDirectory, false, _tokenSource.Token);
+
+        var keywords = SearchHelpers.SanitizeForSearch("Trainingwah wahDay wee", _tokenSource.Token, 3, false);
+
+        var matches = (await media.FindInPath<shared.data.File>(keywords, _tokenSource.Token)).Select(x => x.Details);
+
+        matches.Should().BeEmpty();
+
+        matches.ForEach(x => Debug.WriteLine(x.path));
+
+        keywords = SearchHelpers.SanitizeForSearch("Inglourious Basterds", _tokenSource.Token, 3, true);
+
+        var matcheScores = (await media.FindInPath<shared.data.File>(keywords, _tokenSource.Token)).ToList();
+
+        matcheScores.Should().NotBeEmpty();
+
+        Debug.WriteLine("Matches made:");
+        matcheScores.ForEach(x => Debug.WriteLine(x.Details.path));
+    }
+
+    [Fact]
+    public async Task MatchLocalFilesDictionaryAction()
+    {
+        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions), _tokenSource);
+        ITMDB tmdb = new shared.TMDB.TMDB(repo, _tokenSource);
+        IDatabase db = new shared.data.Database(BasicDatabaseConfig);
+        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb);
+
+        await media.Initialize(_tokenSource.Token);
+
+        var keywords = SearchHelpers.SanitizeForSearch("Inglourious Basterds", _tokenSource.Token, 3, false);
+
+        var matcheScores = (await media.FindInPath<shared.data.File>(keywords, _tokenSource.Token)).ToList();
+
+        matcheScores.Should().NotBeEmpty();
+
+        matcheScores.Select(x => x.Details).ForEach(x => Debug.WriteLine(x.path));
+    }
+
+    [Fact]
+    public async Task MatchLocalFilesToTmdb()
+    {
+        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions), _tokenSource);
+        ITMDB tmdb = new shared.TMDB.TMDB(repo, _tokenSource);
+        IDatabase db = new shared.data.Database(BasicDatabaseConfig);
+        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb);
+
+        await media.UpdateRepos(BasicMediaOptions.Value.BaseDirectory, false, _tokenSource.Token);
+
+        await media.Initialize(_tokenSource.Token);
+
+        var localMovies = await media.Files(MediaType.Video);
+
+        localMovies.Should().NotBeNullOrEmpty();
+
+        int a = 0;
+        var movieTitle = a == 0 ? "Training Day" : "Inglourious Basterds";
+
+        //sanitize the path to find simple titles
+        var movieKeywords = SearchHelpers.SanitizePath(movieTitle);
+        var localMovie = localMovies.FirstOrDefault(x => SearchHelpers.SanitizePath(x.path).Contains(movieKeywords));
+        Debug.WriteLine($"'{movieKeywords}'");
+
+        if (localMovie is null)
         {
-            Filter = "*.*",
-            // BaseDirectory = "C:/dev/mediaReference",
-            BaseDirectory = @"//Fatty//existing",
-            DirectoryRecursionDepth = 50,
-            AudioExtensions = @"mp3",
-            VideoExtensions = @"avi;mkv;mp4",
-        });
-
-        private IOptions<DatabaseConfiguration> BasicDatabaseConfig = Options.Create(new DatabaseConfiguration
-        {
-            DataFile = "testdata/testmedia.db",
-
-        });
-
-        private static IOptions<EndpointConfig> BasicEndpointOptions = Options.Create(new EndpointConfig
-        {
-            BaseUrl = "https://api.themoviedb.org/3",
-            ApiKey = Repo.SUPER_SECRET_API_KEY,
-            DatabasePath = "testdata/tmdb.db",
-            RequestLimit = 40,
-            RequestWindowSeconds = 10,
-            TitleWeight = 100,
-            OverviewWeight = 1
-        });
-
-        private CancellationTokenSource _tokenSource = new();
-
-        [Fact]
-        public async Task MatchLocalFiles()
-        {
-            IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions), _tokenSource);
-            ITMDB tmdb = new shared.TMDB.TMDB(repo, _tokenSource);
-            IDatabase db = new shared.data.Database(BasicDatabaseConfig);
-            IMediaCollection media = new shared.MediaCollection(BasicConfig, db, tmdb);
-
-            await media.Initialize(_tokenSource.Token);
-
-            await media.UpdateRepos(BasicConfig.Value.BaseDirectory, false, _tokenSource.Token);
-
-            var keywords = SearchHelpers.SanitizeForSearch("Trainingwah wahDay wee", _tokenSource.Token, 3, false);
-
-            var matches = (await media.FindInPath<shared.data.File>(keywords, _tokenSource.Token)).Select(x => x.Details);
-
-            matches.Should().BeEmpty();
-
-            matches.ForEach(x => Debug.WriteLine(x.path));
-
-            keywords = SearchHelpers.SanitizeForSearch("Inglourious Basterds", _tokenSource.Token, 3, true);
-
-            var matcheScores = (await media.FindInPath<shared.data.File>(keywords, _tokenSource.Token)).ToList();
-
-            matcheScores.Should().NotBeEmpty();
-
-            Debug.WriteLine("Matches made:");
-            matcheScores.ForEach(x => Debug.WriteLine(x.Details.path));
+            movieKeywords = SearchHelpers.SanitizePath(movieTitle);
+            Debug.WriteLine(movieKeywords.ToString());
+            localMovie = localMovies.FirstOrDefault(x => SearchHelpers.SanitizePath(x.path).Contains(movieKeywords));
         }
 
-        [Fact]
-        public async Task MatchLocalFilesDictionaryAction()
+        localMovie.Should().NotBeNull();
+
+        var context = new MatchingContext
         {
-            IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions), _tokenSource);
-            ITMDB tmdb = new shared.TMDB.TMDB(repo, _tokenSource);
-            IDatabase db = new shared.data.Database(BasicDatabaseConfig);
-            IMediaCollection media = new shared.MediaCollection(BasicConfig, db, tmdb);
+            MinimumScore = 100,
+            PathDepthMin = 1,
+            PathDepthMax = 2
+        };
 
-            await media.Initialize(_tokenSource.Token);
+        var bestMatches = await tmdb.PathToTmdb(localMovie.path, context, true, _tokenSource.Token);
 
-            var keywords = SearchHelpers.SanitizeForSearch("Inglourious Basterds", _tokenSource.Token, 3, false);
+        bestMatches.Should().NotBeNull();
 
-            var matcheScores = (await media.FindInPath<shared.data.File>(keywords, _tokenSource.Token)).ToList();
+        Debug.WriteLine($"Best matches found for: {localMovie.path}");
+        bestMatches.ForEach(x => Debug.WriteLine($"Best match found: {x.id} - {x.title}"));
+    }
 
-            matcheScores.Should().NotBeEmpty();
+    [Fact]
+    public async Task Match100LocalFilesToTmdb()
+    {
+        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions), _tokenSource);
+        ITMDB tmdb = new shared.TMDB.TMDB(repo, _tokenSource);
+        IDatabase db = new shared.data.Database(BasicDatabaseConfig);
+        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb);
 
-            matcheScores.Select(x => x.Details).ForEach(x => Debug.WriteLine(x.path));
-        }
+        await media.Initialize(_tokenSource.Token);
 
-        [Fact]
-        public async Task MatchLocalFilesToTmdb()
+        await media.UpdateRepos(BasicMediaOptions.Value.BaseDirectory, false, _tokenSource.Token);
+
+        var movieFiles = (await media.Files(MediaType.Video)).Take(100);
+
+        foreach (var localMovie in movieFiles)
         {
-            IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions), _tokenSource);
-            ITMDB tmdb = new shared.TMDB.TMDB(repo, _tokenSource);
-            IDatabase db = new shared.data.Database(BasicDatabaseConfig);
-            IMediaCollection media = new shared.MediaCollection(BasicConfig, db, tmdb);
-
-            await media.UpdateRepos(BasicConfig.Value.BaseDirectory, false, _tokenSource.Token);
-
-            await media.Initialize(_tokenSource.Token);
-
-            var localMovies = await media.Files(MediaType.Video);
-
-            localMovies.Should().NotBeNullOrEmpty();
-
-            int a = 0;
-            var movieTitle = a == 0 ? "Training Day" : "Inglourious Basterds";
-
-            //sanitize the path to find simple titles
-            var movieKeywords = SearchHelpers.SanitizePath(movieTitle);
-            var localMovie = localMovies.FirstOrDefault(x => SearchHelpers.SanitizePath(x.path).Contains(movieKeywords));
-            Debug.WriteLine($"'{movieKeywords}'");
-
-            if (localMovie is null)
-            {
-                movieKeywords = SearchHelpers.SanitizePath(movieTitle);
-                Debug.WriteLine(movieKeywords.ToString());
-                localMovie = localMovies.FirstOrDefault(x => SearchHelpers.SanitizePath(x.path).Contains(movieKeywords));
-            }
-
             localMovie.Should().NotBeNull();
 
             var context = new MatchingContext
@@ -136,11 +168,13 @@ namespace dj.test
                 PathDepthMax = 2
             };
 
-            var bestMatch = await tmdb.PathToTmdb(localMovie.path, context, true, _tokenSource.Token);
+            var bestMatches = await tmdb.PathToTmdb(localMovie.path, context, true, _tokenSource.Token);
 
-            bestMatch.Should().NotBeNull();
-
-            Debug.WriteLine($"Best match found: {bestMatch.id} - {bestMatch.title}");
+            if (bestMatches is not null)
+            {
+                Debug.WriteLine($"Best matches for {localMovie.path}");
+                bestMatches.ForEach(x => Debug.WriteLine($"{x.id} - {x.title}"));
+            }
         }
     }
 }

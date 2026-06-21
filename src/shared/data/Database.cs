@@ -23,7 +23,6 @@ using System.Data.Common;
 using System.Reflection.Metadata;
 using System.Text;
 using Microsoft.Extensions.Options;
-using Newtonsoft.Json;
 
 public interface IDatabase
 {
@@ -258,7 +257,7 @@ public class Database : IDisposable, IDatabase
         const string sql = @"SELECT EXISTS (SELECT 1 FROM file WHERE path_hash = @path_hash)";
         try
         {
-            var path_hash = FileHelper.HashString(filePath);
+            var path_hash = FileHelper.HashString(Path.GetFullPath(filePath));
             return await _connection.ExecuteScalarAsync<bool>(sql, new { path_hash = path_hash });
         }
         catch (Exception ex)

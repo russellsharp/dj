@@ -20,6 +20,7 @@ public class Database : IDisposable
     private List<string> _filesToDelete = new();
 
     private CancellationTokenSource _tokenSource = new();
+    private string _baseDirectory = "testDirectory/";
 
     public Database(ITestOutputHelper output)
     {
@@ -229,7 +230,7 @@ public class Database : IDisposable
 
         var rng = new Random();
 
-        var queriedFiles = await _db.FilesByDirectory([Path.GetFullPath("testdata/")]);
+        var queriedFiles = await _db.FilesByDirectory([Path.GetFullPath(_baseDirectory)]);
 
         queriedFiles.Should().NotBeNull();
 
@@ -247,7 +248,7 @@ public class Database : IDisposable
         var testData2 = await CreateTestFileSet(10, "avi");
         await _db.InsertOrUpdate(testData2);
 
-        queriedFiles = await _db.FilesByDirectory(["testdata", "Meshuggah"]);
+        queriedFiles = await _db.FilesByDirectory([_baseDirectory, "Meshuggah"]);
 
         queriedFiles.Should().NotBeNull();
 
@@ -272,8 +273,10 @@ public class Database : IDisposable
     private async Task<IEnumerable<shared.data.File>> CreateTestFileSet(int count, string extension = "avi", long sizeKb = 500, byte filler = (byte)'w')
     {
         Random rng = new Random();
-        var testFiles = Enumerable.Range(1, count).Select(x => Path.ChangeExtension($"testdata/test_file_{x}", extension));
+        var testFiles = Enumerable.Range(1, count).Select(x => Path.ChangeExtension($"{_baseDirectory}/test_file_{x}", extension));
         testFiles.ForEach(async x => await FileHelper.CreateFile(x, rng.NextInt64(sizeKb), filler));
+
+        _filesToDelete.AddRange(testFiles.Select(x => Path.GetFullPath(x)));
 
         var testConversion = testFiles
             .AsParallel().WithCancellation(_tokenSource.Token)

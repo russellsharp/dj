@@ -1,13 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.Diagnostics;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Options;
-using Microsoft.VisualBasic;
-using Newtonsoft.Json;
 using shared;
 using shared.TMDB;
 using shared.TMDB.Models;
@@ -48,7 +39,7 @@ public class Application(IMediaCollection _mediaCollection, IRepo _repo, Cancell
 
                 Debug.WriteLine(string.Join(" ", keywords));
 
-                var result = await _repo.Query(string.Join(" ", keywords));
+                var result = await _repo.QueryTitle(string.Join(" ", keywords));
 
                 if (result != null && result!.results.Any())
                 {

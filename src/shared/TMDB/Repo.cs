@@ -1,18 +1,19 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Options;
-using Newtonsoft.Json;
 using RestSharp;
 using shared.TMDB.Models;
 using shared.http;
 using SQLitePCL;
 using Microsoft.Data.Sqlite;
+using System.Text.Json;
+using System.Security.Cryptography.X509Certificates;
 
 namespace shared.TMDB;
 
 public interface IRepo
 {
     void Dispose();
-    Task<MovieQueryResponse?> Query(string query, int page = 1);
+    Task<MovieQueryResponse?> QueryTitle(string query, int page = 1);
     bool TryMovie(long id, out MovieDetailsResponse? movie);
     MovieDetailsResponse? Movie(long id);
     bool TryMovieGenres(out GenreResponse? genre);
@@ -47,9 +48,32 @@ public class Repo : IDisposable, IRepo
     }
 
     private string Language = "en-US";
-    private bool IncludeAdult = true;
 
-    public async Task<MovieQueryResponse?> Query(string query, int page = 1)
+    //var options = new RestClientOptions("https://api.themoviedb.org/3/discover/movie?
+    // include_adult=false&
+    // include_video=false&
+    // language=en-US&
+    // page=1&
+    // sort_by=popularity.desc&
+    // with_keywords=ant-man");
+
+    public async Task<string> DiscoverMovie(string query, int page = 1, CancellationToken? token = null)
+    {
+        var request = new RestRequest("discover/movie?", Method.Get);
+        request.AddQueryParameter("query", query);
+        request.AddQueryParameter("include_adult", _config.IncludeAdult);
+        request.AddQueryParameter("page", page);
+        request.AddQueryParameter("language", Language);
+        request.AddQueryParameter("include_video", false);
+        request.AddQueryParameter("sort_by", "popularity.desc");
+        request.AddQueryParameter("with_keywords", query);
+        request.AddHeader("accept", "application/json");
+        request.AddHeader("Authorization", $"Bearer {_config.ApiKey}");
+
+        return Get<MovieQueryResponse>(request).ToString();
+    }
+
+    public async Task<MovieQueryResponse?> QueryTitle(string query, int page = 1)
     {
         var request = new RestRequest("search/movie", Method.Get);
         request.AddQueryParameter("query", query);
@@ -117,11 +141,13 @@ public class Repo : IDisposable, IRepo
         {
             var apiResponse = _limiter.Get(request, _tokenSource.Token).GetAwaiter().GetResult();
 
+            Debug.WriteLine(apiResponse.Content);
+
             if (apiResponse.StatusCode == System.Net.HttpStatusCode.OK)
             {
                 _cache.Store<ResponseType>(requestUrl, apiResponse.Content).GetAwaiter().GetResult();
 
-                return JsonConvert.DeserializeObject<ResponseType>(apiResponse.Content!);
+                return JsonSerializer.Deserialize<ResponseType>(apiResponse.Content!);
             }
             else
             {
