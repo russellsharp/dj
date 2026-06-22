@@ -8,6 +8,7 @@ using Xunit.Internal;
 using System.Text.Json;
 using Newtonsoft.Json;
 using System.Data.Common;
+using shared.thesaurus;
 
 namespace dj.test;
 
@@ -22,6 +23,12 @@ public class TMDB(ITestOutputHelper _output)
         RequestWindowSeconds = 10,
         TitleWeight = 100,
         OverviewWeight = 1
+    });
+
+    private static IOptions<ThesaurusConfiguration> thesaurusOptionsDefaults = Options.Create(new ThesaurusConfiguration()
+    {
+        DictionaryPath = "wordnet/staticdata/",
+        DatabasePath = "wordnet/database/wordnet.db"
     });
 
     private CancellationTokenSource _tokenSource = new();
@@ -266,5 +273,92 @@ public class TMDB(ITestOutputHelper _output)
 
         Debug.WriteLine("----------------------------");
         queryMatches.ForEach(x => Debug.WriteLine($"Hits: {x.Hits} - TMDB ID: {x.Details.id} - {x.Details.title} - {x.Details.vote_count} - {new string(x.Details.overview.Take(20).ToArray())}..."));
+    }
+
+    [Fact]
+    public async Task MatchKeywordsByAll()
+    {
+
+        using Repo repo = new(BasicOptions, new Cache(BasicOptions), _tokenSource);
+        ITMDB tmdb = new shared.TMDB.TMDB(repo, _tokenSource);
+
+        var movies = await tmdb.QueryTitle("Training Day");
+
+        // movie details will be stored in database
+        foreach (var movie in movies.results)
+        {
+            _ = await tmdb.GetMovie(movie.id.Value);
+        }
+
+        //search movie details in database by matching terms in their overview
+        var searchTerm = "police drama".ToLower();
+
+        var minimumHitCount = searchTerm.Split(' ').Count();
+
+        var queryMatches = await tmdb.QueryOverviews(searchTerm, minimumHitCount);
+
+        queryMatches.Should().BeEmpty();
+
+        Debug.WriteLine("----------------------------");
+        queryMatches.ForEach(x => Debug.WriteLine($"Hits: {x.Hits} - TMDB ID: {x.Details.id} - {x.Details.title} - {x.Details.vote_count} - {new string(x.Details.overview.Take(20).ToArray())}..."));
+
+        var thesus = new Thesaurus(thesaurusOptionsDefaults);
+
+        var searchTerms = searchTerm.Split(' ').ToList();
+
+        var synonymTasks = searchTerms.Select(async x => await thesus.Search(x));
+
+        var synonyms = await Task.WhenAll(synonymTasks);
+
+        synonyms.ForEach(x => x.ForEach(y => Debug.WriteLine(y)));
+
+        searchTerms.ForEach(x => Debug.WriteLine(x));
+
+        minimumHitCount = (int)(synonyms.Count() * 0.50);
+
+        queryMatches = await tmdb.QueryOverviewsWithSynonyms(synonyms.ToList(), minimumHitCount);
+
+        queryMatches.Should().NotBeNullOrEmpty();
+
+        queryMatches.ForEach(x => Debug.WriteLine(x.Details.title));
+    }
+
+    [Fact]
+    public async Task MatchKeywordsCollection()
+    {
+
+        using Repo repo = new(BasicOptions, new Cache(BasicOptions), _tokenSource);
+        ITMDB tmdb = new shared.TMDB.TMDB(repo, _tokenSource);
+
+        var movies = await tmdb.QueryTitle("Inglourious Basterds");
+
+        // movie details will be stored in database
+        foreach (var movie in movies.results)
+        {
+            _ = await tmdb.GetMovie(movie.id.Value);
+        }
+
+        //search movie details in database by matching terms in their overview
+        var searchTerm = "world war 2".ToLower();
+
+        var minimumHitCount = searchTerm.Split(' ').Count();
+
+        List<MatchScore<MovieDetailsResponse>> queryMatches = (await tmdb.QueryOverviews(searchTerm, minimumHitCount)).ToList();
+
+        var thesus = new Thesaurus(thesaurusOptionsDefaults);
+
+        var searchTerms = searchTerm.Split(' ').ToList();
+
+        var synonymTasks = searchTerms.Select(async x => await thesus.Search(x));
+
+        var synonyms = await Task.WhenAll(synonymTasks);
+
+        minimumHitCount = (int)(synonyms.Count() * 0.50);
+
+        queryMatches.AddRange(await tmdb.QueryOverviewsWithSynonyms(synonyms.ToList(), minimumHitCount));
+
+        queryMatches.Should().NotBeNullOrEmpty();
+
+        queryMatches.ForEach(x => Debug.WriteLine(x.Details.title));
     }
 }

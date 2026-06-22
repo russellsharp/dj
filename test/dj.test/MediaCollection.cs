@@ -115,15 +115,15 @@ public class MediaCollection
         var movieTitle = a == 0 ? "Training Day" : "Inglourious Basterds";
 
         //sanitize the path to find simple titles
-        var movieKeywords = SearchHelpers.SanitizePath(movieTitle);
-        var localMovie = localMovies.FirstOrDefault(x => SearchHelpers.SanitizePath(x.path).Contains(movieKeywords));
+        var movieKeywords = SearchHelpers.SanitizeString(movieTitle);
+        var localMovie = localMovies.FirstOrDefault(x => SearchHelpers.SanitizeString(x.path).Contains(movieKeywords));
         Debug.WriteLine($"'{movieKeywords}'");
 
         if (localMovie is null)
         {
-            movieKeywords = SearchHelpers.SanitizePath(movieTitle);
+            movieKeywords = SearchHelpers.SanitizeString(movieTitle);
             Debug.WriteLine(movieKeywords.ToString());
-            localMovie = localMovies.FirstOrDefault(x => SearchHelpers.SanitizePath(x.path).Contains(movieKeywords));
+            localMovie = localMovies.FirstOrDefault(x => SearchHelpers.SanitizeString(x.path).Contains(movieKeywords));
         }
 
         localMovie.Should().NotBeNull();

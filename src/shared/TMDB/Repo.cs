@@ -20,6 +20,7 @@ public interface IRepo
     GenreResponse? MovieGenres();
     Task<IEnumerable<MatchScore<ResponseType>>> QueryTitle<ResponseType>(IEnumerable<string> keywords, int mimimumHitCount, CancellationToken token) where ResponseType : class;
     Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryOverviews(string searchTerm, int minimumHitCount, CancellationToken? token = null);
+    Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryOverviewsWithSynonyms(IEnumerable<IEnumerable<string>> query, int minimumHitCount, CancellationToken? token = null);
 }
 
 public class Repo : IDisposable, IRepo
@@ -210,6 +211,21 @@ public class Repo : IDisposable, IRepo
         return movieDetails.Where(x => x.Details.adult == _config.IncludeAdult);
     }
 
+    public async Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryOverviewsWithSynonyms(IEnumerable<IEnumerable<string>> query, int minimumHitCount, CancellationToken? token = null)
+    {
+        token ??= _tokenSource.Token;
+
+        List<List<string>> groupedKeywords = new();
+
+        foreach (var synonyms in query)
+        {
+            groupedKeywords.Add(synonyms.Select(x => SearchHelpers.SanitizeString(x)).ToList());
+        }
+
+        List<MatchScore<MovieDetailsResponse>> movieDetails = (await _cache.QueryOverviewsWithSynonyms(groupedKeywords, minimumHitCount, token)).ToList();
+
+        return movieDetails.Where(x => x.Details.adult == _config.IncludeAdult);
+    }
     #region IDisposable
 
     private int _disposed = 0;
