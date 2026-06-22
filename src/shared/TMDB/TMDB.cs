@@ -63,7 +63,7 @@ namespace shared.TMDB
             var scoredResultsByTitle = new List<MatchScore<Result>>();
             foreach (var pathSegment in pathSegments)
             {
-                scoredResultsByTitle.AddRange(tmdbResults.Select(x => new MatchScore<Result> { Hits = SearchHelpers.Levenshtein(pathSegment, x.title), Details = x }));
+                scoredResultsByTitle.AddRange(tmdbResults.Select(x => new MatchScore<Result> { Hits = Scoring.Levenshtein(pathSegment, x.title), Details = x }));
             }
 
             return scoredResultsByTitle.Where(x => x.Hits >= minimumScore).OrderByDescending(x => x.Hits).Select(x => x.Details);

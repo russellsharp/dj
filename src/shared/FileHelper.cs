@@ -19,6 +19,11 @@ public enum FileAccessResult
 public static class FileHelper
 {
 
+    public static bool CanAccess(string filePath)
+    {
+        return CanAccessFile(filePath) == FileAccessResult.Available;
+    }
+
     public static FileAccessResult CanAccessFile(string filePath, FileAccess accessType = FileAccess.Read)
     {
         // First check if the file even exists
@@ -113,57 +118,4 @@ public static class FileHelper
         byte[] pathHash = SHA256.HashData(unicodeBytes);
         return Convert.ToHexString(pathHash);
     }
-}
-
-public static class FileHashes
-{
-
-    public static async Task<string> HashOpenRead(string filePath)
-    {
-        byte[] hashBytes = SHA256.HashData(File.OpenRead(filePath));
-        return Convert.ToHexString(hashBytes);
-    }
-
-    public static async Task<string> HashFsStackSpan(string filePath, CancellationToken token)
-    {
-        using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 4096, FileOptions.SequentialScan);
-
-        // using FileStream fs = File.OpenRead(filePath);
-        // Span<byte> hashBuffer = stackalloc byte[32];
-        // int bytesWritten = SHA256.HashData(fs, hashBuffer);
-        // fs.Close();
-        // return Convert.ToHexString(hashBuffer);
-        byte[] hashBytes = SHA256.HashData(fs);
-        return Convert.ToHexStringLower(hashBytes);
-    }
-
-    public static async Task<string> HashFsMemoryBuffer(string filePath, CancellationToken token)
-    {
-        Memory<byte> memoryBuffer = new byte[32];
-        using FileStream fs = File.OpenRead(filePath);
-        int bytesWritten = await SHA256.HashDataAsync(fs, memoryBuffer, token);
-        return Convert.ToHexString(memoryBuffer.Span);
-    }
-
-    public static async Task<string> HashFsArrayPool(string filePath, CancellationToken token)
-    {
-        byte[] rentedArray = ArrayPool<byte>.Shared.Rent(32);
-
-        string result = string.Empty;
-
-        try
-        {
-            Memory<byte> memory = rentedArray.AsMemory(0, 32);
-            using FileStream fs = File.OpenRead(filePath);
-            int bytesWritten = await SHA256.HashDataAsync(fs, memory, token);
-            result = Convert.ToHexString(memory.Span);
-        }
-        finally
-        {
-            ArrayPool<byte>.Shared.Return(rentedArray);
-        }
-
-        return result;
-    }
-
 }

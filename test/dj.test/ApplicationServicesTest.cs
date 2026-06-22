@@ -12,6 +12,7 @@ using Microsoft.Extensions.Options;
 using shared.data;
 using Newtonsoft.Json;
 using Xunit.Internal;
+using shared.thesaurus;
 
 namespace dj.test;
 
@@ -63,7 +64,14 @@ public class ApplicationServices : IDisposable
             DataFile = "testdata/appservices.db",
         };
 
+        var thesaurusConfig = new ThesaurusConfiguration()
+        {
+            DictionaryPath = "wordnet/staticdata/",
+            DatabasePath = "wordnet/database/wordnet.db"
+        };
+
         _builder.Services.AddSingleton(Options.Create(databaseConfig))
+                        .AddSingleton(Options.Create(thesaurusConfig))
                         .Configure<shared.EndpointConfig>(_builder.Configuration.GetSection("TMDB"));
     }
 
@@ -202,7 +210,6 @@ public class ApplicationServices : IDisposable
         log(JsonConvert.SerializeObject(movie));
     }
 
-
     [Fact]
     public async Task QueryLocalAndRemoteMovies()
     {
@@ -243,8 +250,6 @@ public class ApplicationServices : IDisposable
         var localMatches = await media.FindInPath<shared.data.File>(keywords, _tokenSource.Token);
 
         localMatches.Should().NotBeNullOrEmpty();
-
-        localMatches.Select(x => x.Details as shared.data.File).ForEach(x => Debug.WriteLine(Path.GetFileName(x.path)));
     }
 
 

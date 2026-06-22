@@ -61,21 +61,9 @@ public class FileHelperBenchmarks
     }
 
     [Benchmark]
-    public async Task HashMemoryBuffer()
-    {
-        string hash = await FileHashes.HashFsMemoryBuffer(filePath, source.Token);
-    }
-
-    [Benchmark]
     public async Task HashOpenRead()
     {
         string hash = await FileHashes.HashOpenRead(filePath);
-    }
-
-    [Benchmark]
-    public async Task HashArrayPool()
-    {
-        string hash = await FileHashes.HashFsArrayPool(filePath, source.Token);
     }
 
     [Benchmark]

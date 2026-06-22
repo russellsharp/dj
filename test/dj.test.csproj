@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
+    <PackageReference Include="BenchmarkDotNet.TestAdapter" Version="0.15.8" />
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
     <PackageReference Include="Dapper.Logging" Version="0.4.3" />
     <PackageReference Include="FluentAssertions" Version="8.10.0" />

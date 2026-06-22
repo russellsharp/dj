@@ -196,7 +196,7 @@ public class Cache : IDisposable, ICache
 
                 Debug.WriteLine($"Querying overview: {sql}");
 
-                var matches = await _connection.QueryAsync(sql);
+                var matches = await _connection!.QueryAsync(sql);
                 return matches.Select(x => new MatchScore<MovieDetailsResponse>() { Hits = x.Hits, Details = JsonSerializer.Deserialize<MovieDetailsResponse>(x.details as string) });
             }
             catch (Exception ex)

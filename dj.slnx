@@ -8,4 +8,7 @@
   <Folder Name="/test/">
     <Project Path="test/dj.test.csproj" />
   </Folder>
+  <Folder Name="/benchmark-cli/">
+    <Project Path="src/benchmark-cli/benchmark-cli.csproj"/>
+  </Folder>
 </Solution>

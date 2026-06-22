@@ -1,7 +1,7 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿using shared;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using cli;
-using shared;
 
 var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddTransient<Application>();
