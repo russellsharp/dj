@@ -21,7 +21,7 @@ public class Application(IMediaCollection _mediaCollection, IRepo _repo, Cancell
 
         await _mediaCollection.UpdateRepos(baseDirectory, false, _tokenSource.Token);
 
-        var patterns = @".+\.avi$;.+\.mp4$;.+\.mkv$;.+\.wmv$;.+\.mpg$;".Split(';', StringSplitOptions.RemoveEmptyEntries);
+        var patterns = @".+\.avi$;.+\.mp4$;.+\.mkv$;.+\.wmv$;.+\.mpg$;".ToLowerInvariant().Split(';', StringSplitOptions.RemoveEmptyEntries);
 
         patterns.ToList().ForEach(x => Debug.WriteLine(x));
 

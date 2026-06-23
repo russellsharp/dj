@@ -89,9 +89,8 @@ public static class FileHelper
         return File.Exists(filePath);
     }
 
-    public static async Task<shared.data.File> PathToFile(string path, CancellationToken token)
+    public static async Task<shared.data.File> PathToFile(string path)
     {
-
         var fileInfo = new FileInfo(path);
 
         var fileHash = await shared.FileHashes.HashFs(path);

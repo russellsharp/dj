@@ -123,7 +123,7 @@ public class MediaCollection : IMediaCollection
 
             // var paralllelOptions = new ParallelOptions { MaxDegreeOfParallelism = 10, CancellationToken = token.Value };
             // await Parallel.ForEachAsync(fileList, paralllelOptions, async (file, ct) => { await ProcessFile(file, token.Value); });
-            var filesTasks = fileList.Select(async x => await ProcessFile(Path.GetFullPath(x), _tokenSource.Token)).ToList();
+            var filesTasks = fileList.Select(async x => await ProcessFile(Path.GetFullPath(x), token.Value)).ToList();
             await Task.WhenAll(filesTasks);
 
             //files remaining to store
@@ -206,7 +206,9 @@ public class MediaCollection : IMediaCollection
     {
         token ??= _tokenSource.Token;
 
-        if (patterns is null || !patterns.Any()) throw new ArgumentNullException($"Patterns are empty.");
+        if (patterns is null || !patterns.Any()) throw new ArgumentException($"Patterns are empty or null.");
+
+        patterns = patterns.Select(x => x.ToLowerInvariant());
 
         if (_mediaRepo is null || !_mediaRepo.Any())
         {
