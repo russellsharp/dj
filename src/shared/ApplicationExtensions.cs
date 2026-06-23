@@ -20,7 +20,7 @@ public static class ApplicationExtensions
 
     public static IServiceCollection AddConfiguration(this IHostApplicationBuilder builder)
     {
-        return builder.Services.Configure<MediaReaderConfiguration>(builder.Configuration.GetSection(MediaReaderConfiguration.SectionName))
+        return builder.Services.Configure<MediaCollectionConfiguration>(builder.Configuration.GetSection(MediaCollectionConfiguration.SectionName))
                                 .Configure<shared.data.DatabaseConfiguration>(builder.Configuration.GetSection(shared.data.DatabaseConfiguration.SectionName))
                                 .Configure<shared.EndpointConfig>(builder.Configuration.GetSection("TMDB"))
                                 .Configure<ThesaurusConfiguration>(builder.Configuration.GetSection("Thesaurus"));

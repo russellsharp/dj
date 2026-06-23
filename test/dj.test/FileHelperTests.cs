@@ -53,7 +53,7 @@ public class FileHelperTests(ITestOutputHelper _output)
         message.Should().Be($"File is locked by another process: {FileAccess.Read}, " + path);
     }
 
-    [Fact, Trait("Purpose", "Benchmark")]
+    [Fact(Skip = "Only for benchmarks."), Trait("Purpose", "Benchmark")]
     public void FileHashBenchmark()
     {
         // Act: Run the benchmarks programmatically

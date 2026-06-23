@@ -9,3 +9,5 @@ src/shared/reference/*
 src/shared/reference/*
 BenchmarkDotNet.Artifacts/**
 **/BenchmarkDotNet.Artifacts/**
+*.suo
+.vs/**

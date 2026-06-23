@@ -35,7 +35,7 @@ public class UtcDateTimeHandler : SqlMapper.TypeHandler<DateTime>
             return default;
         }
 
-        string dateString = value.ToString();
+        string dateString = value.ToString()!;
 
         //Normally DateTime.Parse will convert to localtime
         if (DateTime.TryParse(dateString, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out DateTime parsedDate))

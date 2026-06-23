@@ -5,6 +5,7 @@ using FluentAssertions;
 using shared;
 using System.Diagnostics;
 using Microsoft.Extensions.Options;
+using System.Net;
 namespace dj.test;
 
 public class Database : IDisposable
@@ -20,7 +21,7 @@ public class Database : IDisposable
     private List<string> _filesToDelete = new();
 
     private CancellationTokenSource _tokenSource = new();
-    private string _baseDirectory = "testDirectory/";
+    private string _baseDirectory = "testMedia/";
 
     public Database(ITestOutputHelper output)
     {
@@ -28,7 +29,7 @@ public class Database : IDisposable
 
         _dataConfig = new shared.data.DatabaseConfiguration()
         {
-            DataFile = Path.GetFullPath("testdatabase/test.db")
+            DataFile = Path.GetFullPath("testdata/database.db")
         };
 
         var optionsConfig = Options.Create(_dataConfig);
@@ -74,7 +75,7 @@ public class Database : IDisposable
     [Fact]
     public async Task SaveFile()
     {
-        var testFile = @"testData/test_file_01.avi";
+        var testFile = $"{_baseDirectory}/test_file_01.avi";
 
         await CreateTestFile(testFile, 5000, (byte)'w');
 
@@ -273,14 +274,16 @@ public class Database : IDisposable
     private async Task<IEnumerable<shared.data.File>> CreateTestFileSet(int count, string extension = "avi", long sizeKb = 500, byte filler = (byte)'w')
     {
         Random rng = new Random();
-        var testFiles = Enumerable.Range(1, count).Select(x => Path.ChangeExtension($"{_baseDirectory}/test_file_{x}", extension));
-        testFiles.ForEach(async x => await FileHelper.CreateFile(x, rng.NextInt64(sizeKb), filler));
+        var testFiles = Enumerable.Range(1, count).Select(x => Path.ChangeExtension($"{_baseDirectory}/{Guid.NewGuid().ToString()}", extension)).ToList();
+        var fileCreation = testFiles.Select(async x => await FileHelper.CreateFile(x, rng.NextInt64(sizeKb), filler)).ToList();
+
+        var fileCreationSuccess = (await Task.WhenAll(fileCreation)).ToList();
 
         _filesToDelete.AddRange(testFiles.Select(x => Path.GetFullPath(x)));
 
         var testConversion = testFiles
             .AsParallel().WithCancellation(_tokenSource.Token)
-            .Select(async x => await shared.FileHelper.PathToFile(x, _tokenSource.Token)).ToList();
+            .Select(async x => await shared.FileHelper.PathToFile(Path.GetFullPath(x), _tokenSource.Token)).ToList();
         return await Task.WhenAll(testConversion);
     }
 

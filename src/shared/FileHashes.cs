@@ -10,7 +10,7 @@ public static class FileHashes
         return Convert.ToHexString(hashBytes);
     }
 
-    public static async Task<string> HashFsStackSpan(string filePath, CancellationToken token)
+    public static async Task<string> HashFs(string filePath)
     {
         using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 4096, FileOptions.SequentialScan);
         byte[] hashBytes = SHA256.HashData(fs);

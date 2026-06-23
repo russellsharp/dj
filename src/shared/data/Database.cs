@@ -100,17 +100,19 @@ public class Database : IDisposable, IDatabase
     {
         var rootDir = Path.GetDirectoryName(Environment.ProcessPath);
 
-#pragma warning disable CS8604 // Possible null reference argument.
-        var dbPath = Path.GetFullPath(Path.Combine(rootDir, _config.DataFile));
-#pragma warning restore CS8604 // Possible null reference argument.
+        var dbPath = Path.GetFullPath(Path.Combine(rootDir!, _config.DataFile));
 
         var lockObject = s_databaseLocks.GetOrAdd(dbPath, _ => new object());
         lock (lockObject)
         {
-            SqliteConnection.ClearAllPools();
-            _connection?.Close();
-            _connection?.Dispose();
+            var connectionToClose = _connection;
             _connection = null;
+
+            if (connectionToClose is not null)
+            {
+                connectionToClose?.Close();
+                connectionToClose?.Dispose();
+            }
         }
     }
 
@@ -164,7 +166,7 @@ public class Database : IDisposable, IDatabase
             using var transaction = _connection.BeginTransaction();
             const string sql = @"
             INSERT INTO file (
-                path_hash, path, data_modified, date_created, 
+                path_hash, path, date_modified, date_created, 
                 size, extension, hash, attributes, extra_attributes
             ) VALUES (
                 @path_hash, @path, @date_modified, @date_created, 
@@ -178,7 +180,7 @@ public class Database : IDisposable, IDatabase
                     file.path_hash,
                     file.path,
                     // SQLite automatically handles ISO8601 string dates seamlessly
-                    data_modified = file.date_modified.ToIsoUtcString(),
+                    date_modified = file.date_modified.ToIsoUtcString(),
                     date_created = file.date_created.ToIsoUtcString(),
                     file.size,
                     file.extension,

@@ -1,15 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection.Metadata.Ecma335;
-using System.Runtime.InteropServices.Marshalling;
-using System.Threading.Tasks;
+﻿namespace shared;
 
-namespace shared;
-
-public class MediaReaderConfiguration
+public class MediaCollectionConfiguration
 {
-    public const string SectionName = nameof(MediaReaderConfiguration);
+    public const string SectionName = nameof(MediaCollectionConfiguration);
 
     private string _baseDirectory = string.Empty;
 

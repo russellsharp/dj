@@ -82,10 +82,10 @@ public static class FileHelper
             int bytesLeft = (int)(totalBytes - bytesWritten);
             int bytesToWrite = Math.Min(chunkSize, bytesLeft);
 
-            await fs.WriteAsync(buffer, 0, bytesToWrite);
+            await fs.WriteAsync(buffer.AsMemory(0, bytesToWrite));
             bytesWritten += bytesToWrite;
         }
-
+        fs.Close();
         return File.Exists(filePath);
     }
 
@@ -94,7 +94,7 @@ public static class FileHelper
 
         var fileInfo = new FileInfo(path);
 
-        var fileHash = await shared.FileHashes.HashFsStackSpan(path, token);
+        var fileHash = await shared.FileHashes.HashFs(path);
 
         var fullPath = Path.GetFullPath(path);
 

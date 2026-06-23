@@ -49,7 +49,7 @@ public class ApplicationServices : IDisposable
 
     private void LoadTestConfigs()
     {
-        var mediaConfig = new MediaReaderConfiguration
+        var mediaConfig = new MediaCollectionConfiguration
         {
             DirectoryRecursionDepth = 50,
             BaseDirectory = "testMedia",
@@ -97,7 +97,7 @@ public class ApplicationServices : IDisposable
 
         media.Should().NotBeNull();
 
-        var config = _host.Services.GetRequiredService<IOptions<MediaReaderConfiguration>>();
+        var config = _host.Services.GetRequiredService<IOptions<MediaCollectionConfiguration>>();
 
         config.Should().NotBeNull();
 
@@ -145,7 +145,7 @@ public class ApplicationServices : IDisposable
     [Fact]
     public async Task GetFileInfo()
     {
-        var config = _host.Services.GetRequiredService<IOptions<MediaReaderConfiguration>>();
+        var config = _host.Services.GetRequiredService<IOptions<MediaCollectionConfiguration>>();
 
         config.Should().NotBeNull();
 
@@ -254,7 +254,7 @@ public class ApplicationServices : IDisposable
 
     private async Task CreateTestFile(int count, long sizeKb = 250, byte filler = (byte)'w', string extension = "avi", string fileName = null)
     {
-        var config = _host.Services.GetRequiredService<IOptions<MediaReaderConfiguration>>();
+        var config = _host.Services.GetRequiredService<IOptions<MediaCollectionConfiguration>>();
 
         config.Should().NotBeNull();
 

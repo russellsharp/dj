@@ -1,18 +1,10 @@
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Diagnostics;
-using System.Linq.Expressions;
-using System.Net.Mime;
-using System.Reflection;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
 using shared.data;
 using shared.TMDB;
-using shared.TMDB.Models;
-using WeCantSpell.Hunspell;
-
 namespace shared;
 
 public enum MediaType
@@ -34,7 +26,7 @@ public interface IMediaCollection
 
 public class MediaCollection : IMediaCollection
 {
-    private readonly MediaReaderConfiguration _configuration;
+    private readonly MediaCollectionConfiguration _configuration;
 
     private Dictionary<string, shared.data.File> _mediaRepo;
     private Dictionary<string, DirectoryInfo> _directoryRepo;
@@ -43,7 +35,7 @@ public class MediaCollection : IMediaCollection
 
     private shared.data.IDatabase _db;
 
-    public MediaCollection(IOptions<MediaReaderConfiguration> configuration, IDatabase db, ITMDB tmdb)
+    public MediaCollection(IOptions<MediaCollectionConfiguration> configuration, IDatabase db, ITMDB tmdb)
     {
         _configuration = configuration.Value;
 
@@ -128,9 +120,10 @@ public class MediaCollection : IMediaCollection
                 await _db.Truncate();
             }
 
-            var filesTasks = fileList.Select(async x => await ProcessFile(Path.GetFullPath(x), _tokenSource.Token)).ToList();
 
-            //process all files in ~MaximumBagSize chunks
+            // var paralllelOptions = new ParallelOptions { MaxDegreeOfParallelism = 10, CancellationToken = token.Value };
+            // await Parallel.ForEachAsync(fileList, paralllelOptions, async (file, ct) => { await ProcessFile(file, token.Value); });
+            var filesTasks = fileList.Select(async x => await ProcessFile(Path.GetFullPath(x), _tokenSource.Token)).ToList();
             await Task.WhenAll(filesTasks);
 
             //files remaining to store
@@ -169,7 +162,7 @@ public class MediaCollection : IMediaCollection
 
     private ConcurrentBag<shared.data.File> _filesToStore = new();
     private int MaximumBagSize = 20;
-    private object _processFileQueueLock = new();
+    private readonly object _processFileQueueLock = new();
     private static int _fileCount = 0;
 
     public async Task ProcessFile(string filePath, CancellationToken token)

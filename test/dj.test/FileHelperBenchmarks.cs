@@ -57,7 +57,7 @@ public class FileHelperBenchmarks
     [Benchmark]
     public async Task HashSpanBuffer()
     {
-        string hash = await FileHashes.HashFsStackSpan(filePath, source.Token);
+        string hash = await FileHashes.HashFs(filePath);
     }
 
     [Benchmark]

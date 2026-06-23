@@ -1,14 +1,6 @@
-using System;
-using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations.Schema;
 using System.Diagnostics;
-using System.Linq;
-using System.Threading.Tasks;
 using FluentAssertions;
-using Microsoft.Diagnostics.Runtime.Utilities;
-using Microsoft.Extensions.FileSystemGlobbing.Internal;
 using Microsoft.Extensions.Options;
-using Perfolizer.Horology;
 using shared;
 using shared.data;
 using shared.TMDB;
@@ -18,7 +10,7 @@ namespace dj.test;
 
 public class MediaCollection
 {
-    private IOptions<MediaReaderConfiguration> BasicMediaOptions = Options.Create(new MediaReaderConfiguration
+    private IOptions<MediaCollectionConfiguration> BasicMediaOptions = Options.Create(new MediaCollectionConfiguration
     {
         Filter = "*.*",
         // BaseDirectory = "C:/dev/mediaReference",
@@ -30,7 +22,7 @@ public class MediaCollection
 
     private IOptions<DatabaseConfiguration> BasicDatabaseConfig = Options.Create(new DatabaseConfiguration
     {
-        DataFile = "testdata/testmedia.db",
+        DataFile = "testdata/mediacollection.db",
     });
 
     private static IOptions<EndpointConfig> BasicEndpointOptions = Options.Create(new EndpointConfig
