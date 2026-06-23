@@ -9,6 +9,7 @@ using System.Collections.Concurrent;
 using shared.TMDB.Models;
 using System.Net.Mime;
 using System.Text.Json;
+using System.Runtime.CompilerServices;
 namespace shared.TMDB;
 
 public interface ICache
@@ -65,10 +66,11 @@ public class Cache : IDisposable, ICache
 
     public bool Get<ResponseType>(string tmdb_request_url, out ResponseType? response)
     {
+        var connection = _connection ?? throw new InvalidOperationException("Cache is not connected.");
         var sql = $"SELECT response FROM tmdb_cache WHERE url_hash = @request_hash AND response_type = @type";
 
         var requestHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(tmdb_request_url)));
-        using var command = new SqliteCommand(sql, _connection);
+        using var command = new SqliteCommand(sql, connection);
         try
         {
             command.Parameters.AddWithValue("request_hash", requestHash);
@@ -78,7 +80,10 @@ public class Cache : IDisposable, ICache
 
             if (result != null)
             {
-                response = JsonSerializer.Deserialize<ResponseType>(Convert.ToString(result));
+                var json = Convert.ToString(result);
+                response = !string.IsNullOrWhiteSpace(json)
+                    ? JsonSerializer.Deserialize<ResponseType>(json)
+                    : default;
 
                 return true;
             }
@@ -95,24 +100,33 @@ public class Cache : IDisposable, ICache
 
     public async Task Store<ResponseType>(string requestUrl, string? content)
     {
+        var connection = _connection ?? throw new InvalidOperationException("Cache is not connected.");
         var sql = "INSERT INTO tmdb_cache (url_hash, url, id, response, response_type) VALUES (@request_hash, @request, @response, @response_type) ON CONFLICT(url_hash) DO UPDATE SET response = excluded.response, response_type = excluded.response_type";
 
         var requestHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(requestUrl)));
-        using var command = new SqliteCommand(sql, _connection);
+        using var command = new SqliteCommand(sql, connection);
         command.Parameters.AddWithValue("request_hash", requestHash);
         command.Parameters.AddWithValue("response", content);
         command.Parameters.AddWithValue("response_type", typeof(ResponseType).ToString());
         command.Parameters.AddWithValue("request", requestUrl);
 
-        await StoreTypedData(JsonSerializer.Deserialize<ResponseType>(content));
+        if (!string.IsNullOrWhiteSpace(content))
+        {
+            var typedContent = JsonSerializer.Deserialize<ResponseType>(content);
+            if (typedContent is not null)
+            {
+                await StoreTypedData(typedContent);
+            }
+        }
 
         await command.ExecuteNonQueryAsync();
     }
 
-    public async IAsyncEnumerable<ContentType?> GetAllStream<ContentType>(CancellationToken token)
+    public async IAsyncEnumerable<ContentType?> GetAllStream<ContentType>([EnumeratorCancellation] CancellationToken token)
     {
+        var connection = _connection ?? throw new InvalidOperationException("Cache is not connected.");
         const string sql = "SELECT * FROM tmdb_cache";
-        var dataSet = _connection.QueryUnbufferedAsync<(string hash, string response)>(sql);
+        var dataSet = connection.QueryUnbufferedAsync<(string hash, string response)>(sql);
 
         await foreach (var row in dataSet.WithCancellation(token))
         {
@@ -128,7 +142,7 @@ public class Cache : IDisposable, ICache
         {
             case MovieDetailsResponse details:
             {
-                await StoreMovieDetails(contents as MovieDetailsResponse, token);
+                await StoreMovieDetails(details, token);
                 break;
             }
             default:
@@ -140,9 +154,10 @@ public class Cache : IDisposable, ICache
 
     public async Task StoreMovieDetails(MovieDetailsResponse details, CancellationToken? token = null)
     {
+        var connection = _connection ?? throw new InvalidOperationException("Cache is not connected.");
         const string sql = "INSERT INTO movie_details (id, details) VALUES (@id, @Details) ON CONFLICT(id) DO UPDATE SET details = EXCLUDED.details";
         var detailString = JsonSerializer.Serialize(details);
-        using var command = new SqliteCommand(sql, _connection);
+        using var command = new SqliteCommand(sql, connection);
         command.Parameters.AddWithValue("details", detailString);
 
         await command.ExecuteNonQueryAsync();
@@ -166,8 +181,17 @@ public class Cache : IDisposable, ICache
             var caseStatements = keywords.Where(x => !string.IsNullOrEmpty(x)).Select(x => $"CASE WHEN response LIKE '%{x}%' THEN 1 ELSE 0 END");
             string sql = $"{sqlPrefix} ({string.Join(" + \n", caseStatements)}) {suffix}";
 
-            var matches = await _connection.QueryAsync(sql);
-            var typedMatches = matches.Select(x => new MatchScore<ResponseType>() { Hits = x.Hits, Details = JsonSerializer.Deserialize<ResponseType>(x.Details as string) });
+            var connection = _connection ?? throw new InvalidOperationException("Cache is not connected.");
+            var matches = await connection.QueryAsync(sql);
+            var typedMatches = matches.Select(x =>
+            {
+                var json = x.Details as string;
+                return new MatchScore<ResponseType>()
+                {
+                    Hits = x.Hits,
+                    Details = !string.IsNullOrWhiteSpace(json) ? JsonSerializer.Deserialize<ResponseType>(json) : null
+                };
+            });
             return typedMatches;
         }
         catch (Exception ex)
@@ -199,8 +223,17 @@ public class Cache : IDisposable, ICache
 
             Debug.WriteLine($"Querying overview: {sql}");
 
-            var matches = await _connection!.QueryAsync(sql);
-            return matches.Select(x => new MatchScore<MovieDetailsResponse>() { Hits = x.Hits, Details = JsonSerializer.Deserialize<MovieDetailsResponse>(x.details as string) });
+            var connection = _connection ?? throw new InvalidOperationException("Cache is not connected.");
+            var matches = await connection.QueryAsync(sql);
+            return matches.Select(x =>
+            {
+                var json = x.details as string;
+                return new MatchScore<MovieDetailsResponse>()
+                {
+                    Hits = x.Hits,
+                    Details = !string.IsNullOrWhiteSpace(json) ? JsonSerializer.Deserialize<MovieDetailsResponse>(json) : null
+                };
+            });
         }
         catch (Exception ex)
         {
@@ -229,8 +262,17 @@ public class Cache : IDisposable, ICache
 
             Debug.WriteLine($"Querying overview with synonyms:\n {sql}");
 
-            var matches = await _connection!.QueryAsync(sql);
-            return matches.Select(x => new MatchScore<MovieDetailsResponse>() { Hits = x.Hits, Details = JsonSerializer.Deserialize<MovieDetailsResponse>(x.details as string) });
+            var connection = _connection ?? throw new InvalidOperationException("Cache is not connected.");
+            var matches = await connection.QueryAsync(sql);
+            return matches.Select(x =>
+            {
+                var json = x.details as string;
+                return new MatchScore<MovieDetailsResponse>()
+                {
+                    Hits = x.Hits,
+                    Details = !string.IsNullOrWhiteSpace(json) ? JsonSerializer.Deserialize<MovieDetailsResponse>(json) : null
+                };
+            });
         }
         catch (Exception ex)
         {
@@ -241,11 +283,12 @@ public class Cache : IDisposable, ICache
 
     public void Connect()
     {
-        var rootDir = Path.GetDirectoryName(Environment.ProcessPath);
+        var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
+        var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
 
-        var dbPath = Path.GetFullPath(Path.Combine(rootDir!, _config.DatabasePath));
+        var dbPath = Path.GetFullPath(Path.Combine(rootDir, _config.DatabasePath));
 
-        Directory.CreateDirectory(Path.GetDirectoryName(dbPath!));
+        Directory.CreateDirectory(Path.GetDirectoryName(dbPath) ?? throw new InvalidOperationException("Unable to determine database directory"));
 
         Debug.WriteLine($"Created {Path.GetDirectoryName(dbPath)}");
 

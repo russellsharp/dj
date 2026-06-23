@@ -12,16 +12,20 @@ namespace shared.thesaurus;
 
 public record ThesaurusEntry
 {
-    public string word { get; init; }
-    public string wordnet_id { get; init; }
-    public string key { get; init; }
-    public string pos { get; init; }
+    public string? word { get; init; }
+    public string? wordnet_id { get; init; }
+    public string? key { get; init; }
+    public string? pos { get; init; }
     [JsonConverter(typeof(EmptyArrayOrStringConverter))]
-    public string synonyms { get; init; }
-    public List<string> synonyms_list => synonyms != null ? JsonSerializer.Deserialize<List<string>>(synonyms) : new();
+    public string? synonyms { get; init; }
+    public List<string> synonyms_list => !string.IsNullOrWhiteSpace(synonyms)
+        ? JsonSerializer.Deserialize<List<string>>(synonyms) ?? new()
+        : new();
     [JsonConverter(typeof(EmptyArrayOrStringConverter))]
-    public string desc { get; init; }
-    public List<string> desc_list => desc != null ? JsonSerializer.Deserialize<List<string>>(desc) : new();
+    public string? desc { get; init; }
+    public List<string> desc_list => !string.IsNullOrWhiteSpace(desc)
+        ? JsonSerializer.Deserialize<List<string>>(desc) ?? new()
+        : new();
 }
 
 public class ThesaurusConfiguration
@@ -69,12 +73,13 @@ public class Thesaurus : IThesaurus
 
         const string sql = @"SELECT * FROM thesaurus WHERE word = @word";
 
-        var command = _connection!.CreateCommand();
+        var connection = _connection ?? throw new InvalidOperationException("Thesaurus database is not connected.");
+        var command = connection.CreateCommand();
 
         command.CommandText = sql;
         command.Parameters.AddWithValue("word", baseWord);
 
-        var entries = await _connection.QueryAsync<ThesaurusEntry>(sql, new { word = baseWord });
+        var entries = await connection.QueryAsync<ThesaurusEntry>(sql, new { word = baseWord });
 
         var synonyms = entries.SelectMany(entry => entry.synonyms_list);
 
@@ -91,9 +96,13 @@ public class Thesaurus : IThesaurus
 
         var lines = File.ReadAllLines(filePath);
 
-        var entries = lines.Select(line => JsonSerializer.Deserialize<ThesaurusEntry>(line)).ToList();
+        var entries = lines
+            .Select(line => JsonSerializer.Deserialize<ThesaurusEntry>(line))
+            .Where(entry => entry is not null)
+            .Cast<ThesaurusEntry>()
+            .ToList();
 
-        if (entries is not null)
+        if (entries.Any())
             await BuildDatabase(entries);
     }
 
@@ -138,7 +147,7 @@ public class Thesaurus : IThesaurus
     {
         var databasePath = Path.GetFullPath(_config.DatabasePath);
 
-        Directory.CreateDirectory(Path.GetDirectoryName(databasePath));
+        Directory.CreateDirectory(Path.GetDirectoryName(databasePath) ?? throw new InvalidOperationException("Unable to determine thesaurus database directory"));
 
         var builder = new SqliteConnectionStringBuilder
         {

@@ -11,10 +11,9 @@ namespace shared.TMDB
     public interface ITMDB
     {
         Task<MovieDetailsResponse?> GetMovie(int id);
-        Task<MovieQueryResponse> QueryTitle(string query, int page = 1);
+        Task<MovieQueryResponse?> QueryTitle(string query, int page = 1);
         Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryOverviews(string query, int minimumHitCount, CancellationToken? token = null);
         Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryWithGroupedTerms(IEnumerable<IEnumerable<string>> query, int minimumHitCount, CancellationToken? token = null);
-        Task<List<Genre>> GetGenres();
         Task<IEnumerable<Result?>> PathToTmdb(string filePath, MatchingContext context, bool useDictionary = true, CancellationToken? token = null);
     }
 
@@ -47,7 +46,7 @@ namespace shared.TMDB
             return await _repo.Movie(id);
         }
 
-        public async Task<MovieQueryResponse> QueryTitle(string query, int page = 1)
+        public async Task<MovieQueryResponse?> QueryTitle(string query, int page = 1)
         {
             return await _repo.QueryTitle(query, page);
         }
@@ -68,7 +67,7 @@ namespace shared.TMDB
             var scoredResultsByTitle = new List<MatchScore<Result>>();
             foreach (var pathSegment in pathSegments)
             {
-                scoredResultsByTitle.AddRange(tmdbResults.Select(x => new MatchScore<Result> { Hits = Scoring.Levenshtein(pathSegment, x.title), Details = x }));
+                scoredResultsByTitle.AddRange(tmdbResults.Select(x => new MatchScore<Result> { Hits = Scoring.Levenshtein(pathSegment, x.title ?? string.Empty), Details = x }));
             }
 
             return scoredResultsByTitle.Where(x => x.Hits >= minimumScore).OrderByDescending(x => x.Hits).Select(x => x.Details);
@@ -78,7 +77,7 @@ namespace shared.TMDB
         {
             token ??= _tokenSource.Token;
 
-            List<Result?> matches = null;
+            List<Result?> matches = new();
 
             const int minimumMatchScore = 100;
 

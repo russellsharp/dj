@@ -75,7 +75,7 @@ public class FileHelperBenchmarks
 
         var testConversion = testFiles
             .AsParallel().WithCancellation(_tokenSource.Token)
-            .Select(async x => await shared.FileHelper.PathToFile(x, _tokenSource.Token)).ToList();
+            .Select(async x => await shared.FileHelper.PathToFile(x)).ToList();
         await Task.WhenAll(testConversion);
     }
 
@@ -89,7 +89,7 @@ public class FileHelperBenchmarks
 
         var testConversion = testFiles
             .AsParallel().WithCancellation(_tokenSource.Token)
-            .Select(async x => await shared.FileHelper.PathToFile(x, _tokenSource.Token)).ToList();
+            .Select(async x => await shared.FileHelper.PathToFile(x)).ToList();
         await Task.WhenAll(testConversion);
     }
 
@@ -106,7 +106,7 @@ public class FileHelperBenchmarks
 
         var testConversion = testFiles
             .AsParallel().WithCancellation(_tokenSource.Token)
-            .Select(async x => await shared.FileHelper.PathToFile(x, _tokenSource.Token)).ToList();
+            .Select(async x => await shared.FileHelper.PathToFile(x)).ToList();
 
         var testData = await Task.WhenAll(testConversion);
 

@@ -97,9 +97,10 @@ public class Database : IDisposable, IDatabase
 
     public void Disconnect()
     {
-        var rootDir = Path.GetDirectoryName(Environment.ProcessPath);
+        var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
+        var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
 
-        var dbPath = Path.GetFullPath(Path.Combine(rootDir!, _config.DataFile));
+        var dbPath = Path.GetFullPath(Path.Combine(rootDir, _config.DataFile));
 
         var lockObject = s_databaseLocks.GetOrAdd(dbPath, _ => new object());
         lock (lockObject)
@@ -162,7 +163,8 @@ public class Database : IDisposable, IDatabase
 
         try
         {
-            using var transaction = _connection.BeginTransaction();
+            var connection = _connection ?? throw new DatabaseNotConnected();
+            using var transaction = connection.BeginTransaction();
             const string sql = @"
             INSERT INTO file (
                 path_hash, path, date_modified, date_created, 
@@ -211,7 +213,8 @@ public class Database : IDisposable, IDatabase
 
         try
         {
-            using var transaction = await _connection.BeginTransactionAsync();
+            var connection = _connection ?? throw new DatabaseNotConnected();
+            using var transaction = await connection.BeginTransactionAsync();
 
             const string sql = @"
             INSERT INTO file (
@@ -266,11 +269,12 @@ public class Database : IDisposable, IDatabase
     {
         if (!IsConnected()) throw new DatabaseNotConnected();
 
+        var connection = _connection ?? throw new DatabaseNotConnected();
         const string sql = @"SELECT EXISTS (SELECT 1 FROM file WHERE path_hash = @path_hash)";
         try
         {
             var path_hash = FileHelper.HashString(Path.GetFullPath(filePath));
-            return await _connection.ExecuteScalarAsync<bool>(sql, new { path_hash = path_hash });
+            return await connection.ExecuteScalarAsync<bool>(sql, new { path_hash = path_hash });
         }
         catch (Exception ex)
         {
@@ -283,6 +287,7 @@ public class Database : IDisposable, IDatabase
     {
         if (!IsConnected()) throw new DatabaseNotConnected();
 
+        var connection = _connection ?? throw new DatabaseNotConnected();
         const string sql = @"SELECT * FROM file WHERE path_hash = @path_hash;";
 
         shared.data.File? file = null;
@@ -290,7 +295,7 @@ public class Database : IDisposable, IDatabase
         try
         {
             var path_hash = FileHelper.HashString(path);
-            file = await _connection.QueryFirstOrDefaultAsync<shared.data.File>(sql, new { path_hash = path_hash });
+            file = await connection.QueryFirstOrDefaultAsync<shared.data.File>(sql, new { path_hash = path_hash });
         }
         catch (Exception ex)
         {
@@ -305,13 +310,14 @@ public class Database : IDisposable, IDatabase
     {
         if (!IsConnected()) throw new DatabaseNotConnected();
 
+        var connection = _connection ?? throw new DatabaseNotConnected();
         const string sql = @"SELECT * FROM file;";
 
         var files = Enumerable.Empty<shared.data.File>();
 
         try
         {
-            files = await _connection.QueryAsync<shared.data.File>(sql, null, null, _commandTimeoutSeconds, CommandType.Text);
+            files = await connection.QueryAsync<shared.data.File>(sql, null, null, _commandTimeoutSeconds, CommandType.Text);
         }
         catch (Exception ex)
         {
@@ -327,6 +333,7 @@ public class Database : IDisposable, IDatabase
     {
         if (!IsConnected()) throw new DatabaseNotConnected();
 
+        var connection = _connection ?? throw new DatabaseNotConnected();
         const string sql = @"SELECT * FROM file WHERE path_hash IN @path_hashes;";
 
         var files = Enumerable.Empty<shared.data.File>();
@@ -334,7 +341,7 @@ public class Database : IDisposable, IDatabase
         try
         {
             var path_hashes = paths.Select(x => FileHelper.HashString(x));
-            files = await _connection.QueryAsync<shared.data.File>(sql, new { path_hashes = path_hashes }, null, _commandTimeoutSeconds, CommandType.Text);
+            files = await connection.QueryAsync<shared.data.File>(sql, new { path_hashes = path_hashes }, null, _commandTimeoutSeconds, CommandType.Text);
         }
         catch (Exception ex)
         {
@@ -349,13 +356,14 @@ public class Database : IDisposable, IDatabase
     {
         if (!IsConnected()) throw new DatabaseNotConnected();
 
+        var connection = _connection ?? throw new DatabaseNotConnected();
         const string sql = @"SELECT * FROM file WHERE extension IN @file_extensions;";
 
         var files = Enumerable.Empty<shared.data.File>();
 
         try
         {
-            files = await _connection.QueryAsync<shared.data.File>(sql, new { file_extensions = extensions }, null, _commandTimeoutSeconds, CommandType.Text);
+            files = await connection.QueryAsync<shared.data.File>(sql, new { file_extensions = extensions }, null, _commandTimeoutSeconds, CommandType.Text);
         }
         catch (Exception ex)
         {
@@ -370,11 +378,12 @@ public class Database : IDisposable, IDatabase
     {
         if (!IsConnected()) throw new DatabaseNotConnected();
 
+        var connection = _connection ?? throw new DatabaseNotConnected();
         var sql = new StringBuilder(@"SELECT * FROM file WHERE ");
 
         var conditions = new List<string>();
         var parameters = new DynamicParameters();
-        var searchTerms = paths.Select(x => Path.GetDirectoryName(x)).ToList();
+        var searchTerms = paths.Select(x => Path.GetDirectoryName(x) ?? string.Empty).ToList();
         Console.WriteLine(string.Join(", ", searchTerms));
 
         for (int i = 0; i < paths.Count(); i++)
@@ -392,7 +401,7 @@ public class Database : IDisposable, IDatabase
 
         try
         {
-            files = await _connection.QueryAsync<shared.data.File>(sql.ToString(), parameters, null, _commandTimeoutSeconds, CommandType.Text);
+            files = await connection.QueryAsync<shared.data.File>(sql.ToString(), parameters, null, _commandTimeoutSeconds, CommandType.Text);
         }
         catch (Exception ex)
         {

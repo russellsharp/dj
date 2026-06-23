@@ -63,7 +63,8 @@ public static class FileHelper
 
     public static async Task<bool> CreateFile(string filePath, long lengthKBytes, byte filler)
     {
-        var fileDirectory = Path.GetDirectoryName(Path.GetFullPath(filePath));
+        var fileDirectory = Path.GetDirectoryName(Path.GetFullPath(filePath))
+            ?? throw new InvalidOperationException("Unable to determine file directory");
 
         Directory.CreateDirectory(fileDirectory);
 

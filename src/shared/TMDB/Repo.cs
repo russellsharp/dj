@@ -131,7 +131,7 @@ public class Repo : IDisposable, IRepo
                 if (!string.IsNullOrWhiteSpace(content))
                 {
                     _cache.Store<ResponseType>(requestUrl, content).GetAwaiter().GetResult();
-                    return JsonSerializer.Deserialize<ResponseType>(content);
+                    return JsonSerializer.Deserialize<ResponseType>(content) ?? new ResponseType();
                 }
 
                 return new ResponseType();
@@ -153,14 +153,25 @@ public class Repo : IDisposable, IRepo
         //query results
         var queryHits = await QueryTitle<MovieQueryResponse>(keywords, minimumHitCount, token.Value);
 
-        var resultDetails = queryHits.Select(x => x.Details);
+        var resultDetails = queryHits.Select(x => x.Details).Where(x => x is not null).Cast<MovieQueryResponse>().ToList();
 
         //get full movie details
         var movies = new List<MovieDetailsResponse?>();
 
-        var resultMovies = resultDetails.SelectMany(x => x.results).DistinctBy(x => x.id); //.Where(x => x.adult == _config.IncludeAdult);
+        var resultMovies = resultDetails
+            .Where(x => x.results is not null)
+            .SelectMany(x => x.results!)
+            .Where(x => x is not null && x.id is not null)
+            .DistinctBy(x => x!.id)
+            .ToList();
 
-        resultMovies.ToList().ForEach(async x => movies.Add(await Movie((long)x.id)));
+        foreach (var x in resultMovies)
+        {
+            if (x?.id is not null)
+            {
+                movies.Add(await Movie(x.id.Value));
+            }
+        }
 
         // match movie titles
         var matchedMovies = new Dictionary<int, MatchScore<MovieDetailsResponse>>();
@@ -169,8 +180,8 @@ public class Repo : IDisposable, IRepo
         {
             if (movie is null) continue;
 
-            var matchCount = SearchHelpers.MatchString(keywords, movie.title, token.Value) * _config.TitleWeight;
-            matchCount += SearchHelpers.MatchString(keywords, movie.overview, token.Value) * _config.OverviewWeight;
+            var matchCount = SearchHelpers.MatchString(keywords, movie.title ?? string.Empty, token.Value) * _config.TitleWeight;
+            matchCount += SearchHelpers.MatchString(keywords, movie.overview ?? string.Empty, token.Value) * _config.OverviewWeight;
 
             if (matchedMovies.ContainsKey(movie.id))
             {
@@ -189,11 +200,11 @@ public class Repo : IDisposable, IRepo
     {
         token ??= _tokenSource.Token;
 
-        var keywords = SearchHelpers.SanitizeForSearch(searchTerm, token.Value, true); ;
+        var keywords = SearchHelpers.SanitizeForSearch(searchTerm, token.Value, true);
 
         var movieDetails = await _cache.QueryOverviews(keywords, minimumHitCount, token);
 
-        return movieDetails.Where(x => x.Details.adult == _config.IncludeAdult);
+        return movieDetails.Where(x => x.Details is not null && x.Details.adult == _config.IncludeAdult);
     }
 
     public async Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryWithGroupedTerms(IEnumerable<IEnumerable<string>> query, int minimumHitCount, CancellationToken? token = null)
@@ -207,10 +218,11 @@ public class Repo : IDisposable, IRepo
             groupedKeywords.Add(synonyms.Select(x => SearchHelpers.SanitizeString(x)).ToList());
         }
 
-        List<MatchScore<MovieDetailsResponse>> movieDetails = (await _cache.QueryWithGroupedTerms(groupedKeywords, minimumHitCount, token)).ToList();
+        var movieDetails = await _cache.QueryWithGroupedTerms(groupedKeywords, minimumHitCount, token);
 
-        return movieDetails.Where(x => x.Details.adult == _config.IncludeAdult);
+        return movieDetails.Where(x => x.Details is not null && x.Details.adult == _config.IncludeAdult);
     }
+
     #region IDisposable
 
     private int _disposed = 0;
