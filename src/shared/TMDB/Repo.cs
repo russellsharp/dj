@@ -95,7 +95,7 @@ public class Repo : IDisposable, IRepo
         return await Get<MovieDetailsResponse>(request);
     }
 
-    public async Task<GenreResponse> MovieGenres()
+    public async Task<GenreResponse?> MovieGenres()
     {
         var request = new RestRequest("genre/movie/list");
         request.AddQueryParameter("language", Language);
@@ -126,9 +126,15 @@ public class Repo : IDisposable, IRepo
 
             if (apiResponse.StatusCode == System.Net.HttpStatusCode.OK)
             {
-                _cache.Store<ResponseType>(requestUrl, apiResponse.Content).GetAwaiter().GetResult();
+                var content = apiResponse.Content ?? string.Empty;
 
-                return JsonSerializer.Deserialize<ResponseType>(apiResponse.Content!);
+                if (!string.IsNullOrWhiteSpace(content))
+                {
+                    _cache.Store<ResponseType>(requestUrl, content).GetAwaiter().GetResult();
+                    return JsonSerializer.Deserialize<ResponseType>(content);
+                }
+
+                return new ResponseType();
             }
             else
             {

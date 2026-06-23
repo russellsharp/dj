@@ -169,7 +169,7 @@ public class MediaCollection : IMediaCollection
     {
         if (!await _db.FileExists(Path.GetFullPath(filePath)))
         {
-            var newFile = await FileHelper.PathToFile(filePath, token);
+            var newFile = await FileHelper.PathToFile(filePath);
             _filesToStore.Add(newFile);
             int count = Interlocked.Increment(ref _fileCount);
             Debug.WriteLine($"Files processed: {count}, bag: {_filesToStore.Count()}");

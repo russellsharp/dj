@@ -38,7 +38,8 @@ namespace shared.TMDB
 
         public async Task<List<Genre>> GetGenres()
         {
-            return (await _repo.MovieGenres()).Genres;
+            var genresResponse = await _repo.MovieGenres();
+            return genresResponse?.Genres ?? new List<Genre>();
         }
 
         public async Task<MovieDetailsResponse?> GetMovie(int id)

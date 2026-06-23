@@ -64,12 +64,11 @@ public class Database : IDisposable, IDatabase
     /// </summary>
     public void Connect()
     {
-        var rootDir = Path.GetDirectoryName(Environment.ProcessPath);
+        var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
+        var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
 
-#pragma warning disable CS8604 // Possible null reference argument.
         var dbPath = Path.GetFullPath(Path.Combine(rootDir, _config.DataFile));
-        Directory.CreateDirectory(Path.GetDirectoryName(dbPath));
-#pragma warning restore CS8604 // Possible null reference argument.
+        Directory.CreateDirectory(Path.GetDirectoryName(dbPath) ?? throw new InvalidOperationException("Unable to determine database directory"));
 
         var lockObject = s_databaseLocks.GetOrAdd(dbPath, _ => new object());
         lock (lockObject)

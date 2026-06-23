@@ -79,7 +79,7 @@ public class Database : IDisposable
 
         await CreateTestFile(testFile, 5000, (byte)'w');
 
-        var file = await shared.FileHelper.PathToFile(testFile, _tokenSource.Token);
+        var file = await shared.FileHelper.PathToFile(testFile);
 
         await _db.Insert(file);
 
@@ -283,7 +283,7 @@ public class Database : IDisposable
 
         var testConversion = testFiles
             .AsParallel().WithCancellation(_tokenSource.Token)
-            .Select(async x => await shared.FileHelper.PathToFile(Path.GetFullPath(x), _tokenSource.Token)).ToList();
+            .Select(async x => await shared.FileHelper.PathToFile(Path.GetFullPath(x))).ToList();
         return await Task.WhenAll(testConversion);
     }
 
