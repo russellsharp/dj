@@ -63,7 +63,6 @@ public static class FileHelper
 
     public static async Task<bool> CreateFile(string filePath, long lengthKBytes, byte filler)
     {
-
         var fileDirectory = Path.GetDirectoryName(Path.GetFullPath(filePath));
 
         Directory.CreateDirectory(fileDirectory);
@@ -83,7 +82,7 @@ public static class FileHelper
             int bytesLeft = (int)(totalBytes - bytesWritten);
             int bytesToWrite = Math.Min(chunkSize, bytesLeft);
 
-            fs.Write(buffer, 0, bytesToWrite);
+            await fs.WriteAsync(buffer, 0, bytesToWrite);
             bytesWritten += bytesToWrite;
         }
 

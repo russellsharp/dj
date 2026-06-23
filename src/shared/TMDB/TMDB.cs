@@ -13,8 +13,8 @@ namespace shared.TMDB
         Task<MovieDetailsResponse?> GetMovie(int id);
         Task<MovieQueryResponse> QueryTitle(string query, int page = 1);
         Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryOverviews(string query, int minimumHitCount, CancellationToken? token = null);
-        Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryOverviewsWithSynonyms(IEnumerable<IEnumerable<string>> query, int minimumHitCount, CancellationToken? token = null);
-        List<Genre> GetGenres();
+        Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryWithGroupedTerms(IEnumerable<IEnumerable<string>> query, int minimumHitCount, CancellationToken? token = null);
+        Task<List<Genre>> GetGenres();
         Task<IEnumerable<Result?>> PathToTmdb(string filePath, MatchingContext context, bool useDictionary = true, CancellationToken? token = null);
     }
 
@@ -36,16 +36,14 @@ namespace shared.TMDB
             _tokenSource = tokenSource;
         }
 
-        public List<Genre> GetGenres()
+        public async Task<List<Genre>> GetGenres()
         {
-            return _repo.MovieGenres().Genres;
+            return (await _repo.MovieGenres()).Genres;
         }
 
         public async Task<MovieDetailsResponse?> GetMovie(int id)
         {
-            var result = _repo.TryMovie(id, out MovieDetailsResponse? movie);
-            Debug.Assert(result);
-            return movie;
+            return await _repo.Movie(id);
         }
 
         public async Task<MovieQueryResponse> QueryTitle(string query, int page = 1)
@@ -58,9 +56,9 @@ namespace shared.TMDB
             return await _repo.QueryOverviews(query, minimumHitCount, token);
         }
 
-        public async Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryOverviewsWithSynonyms(IEnumerable<IEnumerable<string>> query, int minimumHitCount, CancellationToken? token = null)
+        public async Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryWithGroupedTerms(IEnumerable<IEnumerable<string>> query, int minimumHitCount, CancellationToken? token = null)
         {
-            return await _repo.QueryOverviewsWithSynonyms(query, minimumHitCount, token);
+            return await _repo.QueryWithGroupedTerms(query, minimumHitCount, token);
         }
 
         private IEnumerable<Result?> BestMatch(IEnumerable<string> pathSegments, IEnumerable<Result> tmdbResults, double minimumScore = 100)

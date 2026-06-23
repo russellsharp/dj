@@ -14,13 +14,11 @@ public interface IRepo
 {
     void Dispose();
     Task<MovieQueryResponse?> QueryTitle(string query, int page = 1);
-    bool TryMovie(long id, out MovieDetailsResponse? movie);
-    MovieDetailsResponse? Movie(long id);
-    bool TryMovieGenres(out GenreResponse? genre);
-    GenreResponse? MovieGenres();
+    Task<MovieDetailsResponse?> Movie(long id);
+    Task<GenreResponse?> MovieGenres();
     Task<IEnumerable<MatchScore<ResponseType>>> QueryTitle<ResponseType>(IEnumerable<string> keywords, int mimimumHitCount, CancellationToken token) where ResponseType : class;
     Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryOverviews(string searchTerm, int minimumHitCount, CancellationToken? token = null);
-    Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryOverviewsWithSynonyms(IEnumerable<IEnumerable<string>> query, int minimumHitCount, CancellationToken? token = null);
+    Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryWithGroupedTerms(IEnumerable<IEnumerable<string>> query, int minimumHitCount, CancellationToken? token = null);
 }
 
 public class Repo : IDisposable, IRepo
@@ -85,45 +83,27 @@ public class Repo : IDisposable, IRepo
         request.AddHeader("accept", "application/json");
         request.AddHeader("Authorization", $"Bearer {_config.ApiKey}");
 
-        return Get<MovieQueryResponse>(request);
+        return await Get<MovieQueryResponse>(request);
     }
 
-    public bool TryMovie(long id, out MovieDetailsResponse? movie)
+    public async Task<MovieDetailsResponse?> Movie(long id)
     {
         var request = new RestRequest("movie/{movieId}");
         request.AddUrlSegment("movieId", id);
         request.AddQueryParameter("language", Language);
         request.AddHeader("accept", "application/json");
         request.AddHeader("Authorization", $"Bearer {_config.ApiKey}");
-
-        movie = Get<MovieDetailsResponse>(request);
-
-        return movie != null;
+        return await Get<MovieDetailsResponse>(request);
     }
 
-    public MovieDetailsResponse? Movie(long id)
-    {
-        MovieDetailsResponse? movieDetails;
-        TryMovie(id, out movieDetails);
-        return movieDetails;
-    }
-
-    public bool TryMovieGenres(out GenreResponse? genre)
+    public async Task<GenreResponse> MovieGenres()
     {
         var request = new RestRequest("genre/movie/list");
         request.AddQueryParameter("language", Language);
         request.AddHeader("accept", "application/json");
         request.AddHeader("Authorization", $"Bearer {_config.ApiKey}");
 
-        genre = Get<GenreResponse>(request);
-
-        return genre != null;
-    }
-
-    public GenreResponse MovieGenres()
-    {
-        TryMovieGenres(out GenreResponse genres);
-        return genres;
+        return await Get<GenreResponse>(request);
     }
 
     public async Task<IEnumerable<MatchScore<ResponseType>>> QueryTitle<ResponseType>(IEnumerable<string> keywords, int minimum_hits, CancellationToken token) where ResponseType : class
@@ -131,7 +111,7 @@ public class Repo : IDisposable, IRepo
         return await _cache.FindQueryHits<ResponseType>(keywords, minimum_hits, token);
     }
 
-    private ResponseType? Get<ResponseType>(RestRequest request) where ResponseType : new()
+    private async Task<ResponseType?> Get<ResponseType>(RestRequest request) where ResponseType : new()
     {
         var requestUrl = _limiter.BuildUri(request);
 
@@ -141,7 +121,7 @@ public class Repo : IDisposable, IRepo
         }
         else
         {
-            var apiResponse = _limiter.Get(request, _tokenSource.Token).GetAwaiter().GetResult();
+            var apiResponse = await _limiter.Get(request, _tokenSource.Token);
 
             Debug.WriteLine(apiResponse.Content);
 
@@ -175,7 +155,7 @@ public class Repo : IDisposable, IRepo
 
         var resultMovies = resultDetails.SelectMany(x => x.results).DistinctBy(x => x.id); //.Where(x => x.adult == _config.IncludeAdult);
 
-        resultMovies.ToList().ForEach(x => movies.Add(Movie((long)x.id)));
+        resultMovies.ToList().ForEach(async x => movies.Add(await Movie((long)x.id)));
 
         // match movie titles
         var matchedMovies = new Dictionary<int, MatchScore<MovieDetailsResponse>>();
@@ -211,7 +191,7 @@ public class Repo : IDisposable, IRepo
         return movieDetails.Where(x => x.Details.adult == _config.IncludeAdult);
     }
 
-    public async Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryOverviewsWithSynonyms(IEnumerable<IEnumerable<string>> query, int minimumHitCount, CancellationToken? token = null)
+    public async Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryWithGroupedTerms(IEnumerable<IEnumerable<string>> query, int minimumHitCount, CancellationToken? token = null)
     {
         token ??= _tokenSource.Token;
 
@@ -222,7 +202,7 @@ public class Repo : IDisposable, IRepo
             groupedKeywords.Add(synonyms.Select(x => SearchHelpers.SanitizeString(x)).ToList());
         }
 
-        List<MatchScore<MovieDetailsResponse>> movieDetails = (await _cache.QueryOverviewsWithSynonyms(groupedKeywords, minimumHitCount, token)).ToList();
+        List<MatchScore<MovieDetailsResponse>> movieDetails = (await _cache.QueryWithGroupedTerms(groupedKeywords, minimumHitCount, token)).ToList();
 
         return movieDetails.Where(x => x.Details.adult == _config.IncludeAdult);
     }

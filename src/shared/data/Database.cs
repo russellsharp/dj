@@ -44,6 +44,8 @@ public interface IDatabase
     Task Truncate();
 }
 
+public class DatabaseNotConnected : Exception { }
+
 public class Database : IDisposable, IDatabase
 {
     private static readonly ConcurrentDictionary<string, object> s_databaseLocks = new();
@@ -115,6 +117,8 @@ public class Database : IDisposable, IDatabase
 
     public void Create()
     {
+        if (!IsConnected()) throw new DatabaseNotConnected();
+
         string query = GetQueryFromResource(QueryFiles.CreateDatabase);
 
         using (var transaction = _connection?.BeginTransaction() ?? throw new NullReferenceException("Null database connection or failure to create transaction"))
@@ -154,6 +158,8 @@ public class Database : IDisposable, IDatabase
 
     public async Task Insert(File file)
     {
+        if (!IsConnected()) throw new DatabaseNotConnected();
+
         try
         {
             using var transaction = _connection.BeginTransaction();
@@ -187,7 +193,7 @@ public class Database : IDisposable, IDatabase
             }
             catch (Exception ex)
             {
-                Debug.WriteLine("Error while inserting file record: {ex}");
+                Debug.WriteLine($"Error while inserting file record: {ex}");
                 transaction.Rollback();
                 throw;
             }
@@ -195,11 +201,14 @@ public class Database : IDisposable, IDatabase
         catch (Exception ex)
         {
             Debug.WriteLine($"WHAT {ex}");
+            throw;
         }
     }
 
     public async Task InsertOrUpdate(IEnumerable<File> testData)
     {
+        if (!IsConnected()) throw new DatabaseNotConnected();
+
         try
         {
             using var transaction = await _connection.BeginTransactionAsync();
@@ -241,7 +250,7 @@ public class Database : IDisposable, IDatabase
             }
             catch (Exception ex)
             {
-                Debug.WriteLine("Error while inserting file record: {ex}");
+                Debug.WriteLine($"Error while inserting file record: {ex}");
                 transaction.Rollback();
                 throw;
             }
@@ -249,11 +258,14 @@ public class Database : IDisposable, IDatabase
         catch (Exception ex)
         {
             Debug.WriteLine($"WHAT {ex}");
+            throw;
         }
     }
 
     public async Task<bool> FileExists(string filePath)
     {
+        if (!IsConnected()) throw new DatabaseNotConnected();
+
         const string sql = @"SELECT EXISTS (SELECT 1 FROM file WHERE path_hash = @path_hash)";
         try
         {
@@ -269,6 +281,8 @@ public class Database : IDisposable, IDatabase
 
     public async Task<shared.data.File?> File(string path)
     {
+        if (!IsConnected()) throw new DatabaseNotConnected();
+
         const string sql = @"SELECT * FROM file WHERE path_hash = @path_hash;";
 
         shared.data.File? file = null;
@@ -289,6 +303,8 @@ public class Database : IDisposable, IDatabase
 
     public async Task<IEnumerable<shared.data.File>> Files()
     {
+        if (!IsConnected()) throw new DatabaseNotConnected();
+
         const string sql = @"SELECT * FROM file;";
 
         var files = Enumerable.Empty<shared.data.File>();
@@ -299,7 +315,7 @@ public class Database : IDisposable, IDatabase
         }
         catch (Exception ex)
         {
-            Debug.WriteLine("Error while querying file record: {ex}");
+            Debug.WriteLine($"Error while querying file record: {ex}");
             throw;
         }
 
@@ -309,6 +325,8 @@ public class Database : IDisposable, IDatabase
 
     public async Task<IEnumerable<shared.data.File>> Files(IEnumerable<string> paths)
     {
+        if (!IsConnected()) throw new DatabaseNotConnected();
+
         const string sql = @"SELECT * FROM file WHERE path_hash IN @path_hashes;";
 
         var files = Enumerable.Empty<shared.data.File>();
@@ -320,7 +338,7 @@ public class Database : IDisposable, IDatabase
         }
         catch (Exception ex)
         {
-            Debug.WriteLine("Error while querying file record: {ex}");
+            Debug.WriteLine($"Error while querying file record: {ex}");
             throw;
         }
 
@@ -329,6 +347,8 @@ public class Database : IDisposable, IDatabase
 
     public async Task<IEnumerable<shared.data.File>> FilesByExtensions(IEnumerable<string> extensions)
     {
+        if (!IsConnected()) throw new DatabaseNotConnected();
+
         const string sql = @"SELECT * FROM file WHERE extension IN @file_extensions;";
 
         var files = Enumerable.Empty<shared.data.File>();
@@ -339,7 +359,7 @@ public class Database : IDisposable, IDatabase
         }
         catch (Exception ex)
         {
-            Debug.WriteLine("Error while querying file record: {ex}");
+            Debug.WriteLine($"Error while querying file record: {ex}");
             throw;
         }
 
@@ -348,6 +368,8 @@ public class Database : IDisposable, IDatabase
 
     public async Task<IEnumerable<shared.data.File>> FilesByDirectory(IEnumerable<string> paths)
     {
+        if (!IsConnected()) throw new DatabaseNotConnected();
+
         var sql = new StringBuilder(@"SELECT * FROM file WHERE ");
 
         var conditions = new List<string>();
@@ -374,7 +396,7 @@ public class Database : IDisposable, IDatabase
         }
         catch (Exception ex)
         {
-            Debug.WriteLine("Error while querying file record: {ex}");
+            Debug.WriteLine($"Error while querying file record: {ex}");
             throw;
         }
 
@@ -383,6 +405,8 @@ public class Database : IDisposable, IDatabase
 
     public async Task Truncate()
     {
+        if (!IsConnected()) throw new DatabaseNotConnected();
+
         string query = GetQueryFromResource(QueryFiles.TruncateDatabase);
         using (var transaction = _connection?.BeginTransaction() ?? throw new NullReferenceException("Null database connection or failure to create transaction"))
         {

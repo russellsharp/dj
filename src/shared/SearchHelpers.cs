@@ -45,7 +45,6 @@ public static class SearchHelpers
         else
         {
             var dict = new Dictionary();
-            dict.Initialize();
             foreach (var word in movieKeywords)
             {
                 //exempt large numbers.  Years screw with the TMDB search.
@@ -63,17 +62,23 @@ public class Dictionary
 {
     private string _dicPath = Path.GetFullPath(@"dic/index.dic");
     private string _affPath = Path.GetFullPath(@"dic/index.aff");
-    private WordList _dictionary;
+    private WordList? _dictionary = null;
+    private bool initialized = false;
 
     public void Initialize()
     {
-        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-        _dictionary = WordList.CreateFromFiles(_dicPath, _affPath);
+        if (!initialized)
+        {
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+            _dictionary ??= WordList.CreateFromFiles(_dicPath, _affPath);
+            initialized = true;
+        }
     }
 
     public bool Check(string word, CancellationToken token)
     {
+        Initialize();
         //exempt large numbers.  Years screw with the TMDB search.
-        return _dictionary.Check(word.ToLower(), token) && (!int.TryParse(word, out int value));
+        return _dictionary!.Check(word.ToLower(), token) && (!int.TryParse(word, out int value));
     }
 }

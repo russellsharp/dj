@@ -45,10 +45,8 @@ public class Application(IMediaCollection _mediaCollection, IRepo _repo, Cancell
                 {
                     foreach (var entry in result.results.Take(3))
                     {
-                        if (_repo.TryMovie((int)entry.id, out MovieDetailsResponse movie))
-                        {
-                            Debug.WriteLine($"Movie details found for: {movie!.title}");
-                        }
+                        var movie = await _repo.Movie((int)entry.id);
+                        Debug.WriteLine($"Movie details found for: {movie!.title}");
                     }
                 }
             }

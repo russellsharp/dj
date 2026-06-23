@@ -9,6 +9,7 @@ using System.Text.Json;
 using Newtonsoft.Json;
 using System.Data.Common;
 using shared.thesaurus;
+using Microsoft.CodeAnalysis;
 
 namespace dj.test;
 
@@ -65,7 +66,7 @@ public class TMDB(ITestOutputHelper _output)
         CancellationTokenSource tokenSource = new();
         using Repo client = new(BasicOptions, new Cache(BasicOptions), tokenSource);
 
-        bool result = client.TryMovieGenres(out GenreResponse? genres);
+        var genres = await client.MovieGenres();
 
         genres.Should().NotBeNull();
 
@@ -81,9 +82,7 @@ public class TMDB(ITestOutputHelper _output)
     {
         CancellationTokenSource tokenSource = new();
         using Repo client = new(BasicOptions, new Cache(BasicOptions), tokenSource);
-        var found = client.TryMovie(11, out MovieDetailsResponse details);
-
-        found.Should().BeTrue();
+        var details = await client.Movie(11);
 
         details.Should().NotBeNull();
 
@@ -102,9 +101,7 @@ public class TMDB(ITestOutputHelper _output)
         const int StarWarsId = 11;
 
         using Repo client = new(BasicOptions, new Cache(BasicOptions), _tokenSource);
-        var found = client.TryMovie(11, out MovieDetailsResponse details);
-
-        found.Should().BeTrue();
+        var details = await client.Movie(11);
 
         details.Should().NotBeNull();
 
@@ -145,10 +142,7 @@ public class TMDB(ITestOutputHelper _output)
 
         foreach (var result in resultMovies)
         {
-            if (repo.TryMovie((long)result.id, out MovieDetailsResponse movie))
-            {
-                movies.Add(movie);
-            }
+            movies.Add(await repo.Movie((long)result.id));
         }
 
         movies.Should().NotBeEmpty();
@@ -185,10 +179,7 @@ public class TMDB(ITestOutputHelper _output)
 
         foreach (var result in resultMovies)
         {
-            if (repo.TryMovie((long)result.id, out MovieDetailsResponse? movie))
-            {
-                movies.Add(movie);
-            }
+            movies.Add(await repo.Movie((long)result.id));
         }
 
         movies.Should().NotBeEmpty();
@@ -316,7 +307,7 @@ public class TMDB(ITestOutputHelper _output)
 
         minimumHitCount = (int)(synonyms.Count() * 0.50);
 
-        queryMatches = await tmdb.QueryOverviewsWithSynonyms(synonyms.ToList(), minimumHitCount);
+        queryMatches = await tmdb.QueryWithGroupedTerms(synonyms.ToList(), minimumHitCount);
 
         queryMatches.Should().NotBeNullOrEmpty();
 
@@ -349,13 +340,16 @@ public class TMDB(ITestOutputHelper _output)
 
         var searchTerms = searchTerm.Split(' ').ToList();
 
-        var synonymTasks = searchTerms.Select(async x => await thesus.Search(x));
+        var synonymTasks = searchTerms.Select(async x => (await thesus.Search(x)).ToList());
 
-        var synonyms = await Task.WhenAll(synonymTasks);
+        List<List<string>> synonyms = (await Task.WhenAll(synonymTasks)).ToList();
+
+        //add original terms as a group
+        synonyms.Add(searchTerm.Split(' ').ToList());
 
         minimumHitCount = (int)(synonyms.Count() * 0.50);
 
-        queryMatches.AddRange(await tmdb.QueryOverviewsWithSynonyms(synonyms.ToList(), minimumHitCount));
+        queryMatches.AddRange(await tmdb.QueryWithGroupedTerms(synonyms.ToList(), minimumHitCount));
 
         queryMatches.Should().NotBeNullOrEmpty();
 

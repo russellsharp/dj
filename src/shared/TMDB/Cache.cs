@@ -28,7 +28,7 @@ public interface ICache
     Task StoreMovieDetails(MovieDetailsResponse details, CancellationToken? token = null);
     Task<IEnumerable<MatchScore<ResponseType>>> FindQueryHits<ResponseType>(IEnumerable<string> keywords, int minimum_hits, CancellationToken token) where ResponseType : class;
     Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryOverviews(IEnumerable<string> keywords, int minimumHits, CancellationToken? token = null);
-    Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryOverviewsWithSynonyms(IEnumerable<IEnumerable<string>> keywords, int minimumHits, CancellationToken? token = null);
+    Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryWithGroupedTerms(IEnumerable<IEnumerable<string>> keywords, int minimumHits, CancellationToken? token = null);
 }
 
 public class Cache : IDisposable, ICache
@@ -208,7 +208,7 @@ public class Cache : IDisposable, ICache
         }
     }
 
-    public async Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryOverviewsWithSynonyms(IEnumerable<IEnumerable<string>> keywordsWithSynonyms, int minimumHits, CancellationToken? token = null)
+    public async Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryWithGroupedTerms(IEnumerable<IEnumerable<string>> keywordsWithSynonyms, int minimumHits, CancellationToken? token = null)
     {
         try
         {

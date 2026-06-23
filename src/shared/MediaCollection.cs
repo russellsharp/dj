@@ -108,8 +108,8 @@ public class MediaCollection : IMediaCollection
 
         try
         {
-            _directoryRepo = Directory.EnumerateDirectories(_configuration.BaseDirectory, "*", SearchOption.AllDirectories).ToDictionary(x => x, x => new DirectoryInfo(x));
-            _directoryRepo.Add(_configuration.BaseDirectory, new DirectoryInfo(_configuration.BaseDirectory));
+            _directoryRepo = Directory.EnumerateDirectories(mediaDirectory, "*", SearchOption.AllDirectories).ToDictionary(x => x, x => new DirectoryInfo(x));
+            _directoryRepo.Add(mediaDirectory, new DirectoryInfo(mediaDirectory));
 
             List<string> extensions = _configuration.VideoExtensions.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
             extensions.AddRange(_configuration.AudioExtensions.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
@@ -170,7 +170,7 @@ public class MediaCollection : IMediaCollection
 
     private ConcurrentBag<shared.data.File> _filesToStore = new();
     private int MaximumBagSize = 20;
-    private Lock _processFileQueueLock = new();
+    private object _processFileQueueLock = new();
     private static int _fileCount = 0;
 
     public async Task ProcessFile(string filePath, CancellationToken token)
@@ -190,7 +190,7 @@ public class MediaCollection : IMediaCollection
                 try
                 {
                     Debug.WriteLine($"Files stored: {_filesToStore.Count()}");
-                    _db.InsertOrUpdate(_filesToStore);
+                    await _db.InsertOrUpdate(_filesToStore);
                     _filesToStore.Clear();
                 }
                 catch (Exception ex)
@@ -231,7 +231,7 @@ public class MediaCollection : IMediaCollection
                     .Where(x => Regex.IsMatch(x, pattern, RegexOptions.IgnoreCase)));
         }
 
-        return filtered.ToImmutableList();
+        return filtered.Distinct().ToImmutableList();
     }
 
     public async Task<IEnumerable<MatchScore<ContainedType>>> FindInPath<ContainedType>(IEnumerable<string> keywords, CancellationToken? token = null) where ContainedType : class
