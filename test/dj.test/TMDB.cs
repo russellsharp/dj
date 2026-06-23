@@ -226,11 +226,9 @@ public class TMDB(ITestOutputHelper _output)
         queryMatches.Where(x => x.Hits >= minimumHitCount).ToList().ForEach(x => Debug.WriteLine($"{x.Hits} - {x.Details.id} - {x.Details.title} - {x.Details.vote_count} - {x.Details.budget} - {x.Details.overview.Substring(0, 20)}"));
     }
 
-    [Fact]
+    [Fact(Skip = "Endpoint is broken.")]
     public async Task DiscoverMovie()
     {
-        var minimumHitCount = 10;
-
         using Repo repo = new(BasicOptions, new Cache(BasicOptions), _tokenSource);
 
         var searchTerm = "First|day";

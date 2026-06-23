@@ -8,7 +8,6 @@ using System.Text;
 using System.Collections.Concurrent;
 using shared.TMDB.Models;
 using System.Net.Mime;
-using SQLitePCL;
 using System.Text.Json;
 namespace shared.TMDB;
 
@@ -39,6 +38,8 @@ public class Cache : IDisposable, ICache
 
     public Cache(IOptions<EndpointConfig> config)
     {
+        ArgumentNullException.ThrowIfNull(config);
+
         _config = config.Value;
 
         Connect();
@@ -242,11 +243,18 @@ public class Cache : IDisposable, ICache
     {
         var rootDir = Path.GetDirectoryName(Environment.ProcessPath);
 
-#pragma warning disable CS8604 // Possible null reference argument.
-        var dbPath = Path.GetFullPath(Path.Combine(rootDir, _config.DatabasePath));
-        Directory.CreateDirectory(Path.GetDirectoryName(dbPath));
-#pragma warning restore CS8604 // Possible null reference argument.
+        var dbPath = Path.GetFullPath(Path.Combine(rootDir!, _config.DatabasePath));
 
+        Directory.CreateDirectory(Path.GetDirectoryName(dbPath!));
+
+        Debug.WriteLine($"Created {Path.GetDirectoryName(dbPath)}");
+
+        if (!File.Exists(dbPath))
+        {
+            // Creating an empty file is enough for SQLite to initialize it on first connect
+            using (File.Create(dbPath)) { }
+            Debug.WriteLine($"Creating {dbPath}");
+        }
         var lockObject = s_databaseLocks.GetOrAdd(dbPath, _ => new object());
         lock (lockObject)
         {
@@ -254,6 +262,11 @@ public class Cache : IDisposable, ICache
 
             _connection.Open();
 
+            var access = FileHelper.CanAccessFile(dbPath, FileAccess.ReadWrite);
+            if (access is not FileAccessResult.Available)
+            {
+                throw new FieldAccessException(FileHelper.AccessMessage(access, dbPath, FileAccess.ReadWrite));
+            }
             // WAL mode allows one writer + multiple readers concurrently across connections.
             // busy_timeout tells SQLite retry on a locked write for up to 5 s rather than
             // immediately returning SQLITE_BUSY.

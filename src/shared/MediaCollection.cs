@@ -11,7 +11,6 @@ using Microsoft.Extensions.Options;
 using shared.data;
 using shared.TMDB;
 using shared.TMDB.Models;
-using SQLitePCL;
 using WeCantSpell.Hunspell;
 
 namespace shared;

@@ -7,7 +7,6 @@ using Microsoft.Extensions.Configuration;
 using System.Runtime.CompilerServices;
 using System.Net.Mail;
 using System.Diagnostics;
-using SQLitePCL;
 using Microsoft.Extensions.Options;
 using shared.data;
 using Newtonsoft.Json;

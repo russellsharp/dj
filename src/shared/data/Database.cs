@@ -1,7 +1,6 @@
 using Microsoft.Data.Sqlite;
 using System.Runtime.CompilerServices;
 using System.Diagnostics;
-using SQLitePCL;
 using System.Transactions;
 using Dapper;
 using Dapper.Contrib.Extensions;
