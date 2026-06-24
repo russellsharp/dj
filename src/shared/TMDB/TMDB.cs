@@ -22,6 +22,16 @@ namespace shared.TMDB
         public int MinimumScore { get; set; } = 100;
         public int PathDepthMin { get; set; } = 2;
         public int PathDepthMax { get; set; } = 5;
+
+        public bool Validate()
+        {
+            if (PathDepthMin > PathDepthMax)
+            {
+                return false;
+            }
+
+            return true;
+        }
     }
 
     public class TMDB : ITMDB
@@ -91,9 +101,6 @@ namespace shared.TMDB
             int end = Math.Clamp(pathSegments.Count() - context.PathDepthMin, 0, pathSegments.Count() - context.PathDepthMin);
             var lessRelevantPathSegments = pathSegments[start..end];
 
-            // relevantPathSegments.ToList().ForEach(x => Debug.WriteLine($"Relevant: {x}"));
-            // lessRelevantPathSegments.ToList().ForEach(x => Debug.WriteLine($"Less relevant: {x}"));
-
             var tmdbResults = new List<shared.TMDB.Models.Result>();
 
             //try to find match with relevant path segments and dictionary
@@ -123,7 +130,7 @@ namespace shared.TMDB
                 {
                     var queryResults = await QueryTitle(sanitized);
 
-                    if (queryResults.results is null)
+                    if (queryResults?.results is null)
                     {
                         Debug.WriteLine($"{string.Join(' ', pathSegments)} got null results from TMDB.");
                     }

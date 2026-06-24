@@ -5,7 +5,9 @@ using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
 using shared.data;
 using shared.TMDB;
+
 namespace shared;
+
 
 public enum MediaType
 {
@@ -85,6 +87,8 @@ public class MediaCollection : IMediaCollection
 
         var mediaDirectory = baseDirectory != null ? Path.GetFullPath(baseDirectory) : Path.GetFullPath(_configuration.BaseDirectory);
 
+        Debug.WriteLine($"UpdateRepo looking in {mediaDirectory}");
+
         EnumerationOptions options = new()
         {
             RecurseSubdirectories = true,
@@ -111,7 +115,7 @@ public class MediaCollection : IMediaCollection
                 else { return x.ToLower(); }
             }).ToList();
 
-            var fileList = Directory.EnumerateFiles(mediaDirectory, "*", SearchOption.AllDirectories).Where(x => extensions.Contains(Path.GetExtension(x).ToLower()));
+            var fileList = Directory.EnumerateFiles(mediaDirectory, "*", SearchOption.AllDirectories).Where(x => extensions.Contains(Path.GetExtension(x).ToLower())).ToList();
 
             _db.EnsureConnected();
 

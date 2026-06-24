@@ -15,6 +15,11 @@ using shared.thesaurus;
 
 namespace dj.test;
 
+[CollectionDefinition("Application Level Tests", DisableParallelization = true)]
+public class DatabaseCollectionDefinition { }
+
+// Application level tests are run sequentially because they share a database
+[Collection("Application Level Tests")]
 public class ApplicationServices : IDisposable
 {
 
@@ -159,7 +164,7 @@ public class ApplicationServices : IDisposable
 
         var patterns = @"\.avi$;.+\.mkv".Split(';');
 
-        var results = await media.Search(patterns, _tokenSource.Token);
+        var results = (await media.Search(patterns, _tokenSource.Token)).ToList();
 
         results.Should().NotBeEmpty();
 
@@ -262,7 +267,6 @@ public class ApplicationServices : IDisposable
 
         for (int i = 0; i < count; i++)
         {
-
             var name = Path.ChangeExtension(fileName is not null ? fileName : Guid.NewGuid().ToString(), extension);
             var filePath = Path.Combine(fileDirectory, name);
             if (await FileHelper.CreateFile(filePath, sizeKb, filler))
@@ -285,7 +289,7 @@ public class ApplicationServices : IDisposable
         {
             _filesToDelete.ForEach(x => _output.WriteLine($"File to delete: {x}"));
             _filesToDelete.ForEach(x => Console.WriteLine($"File to delete: {x}"));
-            _filesToDelete.ForEach(x => System.IO.File.Delete(x));
+            _filesToDelete.ForEach(System.IO.File.Delete);
         }
         catch (Exception ex)
         {

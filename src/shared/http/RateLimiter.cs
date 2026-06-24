@@ -48,9 +48,9 @@ public class RateLimiter : IRateLimiter
                     return await _client.GetAsync(request);
                 });
             }
-            catch (Polly.RateLimit.RateLimitRejectedException rateLimitReachedEx)
+            catch (Polly.RateLimit.RateLimitRejectedException ex)
             {
-                Debug.WriteLine($"Retry after: {_config.BackOffTimeMs + (retryBackoffGrowth * attemptCount)}");
+                Debug.WriteLine($"Retry after: {_config.BackOffTimeMs + (retryBackoffGrowth * attemptCount)}: \n{ex}");
                 await Task.Delay(_config.BackOffTimeMs + (retryBackoffGrowth * attemptCount));
             }
         }

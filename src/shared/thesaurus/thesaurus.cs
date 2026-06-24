@@ -44,7 +44,7 @@ public interface IThesaurus
 
 public class Thesaurus : IThesaurus
 {
-    private WordNetEngine? _engine;
+    private WordNetEngine _engine;
     private ThesaurusConfiguration _config = new();
     private SqliteConnection? _connection;
     public Thesaurus(IOptions<ThesaurusConfiguration> config)

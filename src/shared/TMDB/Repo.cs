@@ -69,7 +69,8 @@ public class Repo : IDisposable, IRepo
         request.AddHeader("accept", "application/json");
         request.AddHeader("Authorization", $"Bearer {_config.ApiKey}");
 
-        return Get<MovieQueryResponse>(request).ToString();
+        var response = await Get<MovieQueryResponse>(request);
+        return response?.ToString() ?? string.Empty;
     }
 
     public async Task<MovieQueryResponse?> QueryTitle(string query, int page = 1)
@@ -236,7 +237,7 @@ public class Repo : IDisposable, IRepo
         try
         {
         }
-        catch (Exception ex)
+        catch (Exception)
         {
         }
     }
