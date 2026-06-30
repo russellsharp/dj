@@ -47,6 +47,8 @@ public class Thesaurus : IThesaurus
     private WordNetEngine _engine;
     private ThesaurusConfiguration _config = new();
     private SqliteConnection? _connection;
+    private bool _initialized = false;
+
     public Thesaurus(IOptions<ThesaurusConfiguration> config)
     {
         // Initialize the offline WordNet Engine
@@ -56,11 +58,16 @@ public class Thesaurus : IThesaurus
 
     public void Initialize()
     {
-        _engine?.LoadFromDirectory(Path.GetFullPath(_config.DictionaryPath));
+        if (!_initialized)
+        {
+            _engine?.LoadFromDirectory(Path.GetFullPath(_config.DictionaryPath));
+            _initialized = true;
+        }
     }
 
     public async Task<IEnumerable<string>> SearchFlatFiles(string baseWord)
     {
+        Initialize();
         // Get all synonym sets (synsets) associated with the word
         var synSets = _engine.GetSynSets(baseWord);
 

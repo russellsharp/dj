@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Diagnostics.Tracing;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
 using shared.data;
@@ -20,10 +21,10 @@ public interface IMediaCollection
     Task Initialize(CancellationToken token);
     Task Clear(CancellationToken token);
     Task UpdateRepos(string? baseDirectory = null, bool truncateDatabase = false, CancellationToken? token = null);
-    Task<shared.data.File?> GetFile(string filePath);
+    Task<shared.data.File?> File(string filePath);
     Task<IEnumerable<shared.data.File>> Files(MediaType type);
     Task<IEnumerable<string>> Search(IEnumerable<string> patterns, CancellationToken? token);
-    Task<IEnumerable<MatchScore<ResponseType>>> FindInPath<ResponseType>(IEnumerable<string> keywords, CancellationToken? token) where ResponseType : class;
+    Task<IEnumerable<MatchScore<ResponseType>>> FindInPath<ResponseType>(IEnumerable<string> keywords, int? minimumHits = null, CancellationToken? token) where ResponseType : class;
 }
 
 public class MediaCollection : IMediaCollection
@@ -105,6 +106,8 @@ public class MediaCollection : IMediaCollection
         {
             _directoryRepo = Directory.EnumerateDirectories(mediaDirectory, "*", SearchOption.AllDirectories).ToDictionary(x => x, x => new DirectoryInfo(x));
             _directoryRepo.Add(mediaDirectory, new DirectoryInfo(mediaDirectory));
+
+            //TODO: update files filtered by updated directory time
 
             List<string> extensions = _configuration.VideoExtensions.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
             extensions.AddRange(_configuration.AudioExtensions.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
@@ -232,8 +235,10 @@ public class MediaCollection : IMediaCollection
         return filtered.Distinct().ToImmutableList();
     }
 
-    public async Task<IEnumerable<MatchScore<ContainedType>>> FindInPath<ContainedType>(IEnumerable<string> keywords, CancellationToken? token = null) where ContainedType : class
+    public async Task<IEnumerable<MatchScore<ContainedType>>> FindInPath<ContainedType>(IEnumerable<string> keywords, int? minimumHits = null, CancellationToken? token = null) where ContainedType : class
     {
+        minimumHits ??= keywords.Count();
+
         token ??= _tokenSource.Token;
 
         if (!keywords.Any()) throw new ArgumentNullException("Keywords are empty");
@@ -263,13 +268,10 @@ public class MediaCollection : IMediaCollection
             }
         }
 
-        // var searchTerm = new string(string.Join(' ', keywords)).ToLower();
-        // var scoredMatches = _mediaRepo.Values.Select(x => new MatchScore<ContainedType> { Details = x as ContainedType, Hits = SearchHelpers.Levenshtein(x.path, searchTerm) });
-        // return scoredMatches.Where(x => x.Hits <= 60).OrderBy(x => x.Hits);
-        return scoredMatches.Values.Where(x => x.Hits >= keywords.Count());
+        return scoredMatches.Values.Where(x => x.Hits >= minimumHits);
     }
 
-    public async Task<shared.data.File?> GetFile(string filePath)
+    public async Task<shared.data.File?> File(string filePath)
     {
         var availability = FileHelper.CanAccessFile(filePath, FileAccess.Read);
 

@@ -1,17 +1,9 @@
-using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Reflection.Metadata.Ecma335;
 using System.Text;
-using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using WeCantSpell.Hunspell;
 
 namespace shared;
 
-public static class SearchHelpers
+internal static class SearchHelpers
 {
     //do not remove spaces to preserve tokens for keywords
     private const string CharsToRemove = @"_()[],-.";
@@ -28,13 +20,13 @@ public static class SearchHelpers
 
     public static string SanitizeString(string content)
     {
-        return new string(content.ToLower().Select(c => !CharsToRemove.Contains(c) ? c : ' ').ToArray()).Trim();
+        return new string(content.ToLower().Select(c => !CharsToRemove.Contains(c, StringComparison.InvariantCultureIgnoreCase) ? c : ' ').ToArray()).Trim();
     }
 
     public static IEnumerable<string> SanitizeForSearch(string query, CancellationToken token, bool enforceDictionary = true)
     {
         var cleanedFilePath = SanitizeString(query);
-        var movieKeywords = cleanedFilePath.Split(CharsToSplitOn.ToCharArray(), StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var movieKeywords = cleanedFilePath.ToLowerInvariant().Split(CharsToSplitOn.ToCharArray(), StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
         var sanitizedKeywords = new List<string>();
 
@@ -45,20 +37,13 @@ public static class SearchHelpers
         else
         {
             var dict = new Dictionary();
-            foreach (var word in movieKeywords)
-            {
-                //exempt large numbers.  Years screw with the TMDB search.
-                if (dict.Check(word, token))
-                {
-                    sanitizedKeywords.Add(word);
-                }
-            }
+            sanitizedKeywords.AddRange(movieKeywords.Where(word => dict.Check(word, token)));
         }
         return sanitizedKeywords.ToList();
     }
 }
 
-public class Dictionary
+internal class Dictionary
 {
     private string _dicPath = Path.GetFullPath(@"dic/index.dic");
     private string _affPath = Path.GetFullPath(@"dic/index.aff");
@@ -70,7 +55,7 @@ public class Dictionary
         if (!initialized)
         {
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-            _dictionary ??= WordList.CreateFromFiles(_dicPath, _affPath);
+            _dictionary = WordList.CreateFromFiles(_dicPath, _affPath);
             initialized = true;
         }
     }

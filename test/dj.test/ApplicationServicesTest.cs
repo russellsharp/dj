@@ -168,7 +168,7 @@ public class ApplicationServices : IDisposable
 
         results.Should().NotBeEmpty();
 
-        var info = media.GetFile(results.ToList()[0]);
+        var info = media.File(results.ToList()[0]);
 
         info.Should().NotBeNull();
 
