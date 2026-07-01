@@ -7,10 +7,11 @@ using FluentAssertions;
 using Microsoft.Extensions.Options;
 using shared.thesaurus;
 using Xunit.Internal;
+using Xunit.Sdk;
 
 namespace dj.test
 {
-    public class ThesaurusTests
+    public class ThesaurusTests(ITestOutputHelper output) : BaseTest(output)
     {
         private static ThesaurusConfiguration thesaurusConfigDefaults = new ThesaurusConfiguration()
         {

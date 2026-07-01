@@ -8,7 +8,7 @@ using Xunit.Internal;
 
 namespace dj.test;
 
-public class MediaCollection
+public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
 {
     private IOptions<MediaCollectionConfiguration> BasicMediaOptions = Options.Create(new MediaCollectionConfiguration
     {
@@ -35,8 +35,6 @@ public class MediaCollection
         TitleWeight = 100,
         OverviewWeight = 1
     });
-
-    private CancellationTokenSource _tokenSource = new();
 
     [Fact]
     public async Task MatchLocalFiles()
@@ -170,5 +168,63 @@ public class MediaCollection
                 bestMatches.ForEach(x => Debug.WriteLine($"{x?.id} - {x?.title ?? string.Empty}"));
             }
         }
+    }
+
+    [Fact]
+    public async Task UpdateRepos_HandlesNonExistentDirectory()
+    {
+        // Arrange: Use a base directory that is guaranteed not to exist
+        var nonExistentPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+
+        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions), _tokenSource);
+        ITMDB tmdb = new shared.TMDB.TMDB(repo, _tokenSource);
+        IDatabase db = new shared.data.Database(BasicDatabaseConfig);
+        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb);
+
+        // Initialize first to ensure the DB is ready for updates/checks
+        await media.Initialize(_tokenSource.Token);
+
+        // Act: Call UpdateRepos with a path that doesn't exist
+        // We expect it to handle this gracefully without throwing an exception related to file system access.
+        await media.UpdateRepos(nonExistentPath, false, _tokenSource.Token);
+
+        // Assert: No exceptions should be thrown, and the internal state should remain consistent (or at least not crash).
+    }
+
+    [Fact]
+    public async Task File_ThrowsExceptionForNonExistentDatabaseEntry()
+    {
+        // Arrange: Use a path that is guaranteed not to be in the database.
+        var nonExistentPath = "C:/media/definitely/not/in/db.mp4";
+
+        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions), _tokenSource);
+        ITMDB tmdb = new shared.TMDB.TMDB(repo, _tokenSource);
+        IDatabase db = new shared.data.Database(BasicDatabaseConfig);
+        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb);
+
+        await media.Initialize(_tokenSource.Token);
+
+        // Act & Assert: Expect a specific exception (e.g., KeyNotFoundException or custom DB exception)
+        await Assert.ThrowsAsync<FileNotFoundException>(() => media.File(nonExistentPath));
+    }
+
+    [Fact]
+    public async Task Search_ReturnsEmptyCollectionWhenNoMatches()
+    {
+        // Arrange: Use a non-matching pattern
+        var nonExistentPattern = "non_existent_pattern";
+
+        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions), _tokenSource);
+        ITMDB tmdb = new shared.TMDB.TMDB(repo, _tokenSource);
+        IDatabase db = new shared.data.Database(BasicDatabaseConfig);
+        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb);
+
+        await media.Initialize(_tokenSource.Token);
+
+        // Act: Call the method under test with a non-matching pattern
+        var matches = await media.Search(new[] { nonExistentPattern }, _tokenSource.Token);
+
+        // Assert: Expect an empty list of results
+        matches.Should().BeEmpty();
     }
 }

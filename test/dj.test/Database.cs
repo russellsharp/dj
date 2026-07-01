@@ -8,25 +8,15 @@ using Microsoft.Extensions.Options;
 using System.Net;
 namespace dj.test;
 
-public class Database : IDisposable
+public class Database : BaseTest, IDisposable
 {
     private shared.data.Database _db;
-
-    private ITestOutputHelper _output;
-
     private shared.data.DatabaseConfiguration _dataConfig;
-
     private bool _deleteDatabaseFile = true;
-
-    private List<string> _filesToDelete = new();
-
-    private CancellationTokenSource _tokenSource = new();
     private string _baseDirectory = "testMedia/";
 
-    public Database(ITestOutputHelper output)
+    public Database(ITestOutputHelper output) : base(output)
     {
-        _output = output;
-
         _dataConfig = new shared.data.DatabaseConfiguration()
         {
             DataFile = Path.GetFullPath("testdata/database.db")
@@ -77,7 +67,7 @@ public class Database : IDisposable
     {
         var testFile = $"{_baseDirectory}/test_file_01.avi";
 
-        await CreateTestFile(testFile, 5000, (byte)'w');
+        await CreateTestFile(Path.GetDirectoryName(testFile), 5000, (byte)'w', (byte)'w', "avi", Path.GetFileName(testFile));
 
         var file = await shared.FileHelper.PathToFile(testFile);
 
@@ -275,23 +265,14 @@ public class Database : IDisposable
     {
         Random rng = new Random();
         var testFiles = Enumerable.Range(1, count).Select(x => Path.ChangeExtension($"{_baseDirectory}/{Guid.NewGuid().ToString()}", extension)).ToList();
-        var fileCreation = testFiles.Select(async x => await FileHelper.CreateFile(x, rng.NextInt64(sizeKb), filler)).ToList();
+        var fileCreation = testFiles.Select(async x => await CreateTestFile(Path.GetDirectoryName(x), 1, rng.NextInt64(sizeKb), filler, extension, Path.GetFileName(x))).ToList();
 
-        var fileCreationSuccess = (await Task.WhenAll(fileCreation)).ToList();
+        await Task.WhenAll(fileCreation);
 
-        _filesToDelete.AddRange(testFiles.Select(x => Path.GetFullPath(x)));
-
-        var testConversion = testFiles
+        var testFileData = testFiles
             .AsParallel().WithCancellation(_tokenSource.Token)
             .Select(async x => await shared.FileHelper.PathToFile(Path.GetFullPath(x))).ToList();
-        return await Task.WhenAll(testConversion);
-    }
-
-    private async Task CreateTestFile(string path, long sizeKb, byte filler)
-    {
-        await shared.FileHelper.CreateFile(path, sizeKb, filler);
-
-        _filesToDelete.Add(path);
+        return await Task.WhenAll(testFileData);
     }
 
     #region IDisposable
@@ -303,21 +284,7 @@ public class Database : IDisposable
         {
             if (disposing)
             {
-                _db.Disconnect();
-
-                try
-                {
-                    //delete files created by test
-                    foreach (var file in _filesToDelete)
-                    {
-                        if (System.IO.File.Exists(file))
-                            System.IO.File.Delete(file);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _output.WriteLine(ex.ToString());
-                }
+                base.Dispose(disposing);
 
                 _db.Disconnect();
 
@@ -345,17 +312,6 @@ public class Database : IDisposable
                 }
             }
         }
-    }
-
-    void IDisposable.Dispose()
-    {
-        Dispose(true);
-        GC.SuppressFinalize(this);
-    }
-
-    ~Database()
-    {
-        Dispose(false);
     }
     #endregion IDisposable
 

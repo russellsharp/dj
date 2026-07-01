@@ -15,13 +15,11 @@ namespace dj.test
         private readonly Mock<ICache> _mockCache;
         private readonly Mock<IRepo> _mockRepo;
         private readonly IOptions<EndpointConfig> _endpointConfig;
-        private readonly CancellationTokenSource _cts;
 
         public RepoIntegrationTests()
         {
             _mockCache = new Mock<ICache>();
             _mockRepo = new Mock<IRepo>();
-            _cts = new CancellationTokenSource();
 
             var config = new EndpointConfig
             {

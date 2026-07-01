@@ -6,14 +6,13 @@ using shared.TMDB.Models;
 using shared;
 using Xunit.Internal;
 using System.Text.Json;
-using Newtonsoft.Json;
 using System.Data.Common;
 using shared.thesaurus;
 using Microsoft.CodeAnalysis;
 
 namespace dj.test;
 
-public class TMDB(ITestOutputHelper _output)
+public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
 {
     private static IOptions<EndpointConfig> BasicOptions = Options.Create(new EndpointConfig
     {
@@ -31,15 +30,6 @@ public class TMDB(ITestOutputHelper _output)
         DictionaryPath = "wordnet/staticdata/",
         DatabasePath = "wordnet/database/wordnet.db"
     });
-
-    private CancellationTokenSource _tokenSource = new();
-    internal void log(string msg)
-    {
-        Debug.WriteLine(msg);
-        Console.WriteLine(msg);
-        _output.WriteLine(msg);
-    }
-
 
     [Fact]
     public async Task QueryMovies()
@@ -63,8 +53,7 @@ public class TMDB(ITestOutputHelper _output)
     [Fact]
     public async Task QueryMovieGenres()
     {
-        CancellationTokenSource tokenSource = new();
-        using Repo client = new(BasicOptions, new Cache(BasicOptions), tokenSource);
+        using Repo client = new(BasicOptions, new Cache(BasicOptions), _tokenSource);
 
         var genres = await client.MovieGenres();
 
@@ -80,8 +69,7 @@ public class TMDB(ITestOutputHelper _output)
     [Fact]
     public async Task MovieDetails()
     {
-        CancellationTokenSource tokenSource = new();
-        using Repo client = new(BasicOptions, new Cache(BasicOptions), tokenSource);
+        using Repo client = new(BasicOptions, new Cache(BasicOptions), _tokenSource);
         var details = await client.Movie(11);
 
         details.Should().NotBeNull();
@@ -118,17 +106,15 @@ public class TMDB(ITestOutputHelper _output)
     [Fact]
     public async Task GetScore()
     {
-        CancellationTokenSource tokenSource = new();
-
-        using Repo repo = new(BasicOptions, new Cache(BasicOptions), tokenSource);
+        using Repo repo = new(BasicOptions, new Cache(BasicOptions), _tokenSource);
 
         var searchTerm = "Star Wars".ToLower();
 
         var queryResult = await repo.QueryTitle(searchTerm);
 
-        var keywords = SearchHelpers.SanitizeForSearch(searchTerm, tokenSource.Token, true); ;
+        var keywords = SearchHelpers.SanitizeForSearch(searchTerm, _tokenSource.Token, true); ;
 
-        var queryHits = await repo.QueryTitle<MovieQueryResponse>(keywords, keywords.Count(), tokenSource.Token);
+        var queryHits = await repo.QueryTitle<MovieQueryResponse>(keywords, keywords.Count(), _tokenSource.Token);
 
         queryHits.Should().NotBeNull();
 
@@ -153,18 +139,16 @@ public class TMDB(ITestOutputHelper _output)
     [Fact]
     public async Task GetScoreAndMatchRemoteMovies()
     {
-        CancellationTokenSource tokenSource = new();
-
-        using Repo repo = new(BasicOptions, new Cache(BasicOptions), tokenSource);
+        using Repo repo = new(BasicOptions, new Cache(BasicOptions), _tokenSource);
 
         var searchTerm = "Training Day";
 
         var queryResult = await repo.QueryTitle(searchTerm);
 
-        var keywords = SearchHelpers.SanitizeForSearch(searchTerm, tokenSource.Token, true); ;
+        var keywords = SearchHelpers.SanitizeForSearch(searchTerm, _tokenSource.Token, true); ;
 
         //query results
-        var queryHits = await repo.QueryTitle<MovieQueryResponse>(keywords, 1, tokenSource.Token);
+        var queryHits = await repo.QueryTitle<MovieQueryResponse>(keywords, 1, _tokenSource.Token);
 
         queryHits.Should().NotBeNull();
 
@@ -191,8 +175,8 @@ public class TMDB(ITestOutputHelper _output)
         {
             if (movie is null) continue;
 
-            var matchCount = SearchHelpers.MatchString(keywords, movie.title, tokenSource.Token) * BasicOptions.Value.TitleWeight;
-            matchCount += SearchHelpers.MatchString(keywords, movie.overview, tokenSource.Token) * BasicOptions.Value.OverviewWeight;
+            var matchCount = SearchHelpers.MatchString(keywords, movie.title, _tokenSource.Token) * BasicOptions.Value.TitleWeight;
+            matchCount += SearchHelpers.MatchString(keywords, movie.overview, _tokenSource.Token) * BasicOptions.Value.OverviewWeight;
 
             if (matchedMovies.ContainsKey(movie.id))
             {

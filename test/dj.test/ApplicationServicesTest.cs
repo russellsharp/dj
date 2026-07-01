@@ -3,15 +3,11 @@ using Microsoft.Extensions.Hosting;
 using Xunit;
 using shared;
 using FluentAssertions;
-using Microsoft.Extensions.Configuration;
-using System.Runtime.CompilerServices;
-using System.Net.Mail;
-using System.Diagnostics;
 using Microsoft.Extensions.Options;
 using shared.data;
 using Newtonsoft.Json;
-using Xunit.Internal;
 using shared.thesaurus;
+using System.Security.Cryptography.X509Certificates;
 
 namespace dj.test;
 
@@ -20,20 +16,13 @@ public class DatabaseCollectionDefinition { }
 
 // Application level tests are run sequentially because they share a database
 [Collection("Application Level Tests")]
-public class ApplicationServices : IDisposable
+public class ApplicationServices : BaseTest
 {
-
     private HostApplicationBuilder _builder;
     private IHost _host;
-    private ITestOutputHelper _output;
-    private List<string> _filesToDelete = new();
 
-    private CancellationTokenSource _tokenSource = new();
-
-    public ApplicationServices(ITestOutputHelper output)
+    public ApplicationServices(ITestOutputHelper output) : base(output)
     {
-        _output = output;
-
         var args = new string[] { "", "" };
         _builder = Host.CreateApplicationBuilder(args);
         _builder.Services.AddServices();
@@ -42,14 +31,6 @@ public class ApplicationServices : IDisposable
         LoadTestConfigs();
 
         _host = _builder.Build();
-    }
-
-    internal void log(object? message)
-    {
-        var msg = Convert.ToString(message) ?? "Message was null!";
-        Debug.WriteLine(msg);
-        Console.WriteLine(msg);
-        _output.WriteLine(msg);
     }
 
     private void LoadTestConfigs()
@@ -106,7 +87,7 @@ public class ApplicationServices : IDisposable
 
         config.Should().NotBeNull();
 
-        await CreateTestFile(10, 500);
+        await CreateTestFile(config.Value.BaseDirectory, 10, 500);
 
         CancellationTokenSource source = new();
 
@@ -124,9 +105,12 @@ public class ApplicationServices : IDisposable
     [Fact]
     public async Task SearchMultiplePatterns()
     {
+        var config = _host.Services.GetRequiredService<IOptions<MediaCollectionConfiguration>>();
 
-        await CreateTestFile(20, 250, (byte)'a', "avi");
-        await CreateTestFile(20, 250, (byte)'m', "mp3");
+        config.Should().NotBeNull();
+
+        await CreateTestFile(config.Value.BaseDirectory, 20, 250, (byte)'a', "avi");
+        await CreateTestFile(config.Value.BaseDirectory, 20, 250, (byte)'m', "mp3");
 
         var media = _host.Services.GetService<IMediaCollection>();
 
@@ -154,7 +138,7 @@ public class ApplicationServices : IDisposable
 
         config.Should().NotBeNull();
 
-        await CreateTestFile(1);
+        await CreateTestFile(config.Value.BaseDirectory, 1);
 
         var media = _host.Services.GetService<IMediaCollection>();
 
@@ -217,7 +201,11 @@ public class ApplicationServices : IDisposable
     [Fact]
     public async Task QueryLocalAndRemoteMovies()
     {
-        await CreateTestFile(1, 250, (byte)'w', "avi", "Inglourious Basterds");
+        var config = _host.Services.GetRequiredService<IOptions<MediaCollectionConfiguration>>();
+
+        config.Should().NotBeNull();
+
+        await CreateTestFile(config.Value.BaseDirectory, 1, 250, (byte)'w', "avi", "Inglourious Basterds");
 
         var client = _host.Services.GetRequiredService<shared.TMDB.ITMDB>();
 
@@ -255,47 +243,4 @@ public class ApplicationServices : IDisposable
 
         localMatches.Should().NotBeNullOrEmpty();
     }
-
-
-    private async Task CreateTestFile(int count, long sizeKb = 250, byte filler = (byte)'w', string extension = "avi", string? fileName = null)
-    {
-        var config = _host.Services.GetRequiredService<IOptions<MediaCollectionConfiguration>>();
-
-        config.Should().NotBeNull();
-
-        var fileDirectory = Path.GetFullPath(config.Value.BaseDirectory);
-
-        for (int i = 0; i < count; i++)
-        {
-            var name = Path.ChangeExtension(fileName is not null ? fileName : Guid.NewGuid().ToString(), extension);
-            var filePath = Path.Combine(fileDirectory, name);
-            if (await FileHelper.CreateFile(filePath, sizeKb, filler))
-            {
-                _filesToDelete.Add(filePath);
-            }
-        }
-    }
-
-    #region IDisposable
-    private int _disposed = 0;
-    public void Dispose()
-    {
-        if (Interlocked.Exchange(ref _disposed, 1) == 1)
-        {
-            return;
-        }
-
-        try
-        {
-            _filesToDelete.ForEach(x => _output.WriteLine($"File to delete: {x}"));
-            _filesToDelete.ForEach(x => Console.WriteLine($"File to delete: {x}"));
-            _filesToDelete.ForEach(System.IO.File.Delete);
-        }
-        catch (Exception ex)
-        {
-            _output.WriteLine($"Failed to clean up a test artifact: {ex}");
-            throw;
-        }
-    }
-    #endregion IDisposable
 }
