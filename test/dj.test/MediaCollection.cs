@@ -52,20 +52,21 @@ public class MediaCollection
 
         var keywords = SearchHelpers.SanitizeForSearch("Trainingwah wahDay wee", _tokenSource.Token, false);
 
-        var matches = (await media.FindInPath<shared.data.File>(keywords, _tokenSource.Token)).Select(x => x.Details);
+
+        var matches = (await media.FindInPath<shared.data.File>(keywords, null, _tokenSource.Token)).Select(x => x.Details);
 
         matches.Should().BeEmpty();
 
-        matches.ForEach(x => Debug.WriteLine(x.path));
+        matches.ForEach(x => Debug.WriteLine(x.path ?? string.Empty));
 
         keywords = SearchHelpers.SanitizeForSearch("Inglourious Basterds", _tokenSource.Token, true);
 
-        var matcheScores = (await media.FindInPath<shared.data.File>(keywords, _tokenSource.Token)).ToList();
+        var matcheScores = (await media.FindInPath<shared.data.File>(keywords, null, _tokenSource.Token)).ToList();
 
         matcheScores.Should().NotBeEmpty();
 
         Debug.WriteLine("Matches made:");
-        matcheScores.ForEach(x => Debug.WriteLine(x.Details.path));
+        matcheScores.ForEach(x => Debug.WriteLine(x.Details?.path ?? string.Empty));
     }
 
     [Fact]
@@ -80,11 +81,11 @@ public class MediaCollection
 
         var keywords = SearchHelpers.SanitizeForSearch("Inglourious Basterds", _tokenSource.Token, false);
 
-        var matcheScores = (await media.FindInPath<shared.data.File>(keywords, _tokenSource.Token)).ToList();
+        var matcheScores = (await media.FindInPath<shared.data.File>(keywords, null, _tokenSource.Token)).ToList();
 
         matcheScores.Should().NotBeEmpty();
 
-        matcheScores.Select(x => x.Details).ForEach(x => Debug.WriteLine(x.path));
+        matcheScores.Select(x => x.Details).ForEach(x => Debug.WriteLine(x?.path ?? string.Empty));
     }
 
     [Fact]
@@ -119,6 +120,7 @@ public class MediaCollection
         }
 
         localMovie.Should().NotBeNull();
+        var matchedLocalMovie = localMovie ?? throw new InvalidOperationException("Expected a local movie match.");
 
         var context = new MatchingContext
         {
@@ -127,12 +129,12 @@ public class MediaCollection
             PathDepthMax = 2
         };
 
-        var bestMatches = await tmdb.PathToTmdb(localMovie.path, context, true, _tokenSource.Token);
+        var bestMatches = await tmdb.PathToTmdb(matchedLocalMovie.path ?? string.Empty, context, true, _tokenSource.Token);
 
         bestMatches.Should().NotBeNull();
 
-        Debug.WriteLine($"Best matches found for: {localMovie.path}");
-        bestMatches.ForEach(x => Debug.WriteLine($"Best match found: {x.id} - {x.title}"));
+        Debug.WriteLine($"Best matches found for: {matchedLocalMovie.path ?? string.Empty}");
+        bestMatches.ForEach(x => Debug.WriteLine($"Best match found: {x?.id} - {x?.title ?? string.Empty}"));
     }
 
     [Fact]
@@ -160,12 +162,12 @@ public class MediaCollection
                 PathDepthMax = 2
             };
 
-            var bestMatches = await tmdb.PathToTmdb(localMovie.path, context, true, _tokenSource.Token);
+            var bestMatches = await tmdb.PathToTmdb(localMovie.path ?? string.Empty, context, true, _tokenSource.Token);
 
             if (bestMatches is not null)
             {
-                Debug.WriteLine($"Best matches for {localMovie.path}");
-                bestMatches.ForEach(x => Debug.WriteLine($"{x.id} - {x.title}"));
+                Debug.WriteLine($"Best matches for {localMovie.path ?? string.Empty}");
+                bestMatches.ForEach(x => Debug.WriteLine($"{x?.id} - {x?.title ?? string.Empty}"));
             }
         }
     }

@@ -3,7 +3,8 @@ using WeCantSpell.Hunspell;
 
 namespace shared;
 
-internal static class SearchHelpers
+
+public static class SearchHelpers
 {
     //do not remove spaces to preserve tokens for keywords
     private const string CharsToRemove = @"_()[],-.";

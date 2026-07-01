@@ -24,7 +24,7 @@ public interface IMediaCollection
     Task<shared.data.File?> File(string filePath);
     Task<IEnumerable<shared.data.File>> Files(MediaType type);
     Task<IEnumerable<string>> Search(IEnumerable<string> patterns, CancellationToken? token);
-    Task<IEnumerable<MatchScore<ResponseType>>> FindInPath<ResponseType>(IEnumerable<string> keywords, int? minimumHits = null, CancellationToken? token) where ResponseType : class;
+    Task<IEnumerable<MatchScore<ResponseType>>> FindInPath<ResponseType>(IEnumerable<string> keywords, int? minimumHits = null, CancellationToken? token = null) where ResponseType : class;
 }
 
 public class MediaCollection : IMediaCollection

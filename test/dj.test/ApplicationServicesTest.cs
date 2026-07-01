@@ -172,7 +172,7 @@ public class ApplicationServices : IDisposable
 
         info.Should().NotBeNull();
 
-        _output.WriteLine(info.ToString());
+        _output.WriteLine(info?.ToString() ?? string.Empty);
 
     }
 
@@ -251,13 +251,13 @@ public class ApplicationServices : IDisposable
 
         var keywords = SearchHelpers.SanitizeForSearch(movieName, _tokenSource.Token, false);
 
-        var localMatches = await media.FindInPath<shared.data.File>(keywords, _tokenSource.Token);
+        var localMatches = await media.FindInPath<shared.data.File>(keywords, keywords.Count(), _tokenSource.Token);
 
         localMatches.Should().NotBeNullOrEmpty();
     }
 
 
-    private async Task CreateTestFile(int count, long sizeKb = 250, byte filler = (byte)'w', string extension = "avi", string fileName = null)
+    private async Task CreateTestFile(int count, long sizeKb = 250, byte filler = (byte)'w', string extension = "avi", string? fileName = null)
     {
         var config = _host.Services.GetRequiredService<IOptions<MediaCollectionConfiguration>>();
 
