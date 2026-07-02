@@ -2,6 +2,9 @@
   <Folder Name="/src/">
     <Project Path="src/cli/cli.csproj" />
   </Folder>
+  <Folder Name="/api/">
+    <Project Path="src/api/api.csproj" />
+  </Folder>
   <Folder Name="/shared/">
     <Project Path="src/shared/shared.csproj" />
   </Folder>

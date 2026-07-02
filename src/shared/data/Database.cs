@@ -462,7 +462,8 @@ public class Database : IDisposable, IDatabase
         {
             if (disposing)
             {
-                _connection?.Close();
+                if (_connection is not null)
+                    _connection.Close();
             }
 
             //dispose unmanaged objects

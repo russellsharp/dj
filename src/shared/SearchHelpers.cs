@@ -46,8 +46,8 @@ public static class SearchHelpers
 
 internal class Dictionary
 {
-    private string _dicPath = Path.GetFullPath(@"dic/index.dic");
-    private string _affPath = Path.GetFullPath(@"dic/index.aff");
+    private string _dicPath = @"dic/index.dic";
+    private string _affPath = @"dic/index.aff";
     private WordList? _dictionary = null;
     private bool initialized = false;
 
@@ -56,13 +56,15 @@ internal class Dictionary
         if (!initialized)
         {
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-            _dictionary = WordList.CreateFromFiles(_dicPath, _affPath);
+            _dictionary = WordList.CreateFromFiles(Path.GetFullPath(_dicPath), Path.GetFullPath(_affPath));
             initialized = true;
         }
     }
 
     public bool Check(string word, CancellationToken token)
     {
+        string cwd = Directory.GetCurrentDirectory();
+        Console.WriteLine($"Dic directory cwd {cwd}, GetFullPath {Path.GetFullPath(_affPath)}");
         Initialize();
         //exempt large numbers.  Years screw with the TMDB search.
         return _dictionary!.Check(word.ToLower(), token) && (!int.TryParse(word, out int value));

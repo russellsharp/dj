@@ -283,21 +283,19 @@ public class Cache : IDisposable, ICache
 
     public void Connect()
     {
-        var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
-        var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
+        var dbPath = Path.GetFullPath(_config.DatabasePath);
 
-        var dbPath = Path.GetFullPath(Path.Combine(rootDir, _config.DatabasePath));
-
-        Directory.CreateDirectory(Path.GetDirectoryName(dbPath) ?? throw new InvalidOperationException("Unable to determine database directory"));
-
-        Debug.WriteLine($"Created {Path.GetDirectoryName(dbPath)}");
+        if (!Directory.Exists(dbPath))
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(dbPath) ?? throw new InvalidOperationException("Unable to determine database directory"));
+        }
 
         if (!File.Exists(dbPath))
         {
             // Creating an empty file is enough for SQLite to initialize it on first connect
             using (File.Create(dbPath)) { }
-            Debug.WriteLine($"Creating {dbPath}");
         }
+
         var lockObject = s_databaseLocks.GetOrAdd(dbPath, _ => new object());
         lock (lockObject)
         {

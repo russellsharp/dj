@@ -1,0 +1,6 @@
+@api_HostAddress = http://localhost:5282
+
+GET {{api_HostAddress}}/api/media/query?query=inglourious,basterds
+Accept: application/json
+
+###

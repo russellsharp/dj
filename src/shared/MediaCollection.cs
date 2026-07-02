@@ -34,11 +34,11 @@ public class MediaCollection : IMediaCollection
     private Dictionary<string, shared.data.File> _mediaRepo;
     private Dictionary<string, DirectoryInfo> _directoryRepo;
 
-    private CancellationTokenSource _tokenSource = new();
+    private CancellationTokenSource _cts;
 
     private shared.data.IDatabase _db;
 
-    public MediaCollection(IOptions<MediaCollectionConfiguration> configuration, IDatabase db, ITMDB tmdb)
+    public MediaCollection(IOptions<MediaCollectionConfiguration> configuration, IDatabase db, ITMDB tmdb, CancellationTokenSource cts)
     {
         _configuration = configuration.Value;
 
@@ -47,6 +47,8 @@ public class MediaCollection : IMediaCollection
         _directoryRepo = [];
 
         _db = db;
+
+        _cts = cts;
     }
 
     public async Task Initialize(CancellationToken token)
@@ -84,11 +86,10 @@ public class MediaCollection : IMediaCollection
 
     public async Task UpdateRepos(string? baseDirectory = null, bool truncateDatabase = false, CancellationToken? token = null)
     {
-        token ??= _tokenSource.Token;
+        token ??= _cts.Token;
 
-        var mediaDirectory = baseDirectory != null ? Path.GetFullPath(baseDirectory) : Path.GetFullPath(_configuration.BaseDirectory);
 
-        Debug.WriteLine($"UpdateRepo looking in {mediaDirectory}");
+        var mediaDirectory = !string.IsNullOrEmpty(baseDirectory) ? Path.GetFullPath(baseDirectory) : Path.GetFullPath(_configuration.BaseDirectory);
 
         EnumerationOptions options = new()
         {
@@ -211,7 +212,7 @@ public class MediaCollection : IMediaCollection
 
     public async Task<IEnumerable<string>> Search(IEnumerable<string> patterns, CancellationToken? token)
     {
-        token ??= _tokenSource.Token;
+        token ??= _cts.Token;
 
         if (patterns is null || !patterns.Any()) throw new ArgumentException($"Patterns are empty or null.");
 
@@ -239,7 +240,7 @@ public class MediaCollection : IMediaCollection
     {
         minimumHits ??= keywords.Count();
 
-        token ??= _tokenSource.Token;
+        token ??= _cts.Token;
 
         if (!keywords.Any()) throw new ArgumentNullException("Keywords are empty");
 

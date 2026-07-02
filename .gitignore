@@ -2,7 +2,7 @@
 .zig-cache/
 zig-out/
 obj/
-bin/
+**/bin
 logs/
 *.lscache
 src/shared/reference/*

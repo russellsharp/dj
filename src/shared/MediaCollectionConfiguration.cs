@@ -10,7 +10,7 @@ public class MediaCollectionConfiguration
     {
         get
         {
-            return Path.GetFullPath(_baseDirectory);
+            return string.IsNullOrEmpty(_baseDirectory) ? string.Empty : Path.GetFullPath(_baseDirectory);
         }
         set
         {

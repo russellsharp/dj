@@ -42,7 +42,7 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
         IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions), _tokenSource);
         ITMDB tmdb = new shared.TMDB.TMDB(repo, _tokenSource);
         IDatabase db = new shared.data.Database(BasicDatabaseConfig);
-        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb);
+        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _tokenSource);
 
         await media.Initialize(_tokenSource.Token);
 
@@ -73,7 +73,7 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
         IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions), _tokenSource);
         ITMDB tmdb = new shared.TMDB.TMDB(repo, _tokenSource);
         IDatabase db = new shared.data.Database(BasicDatabaseConfig);
-        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb);
+        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _tokenSource);
 
         await media.Initialize(_tokenSource.Token);
 
@@ -92,7 +92,7 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
         IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions), _tokenSource);
         ITMDB tmdb = new shared.TMDB.TMDB(repo, _tokenSource);
         IDatabase db = new shared.data.Database(BasicDatabaseConfig);
-        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb);
+        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _tokenSource);
 
         await media.UpdateRepos(BasicMediaOptions.Value.BaseDirectory, false, _tokenSource.Token);
 
@@ -141,7 +141,7 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
         IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions), _tokenSource);
         ITMDB tmdb = new shared.TMDB.TMDB(repo, _tokenSource);
         IDatabase db = new shared.data.Database(BasicDatabaseConfig);
-        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb);
+        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _tokenSource);
 
         await media.Initialize(_tokenSource.Token);
 
@@ -179,7 +179,7 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
         IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions), _tokenSource);
         ITMDB tmdb = new shared.TMDB.TMDB(repo, _tokenSource);
         IDatabase db = new shared.data.Database(BasicDatabaseConfig);
-        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb);
+        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _tokenSource);
 
         // Initialize first to ensure the DB is ready for updates/checks
         await media.Initialize(_tokenSource.Token);
@@ -200,7 +200,7 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
         IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions), _tokenSource);
         ITMDB tmdb = new shared.TMDB.TMDB(repo, _tokenSource);
         IDatabase db = new shared.data.Database(BasicDatabaseConfig);
-        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb);
+        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _tokenSource);
 
         await media.Initialize(_tokenSource.Token);
 
@@ -217,7 +217,7 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
         IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions), _tokenSource);
         ITMDB tmdb = new shared.TMDB.TMDB(repo, _tokenSource);
         IDatabase db = new shared.data.Database(BasicDatabaseConfig);
-        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb);
+        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _tokenSource);
 
         await media.Initialize(_tokenSource.Token);
 
