@@ -37,6 +37,16 @@ public class Cache : IDisposable, ICache
     private SqliteConnection? _connection = null;
     private static readonly ConcurrentDictionary<string, object> s_databaseLocks = new();
 
+    private string DatabasePath
+    {
+        get
+        {
+            var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
+            var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
+            return Path.GetFullPath(Path.Combine(rootDir, _config.DatabasePath));
+        }
+    }
+
     public Cache(IOptions<EndpointConfig> config)
     {
         ArgumentNullException.ThrowIfNull(config);
@@ -54,7 +64,7 @@ public class Cache : IDisposable, ICache
         {
             var builder = new SqliteConnectionStringBuilder
             {
-                DataSource = _config.DatabasePath,
+                DataSource = DatabasePath,
                 Mode = SqliteOpenMode.ReadWriteCreate,
                 Cache = SqliteCacheMode.Shared,
                 Pooling = true
@@ -283,30 +293,26 @@ public class Cache : IDisposable, ICache
 
     public void Connect()
     {
-        var dbPath = Path.GetFullPath(_config.DatabasePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(DatabasePath) ?? throw new InvalidOperationException("Unable to determine database directory"));
 
-        if (!Directory.Exists(dbPath))
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(dbPath) ?? throw new InvalidOperationException("Unable to determine database directory"));
-        }
-
-        if (!File.Exists(dbPath))
+        if (!File.Exists(DatabasePath))
         {
             // Creating an empty file is enough for SQLite to initialize it on first connect
-            using (File.Create(dbPath)) { }
+            using (File.Create(DatabasePath)) { }
         }
 
-        var lockObject = s_databaseLocks.GetOrAdd(dbPath, _ => new object());
+        var lockObject = s_databaseLocks.GetOrAdd(DatabasePath, _ => new object());
         lock (lockObject)
         {
             _connection = new SqliteConnection(ConnectionString);
 
+            Console.WriteLine(ConnectionString);
             _connection.Open();
 
-            var access = FileHelper.CanAccessFile(dbPath, FileAccess.ReadWrite);
+            var access = FileHelper.CanAccessFile(DatabasePath, FileAccess.ReadWrite);
             if (access is not FileAccessResult.Available)
             {
-                throw new FieldAccessException(FileHelper.AccessMessage(access, dbPath, FileAccess.ReadWrite));
+                throw new FieldAccessException(FileHelper.AccessMessage(access, DatabasePath, FileAccess.ReadWrite));
             }
             // WAL mode allows one writer + multiple readers concurrently across connections.
             // busy_timeout tells SQLite retry on a locked write for up to 5 s rather than

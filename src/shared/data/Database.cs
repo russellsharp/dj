@@ -52,6 +52,16 @@ public class Database : IDisposable, IDatabase
     private SqliteConnection? _connection = null;
     private int _commandTimeoutSeconds = 20;
 
+    private string DatabasePath
+    {
+        get
+        {
+            var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
+            var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
+            return Path.GetFullPath(Path.Combine(rootDir, _config.DataFile));
+        }
+    }
+
     public Database(IOptions<DatabaseConfiguration> config)
     {
         _config = config.Value;
@@ -64,18 +74,14 @@ public class Database : IDisposable, IDatabase
     /// </summary>
     public void Connect()
     {
-        var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
-        var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
+        Directory.CreateDirectory(Path.GetDirectoryName(DatabasePath) ?? throw new InvalidOperationException("Unable to determine database directory"));
 
-        var dbPath = Path.GetFullPath(Path.Combine(rootDir, _config.DataFile));
-        Directory.CreateDirectory(Path.GetDirectoryName(dbPath) ?? throw new InvalidOperationException("Unable to determine database directory"));
-
-        var lockObject = s_databaseLocks.GetOrAdd(dbPath, _ => new object());
+        var lockObject = s_databaseLocks.GetOrAdd(DatabasePath, _ => new object());
         lock (lockObject)
         {
             var builder = new SqliteConnectionStringBuilder
             {
-                DataSource = dbPath,
+                DataSource = DatabasePath,
                 Mode = SqliteOpenMode.ReadWriteCreate,
                 Cache = SqliteCacheMode.Shared
             };

@@ -51,12 +51,32 @@ internal class Dictionary
     private WordList? _dictionary = null;
     private bool initialized = false;
 
+    private string AffPath
+    {
+        get
+        {
+            var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
+            var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
+            return Path.GetFullPath(Path.Combine(rootDir, _affPath));
+        }
+    }
+
+    private string DicPath
+    {
+        get
+        {
+            var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
+            var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
+            return Path.GetFullPath(Path.Combine(rootDir, _dicPath));
+        }
+    }
+
     public void Initialize()
     {
         if (!initialized)
         {
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-            _dictionary = WordList.CreateFromFiles(Path.GetFullPath(_dicPath), Path.GetFullPath(_affPath));
+            _dictionary = WordList.CreateFromFiles(DicPath, AffPath);
             initialized = true;
         }
     }
@@ -64,7 +84,7 @@ internal class Dictionary
     public bool Check(string word, CancellationToken token)
     {
         string cwd = Directory.GetCurrentDirectory();
-        Console.WriteLine($"Dic directory cwd {cwd}, GetFullPath {Path.GetFullPath(_affPath)}");
+        Console.WriteLine($"Dic directory cwd {cwd}, GetFullPath {AffPath}");
         Initialize();
         //exempt large numbers.  Years screw with the TMDB search.
         return _dictionary!.Check(word.ToLower(), token) && (!int.TryParse(word, out int value));
