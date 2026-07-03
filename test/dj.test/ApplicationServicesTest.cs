@@ -144,11 +144,11 @@ public class ApplicationServices : BaseTest
 
         media.Should().NotBeNull();
 
-        await media.UpdateRepos(config.Value.BaseDirectory, true, _tokenSource.Token);
+        await media.UpdateRepos(config.Value.BaseDirectory, true, _cts.Token);
 
         var patterns = @"\.avi$;.+\.mkv".Split(';');
 
-        var results = (await media.Search(patterns, _tokenSource.Token)).ToList();
+        var results = (await media.Search(patterns, _cts.Token)).ToList();
 
         results.Should().NotBeEmpty();
 
@@ -233,13 +233,13 @@ public class ApplicationServices : BaseTest
 
         var media = _host.Services.GetRequiredService<IMediaCollection>();
 
-        await media.Initialize(_tokenSource.Token);
+        await media.Initialize(_cts.Token);
 
-        await media.UpdateRepos(null, true, _tokenSource.Token);
+        await media.UpdateRepos(null, true, _cts.Token);
 
-        var keywords = SearchHelpers.SanitizeForSearch(movieName, _tokenSource.Token, false);
+        var keywords = SearchHelpers.SanitizeForSearch(movieName, _cts.Token, false);
 
-        var localMatches = await media.FindInPath<shared.data.File>(keywords, keywords.Count(), _tokenSource.Token);
+        var localMatches = await media.FindInPath<shared.data.File>(keywords, keywords.Count(), _cts.Token);
 
         localMatches.Should().NotBeNullOrEmpty();
     }

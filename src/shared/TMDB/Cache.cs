@@ -21,12 +21,10 @@ public interface ICache
     bool IsConnected();
     void Create();
     Task Truncate();
-    bool Get<ResponseType>(string tmdb_request_url, out ResponseType? response);
-    Task Store<ResponseType>(string requestUrl, string? content);
-    IAsyncEnumerable<ContentType?> GetAllStream<ContentType>(CancellationToken token);
-    Task StoreTypedData<ResponseType>(ResponseType contents, CancellationToken? token = null);
-    Task StoreMovieDetails(MovieDetailsResponse details, CancellationToken? token = null);
-    Task<IEnumerable<MatchScore<ResponseType>>> FindQueryHits<ResponseType>(IEnumerable<string> keywords, int minimum_hits, CancellationToken token) where ResponseType : class;
+    bool Get<ResponseType>(string tmdb_request_url, out ResponseType? response, CancellationToken? token = null);
+    Task Store<ResponseType>(string requestUrl, string? content, CancellationToken? token = null);
+    IAsyncEnumerable<ContentType?> GetAllStream<ContentType>(CancellationToken? token = null);
+    Task<IEnumerable<MatchScore<ResponseType>>> FindQueryHits<ResponseType>(IEnumerable<string> keywords, int minimum_hits, CancellationToken? token = null) where ResponseType : class;
     Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryOverviews(IEnumerable<string> keywords, int minimumHits, CancellationToken? token = null);
     Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryWithGroupedTerms(IEnumerable<IEnumerable<string>> keywords, int minimumHits, CancellationToken? token = null);
 }
@@ -34,6 +32,7 @@ public interface ICache
 public class Cache : IDisposable, ICache
 {
     private EndpointConfig _config;
+    private readonly CancellationTokenSource _tokenSource;
     private SqliteConnection? _connection = null;
     private static readonly ConcurrentDictionary<string, object> s_databaseLocks = new();
 
@@ -47,11 +46,13 @@ public class Cache : IDisposable, ICache
         }
     }
 
-    public Cache(IOptions<EndpointConfig> config)
+    public Cache(IOptions<EndpointConfig> config, CancellationTokenSource cts)
     {
         ArgumentNullException.ThrowIfNull(config);
 
         _config = config.Value;
+
+        _tokenSource = cts;
 
         Connect();
 
@@ -74,8 +75,10 @@ public class Cache : IDisposable, ICache
         }
     }
 
-    public bool Get<ResponseType>(string tmdb_request_url, out ResponseType? response)
+    public bool Get<ResponseType>(string tmdb_request_url, out ResponseType? response, CancellationToken? token = null)
     {
+        token ??= _tokenSource.Token;
+
         var connection = _connection ?? throw new InvalidOperationException("Cache is not connected.");
         var sql = $"SELECT response FROM tmdb_cache WHERE url_hash = @request_hash AND response_type = @type";
 
@@ -108,10 +111,12 @@ public class Cache : IDisposable, ICache
         return false;
     }
 
-    public async Task Store<ResponseType>(string requestUrl, string? content)
+    public async Task Store<ResponseType>(string requestUrl, string? content, CancellationToken? token = null)
     {
+        token ??= _tokenSource.Token;
+
         var connection = _connection ?? throw new InvalidOperationException("Cache is not connected.");
-        var sql = "INSERT INTO tmdb_cache (url_hash, url, id, response, response_type) VALUES (@request_hash, @request, @response, @response_type) ON CONFLICT(url_hash) DO UPDATE SET response = excluded.response, response_type = excluded.response_type";
+        var sql = "INSERT INTO tmdb_cache (url_hash, url, response, response_type) VALUES (@request_hash, @request, @response, @response_type) ON CONFLICT(url_hash) DO UPDATE SET response = excluded.response, response_type = excluded.response_type";
 
         var requestHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(requestUrl)));
         using var command = new SqliteCommand(sql, connection);
@@ -120,25 +125,18 @@ public class Cache : IDisposable, ICache
         command.Parameters.AddWithValue("response_type", typeof(ResponseType).ToString());
         command.Parameters.AddWithValue("request", requestUrl);
 
-        if (!string.IsNullOrWhiteSpace(content))
-        {
-            var typedContent = JsonSerializer.Deserialize<ResponseType>(content);
-            if (typedContent is not null)
-            {
-                await StoreTypedData(typedContent);
-            }
-        }
-
-        await command.ExecuteNonQueryAsync();
+        await command.ExecuteNonQueryAsync(token.Value);
     }
 
-    public async IAsyncEnumerable<ContentType?> GetAllStream<ContentType>([EnumeratorCancellation] CancellationToken token)
+    public async IAsyncEnumerable<ContentType?> GetAllStream<ContentType>([EnumeratorCancellation] CancellationToken? token = null)
     {
+        token ??= _tokenSource.Token;
+
         var connection = _connection ?? throw new InvalidOperationException("Cache is not connected.");
         const string sql = "SELECT * FROM tmdb_cache";
         var dataSet = connection.QueryUnbufferedAsync<(string hash, string response)>(sql);
 
-        await foreach (var row in dataSet.WithCancellation(token))
+        await foreach (var row in dataSet.WithCancellation(token.Value))
         {
             if (string.IsNullOrEmpty(row.response)) continue;
 
@@ -146,35 +144,8 @@ public class Cache : IDisposable, ICache
         }
     }
 
-    public async Task StoreTypedData<ResponseType>(ResponseType contents, CancellationToken? token = null)
-    {
-        switch (contents)
-        {
-            case MovieDetailsResponse details:
-            {
-                await StoreMovieDetails(details, token);
-                break;
-            }
-            default:
-            {
-                throw new NotSupportedException($"{nameof(ResponseType)} is not supported for typed storage.");
-            }
-        }
-    }
-
-    public async Task StoreMovieDetails(MovieDetailsResponse details, CancellationToken? token = null)
-    {
-        var connection = _connection ?? throw new InvalidOperationException("Cache is not connected.");
-        const string sql = "INSERT INTO movie_details (id, details) VALUES (@id, @Details) ON CONFLICT(id) DO UPDATE SET details = EXCLUDED.details";
-        var detailString = JsonSerializer.Serialize(details);
-        using var command = new SqliteCommand(sql, connection);
-        command.Parameters.AddWithValue("details", detailString);
-
-        await command.ExecuteNonQueryAsync();
-    }
-
     // search movie fields from tmdb for keywords and count hits for each movie
-    public async Task<IEnumerable<MatchScore<ResponseType>>> FindQueryHits<ResponseType>(IEnumerable<string> keywords, int minimum_hits, CancellationToken token) where ResponseType : class
+    public async Task<IEnumerable<MatchScore<ResponseType>>> FindQueryHits<ResponseType>(IEnumerable<string> keywords, int minimum_hits, CancellationToken? token = null) where ResponseType : class
     {
         //         SELECT url_hash, response, 
         //                          (CASE WHEN description_field LIKE '%apple%' THEN 1 ELSE 0 END +
@@ -184,6 +155,8 @@ public class Cache : IDisposable, ICache
         //         WHERE hit_count >= minimum_hits and response_type = ResponseType
         //         ORDER BY hit_counts;
 
+        token ??= _tokenSource.Token;
+
         try
         {
             const string sqlPrefix = "SELECT response as Details, ";
@@ -192,7 +165,7 @@ public class Cache : IDisposable, ICache
             string sql = $"{sqlPrefix} ({string.Join(" + \n", caseStatements)}) {suffix}";
 
             var connection = _connection ?? throw new InvalidOperationException("Cache is not connected.");
-            var matches = await connection.QueryAsync(sql);
+            var matches = await connection.QueryAsync(new CommandDefinition(sql, cancellationToken: token.Value));
             var typedMatches = matches.Select(x =>
             {
                 var json = x.Details as string;
@@ -222,6 +195,8 @@ public class Cache : IDisposable, ICache
         //         WHERE hit_count >= minimum_hits and response_type = ResponseType
         //         ORDER BY hit_counts;
 
+        token ??= _tokenSource.Token;
+
         try
         {
             const string sqlPrefix = "SELECT response as details, ";
@@ -234,7 +209,7 @@ public class Cache : IDisposable, ICache
             Debug.WriteLine($"Querying overview: {sql}");
 
             var connection = _connection ?? throw new InvalidOperationException("Cache is not connected.");
-            var matches = await connection.QueryAsync(sql);
+            var matches = await connection.QueryAsync(new CommandDefinition(sql, cancellationToken: token.Value));
             return matches.Select(x =>
             {
                 var json = x.details as string;
@@ -254,6 +229,8 @@ public class Cache : IDisposable, ICache
 
     public async Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryWithGroupedTerms(IEnumerable<IEnumerable<string>> keywordsWithSynonyms, int minimumHits, CancellationToken? token = null)
     {
+        token ??= _tokenSource.Token;
+
         try
         {
             List<string> cases = new();
@@ -273,7 +250,7 @@ public class Cache : IDisposable, ICache
             Debug.WriteLine($"Querying overview with synonyms:\n {sql}");
 
             var connection = _connection ?? throw new InvalidOperationException("Cache is not connected.");
-            var matches = await connection.QueryAsync(sql);
+            var matches = await connection.QueryAsync(new CommandDefinition(sql, cancellationToken: token.Value));
             return matches.Select(x =>
             {
                 var json = x.details as string;
@@ -345,13 +322,7 @@ public class Cache : IDisposable, ICache
 
     public void Disconnect()
     {
-        var rootDir = Path.GetDirectoryName(Environment.ProcessPath);
-
-#pragma warning disable CS8604 // Possible null reference argument.
-        var dbPath = Path.GetFullPath(Path.Combine(rootDir, _config.DatabasePath));
-#pragma warning restore CS8604 // Possible null reference argument.
-
-        var lockObject = s_databaseLocks.GetOrAdd(dbPath, _ => new object());
+        var lockObject = s_databaseLocks.GetOrAdd(DatabasePath, _ => new object());
         lock (lockObject)
         {
             SqliteConnection.ClearAllPools();

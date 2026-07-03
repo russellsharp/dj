@@ -83,8 +83,6 @@ internal class Dictionary
 
     public bool Check(string word, CancellationToken token)
     {
-        string cwd = Directory.GetCurrentDirectory();
-        Console.WriteLine($"Dic directory cwd {cwd}, GetFullPath {AffPath}");
         Initialize();
         //exempt large numbers.  Years screw with the TMDB search.
         return _dictionary!.Check(word.ToLower(), token) && (!int.TryParse(word, out int value));

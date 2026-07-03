@@ -1,6 +1,23 @@
 @api_HostAddress = http://localhost:5282
 
-GET {{api_HostAddress}}/api/media/query?query=inglourious,basterds
+GET {{api_HostAddress}}/api/media/search?query=training,day
 Accept: application/json
 
+###
+
+GET {{api_HostAddress}}/api/media/query?query=training,day
+Accept: application/json
+
+###
+
+GET {{api_HostAddress}}/api/media/details?query=training,day
+Accept: application/json
+###
+
+GET {{api_HostAddress}}/api/media/media?type=Video&updateRepo=true
+Accept: application/json
+###
+
+GET {{api_HostAddress}}/api/media/match?query=dirty,cop&type=Video&minimumHits=1
+Accept: application/json
 ###

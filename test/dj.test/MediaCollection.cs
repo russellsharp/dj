@@ -39,27 +39,27 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
     [Fact]
     public async Task MatchLocalFiles()
     {
-        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions), _tokenSource);
-        ITMDB tmdb = new shared.TMDB.TMDB(repo, _tokenSource);
+        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions, _cts), _cts);
+        ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
         IDatabase db = new shared.data.Database(BasicDatabaseConfig);
-        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _tokenSource);
+        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _cts);
 
-        await media.Initialize(_tokenSource.Token);
+        await media.Initialize(_cts.Token);
 
-        await media.UpdateRepos(BasicMediaOptions.Value.BaseDirectory, false, _tokenSource.Token);
+        await media.UpdateRepos(BasicMediaOptions.Value.BaseDirectory, false, _cts.Token);
 
-        var keywords = SearchHelpers.SanitizeForSearch("Trainingwah wahDay wee", _tokenSource.Token, false);
+        var keywords = SearchHelpers.SanitizeForSearch("Trainingwah wahDay wee", _cts.Token, false);
 
 
-        var matches = (await media.FindInPath<shared.data.File>(keywords, null, _tokenSource.Token)).Select(x => x.Details);
+        var matches = (await media.FindInPath<shared.data.File>(keywords, null, _cts.Token)).Select(x => x.Details);
 
         matches.Should().BeEmpty();
 
         matches.ForEach(x => Debug.WriteLine(x.path ?? string.Empty));
 
-        keywords = SearchHelpers.SanitizeForSearch("Inglourious Basterds", _tokenSource.Token, true);
+        keywords = SearchHelpers.SanitizeForSearch("Inglourious Basterds", _cts.Token, true);
 
-        var matcheScores = (await media.FindInPath<shared.data.File>(keywords, null, _tokenSource.Token)).ToList();
+        var matcheScores = (await media.FindInPath<shared.data.File>(keywords, null, _cts.Token)).ToList();
 
         matcheScores.Should().NotBeEmpty();
 
@@ -70,16 +70,16 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
     [Fact]
     public async Task MatchLocalFilesDictionaryAction()
     {
-        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions), _tokenSource);
-        ITMDB tmdb = new shared.TMDB.TMDB(repo, _tokenSource);
+        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions, _cts), _cts);
+        ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
         IDatabase db = new shared.data.Database(BasicDatabaseConfig);
-        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _tokenSource);
+        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _cts);
 
-        await media.Initialize(_tokenSource.Token);
+        await media.Initialize(_cts.Token);
 
-        var keywords = SearchHelpers.SanitizeForSearch("Inglourious Basterds", _tokenSource.Token, false);
+        var keywords = SearchHelpers.SanitizeForSearch("Inglourious Basterds", _cts.Token, false);
 
-        var matcheScores = (await media.FindInPath<shared.data.File>(keywords, null, _tokenSource.Token)).ToList();
+        var matcheScores = (await media.FindInPath<shared.data.File>(keywords, null, _cts.Token)).ToList();
 
         matcheScores.Should().NotBeEmpty();
 
@@ -89,14 +89,14 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
     [Fact]
     public async Task MatchLocalFilesToTmdb()
     {
-        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions), _tokenSource);
-        ITMDB tmdb = new shared.TMDB.TMDB(repo, _tokenSource);
+        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions, _cts), _cts);
+        ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
         IDatabase db = new shared.data.Database(BasicDatabaseConfig);
-        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _tokenSource);
+        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _cts);
 
-        await media.UpdateRepos(BasicMediaOptions.Value.BaseDirectory, false, _tokenSource.Token);
+        await media.UpdateRepos(BasicMediaOptions.Value.BaseDirectory, false, _cts.Token);
 
-        await media.Initialize(_tokenSource.Token);
+        await media.Initialize(_cts.Token);
 
         var localMovies = await media.Files(MediaType.Video);
 
@@ -127,7 +127,7 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
             PathDepthMax = 2
         };
 
-        var bestMatches = await tmdb.PathToTmdb(matchedLocalMovie.path ?? string.Empty, context, true, _tokenSource.Token);
+        var bestMatches = await tmdb.PathToTmdb(matchedLocalMovie.path ?? string.Empty, context, true, _cts.Token);
 
         bestMatches.Should().NotBeNull();
 
@@ -138,14 +138,14 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
     [Fact]
     public async Task Match100LocalFilesToTmdb()
     {
-        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions), _tokenSource);
-        ITMDB tmdb = new shared.TMDB.TMDB(repo, _tokenSource);
+        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions, _cts), _cts);
+        ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
         IDatabase db = new shared.data.Database(BasicDatabaseConfig);
-        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _tokenSource);
+        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _cts);
 
-        await media.Initialize(_tokenSource.Token);
+        await media.Initialize(_cts.Token);
 
-        await media.UpdateRepos(BasicMediaOptions.Value.BaseDirectory, false, _tokenSource.Token);
+        await media.UpdateRepos(BasicMediaOptions.Value.BaseDirectory, false, _cts.Token);
 
         var movieFiles = (await media.Files(MediaType.Video)).Take(100);
 
@@ -160,7 +160,7 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
                 PathDepthMax = 2
             };
 
-            var bestMatches = await tmdb.PathToTmdb(localMovie.path ?? string.Empty, context, true, _tokenSource.Token);
+            var bestMatches = await tmdb.PathToTmdb(localMovie.path ?? string.Empty, context, true, _cts.Token);
 
             if (bestMatches is not null)
             {
@@ -176,17 +176,17 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
         // Arrange: Use a base directory that is guaranteed not to exist
         var nonExistentPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
 
-        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions), _tokenSource);
-        ITMDB tmdb = new shared.TMDB.TMDB(repo, _tokenSource);
+        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions, _cts), _cts);
+        ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
         IDatabase db = new shared.data.Database(BasicDatabaseConfig);
-        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _tokenSource);
+        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _cts);
 
         // Initialize first to ensure the DB is ready for updates/checks
-        await media.Initialize(_tokenSource.Token);
+        await media.Initialize(_cts.Token);
 
         // Act: Call UpdateRepos with a path that doesn't exist
         // We expect it to handle this gracefully without throwing an exception related to file system access.
-        await media.UpdateRepos(nonExistentPath, false, _tokenSource.Token);
+        await media.UpdateRepos(nonExistentPath, false, _cts.Token);
 
         // Assert: No exceptions should be thrown, and the internal state should remain consistent (or at least not crash).
     }
@@ -197,12 +197,12 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
         // Arrange: Use a path that is guaranteed not to be in the database.
         var nonExistentPath = "C:/media/definitely/not/in/db.mp4";
 
-        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions), _tokenSource);
-        ITMDB tmdb = new shared.TMDB.TMDB(repo, _tokenSource);
+        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions, _cts), _cts);
+        ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
         IDatabase db = new shared.data.Database(BasicDatabaseConfig);
-        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _tokenSource);
+        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _cts);
 
-        await media.Initialize(_tokenSource.Token);
+        await media.Initialize(_cts.Token);
 
         // Act & Assert: Expect a specific exception (e.g., KeyNotFoundException or custom DB exception)
         await Assert.ThrowsAsync<FileNotFoundException>(() => media.File(nonExistentPath));
@@ -214,15 +214,15 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
         // Arrange: Use a non-matching pattern
         var nonExistentPattern = "non_existent_pattern";
 
-        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions), _tokenSource);
-        ITMDB tmdb = new shared.TMDB.TMDB(repo, _tokenSource);
+        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions, _cts), _cts);
+        ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
         IDatabase db = new shared.data.Database(BasicDatabaseConfig);
-        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _tokenSource);
+        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _cts);
 
-        await media.Initialize(_tokenSource.Token);
+        await media.Initialize(_cts.Token);
 
         // Act: Call the method under test with a non-matching pattern
-        var matches = await media.Search(new[] { nonExistentPattern }, _tokenSource.Token);
+        var matches = await media.Search(new[] { nonExistentPattern }, _cts.Token);
 
         // Assert: Expect an empty list of results
         matches.Should().BeEmpty();

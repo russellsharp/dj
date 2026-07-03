@@ -11,7 +11,7 @@ namespace shared.TMDB
     public interface ITMDB
     {
         Task<MovieDetailsResponse?> GetMovie(int id);
-        Task<MovieQueryResponse?> QueryTitle(string query, int page = 1);
+        Task<MovieQueryResponse?> QueryTitle(string query, int page = 1, CancellationToken? token = null);
         Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryOverviews(string query, int minimumHitCount, CancellationToken? token = null);
         Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryWithGroupedTerms(IEnumerable<IEnumerable<string>> query, int minimumHitCount, CancellationToken? token = null);
         Task<IEnumerable<Result?>> PathToTmdb(string filePath, MatchingContext context, bool useDictionary = true, CancellationToken? token = null);
@@ -56,9 +56,9 @@ namespace shared.TMDB
             return await _repo.Movie(id);
         }
 
-        public async Task<MovieQueryResponse?> QueryTitle(string query, int page = 1)
+        public async Task<MovieQueryResponse?> QueryTitle(string query, int page = 1, CancellationToken? token = null)
         {
-            return await _repo.QueryTitle(query, page);
+            return await _repo.QueryTitle(query, page, token);
         }
 
         public async Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryOverviews(string query, int minimumHitCount, CancellationToken? token = null)
@@ -113,22 +113,24 @@ namespace shared.TMDB
             //try less relevant with dictionary
             tmdbResults.Clear();
 
-            await MatchSegments(lessRelevantPathSegments, tmdbResults, useDictionary);
+            await MatchSegments(lessRelevantPathSegments, tmdbResults, useDictionary, token);
 
             matches = BestMatch(relevantPathSegments, tmdbResults, minimumMatchScore).ToList();
 
             return matches;
         }
 
-        private async Task MatchSegments(string[] pathSegments, List<Result> tmdbResults, bool useDictionary = true)
+        private async Task MatchSegments(string[] pathSegments, List<Result> tmdbResults, bool useDictionary = true, CancellationToken? token = null)
         {
+            token ??= _tokenSource.Token;
+
             foreach (var segment in pathSegments)
             {
                 var sanitized = string.Join(' ', SearchHelpers.SanitizeForSearch(segment, _tokenSource.Token, useDictionary));
 
                 if (!string.IsNullOrWhiteSpace(sanitized))
                 {
-                    var queryResults = await QueryTitle(sanitized);
+                    var queryResults = await QueryTitle(sanitized, 1, token);
 
                     if (queryResults?.results is null)
                     {

@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
 using shared.data;
 using shared.TMDB;
+using SQLitePCL;
 
 namespace shared;
 
@@ -295,8 +296,8 @@ public class MediaCollection : IMediaCollection
     {
         var requestExtensions = type switch
         {
-            MediaType.Audio => _configuration.AudioExtensions.Split(';').Select(x => { if (x[0] != '.') { return $".{x}"; } else { return x; } }),
-            MediaType.Video => _configuration.VideoExtensions.Split(';').Select(x => { if (x[0] != '.') { return $".{x}"; } else { return x; } }),
+            MediaType.Audio => _configuration.AudioExtensions.Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).Select(x => { if (x[0] != '.') { return $".{x}"; } else { return x; } }),
+            MediaType.Video => _configuration.VideoExtensions.Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).Select(x => { if (x[0] != '.') { return $".{x}"; } else { return x; } }),
             _ => ["*"]
         };
 

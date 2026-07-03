@@ -34,8 +34,7 @@ public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
     [Fact]
     public async Task QueryMovies()
     {
-        CancellationTokenSource tokenSource = new();
-        using Repo client = new(BasicOptions, new Cache(BasicOptions), tokenSource);
+        using Repo client = new(BasicOptions, new Cache(BasicOptions, _cts), _cts);
 
         var movies = await client.QueryTitle("Star Wars", 1);
 
@@ -53,7 +52,7 @@ public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
     [Fact]
     public async Task QueryMovieGenres()
     {
-        using Repo client = new(BasicOptions, new Cache(BasicOptions), _tokenSource);
+        using Repo client = new(BasicOptions, new Cache(BasicOptions, _cts), _cts);
 
         var genres = await client.MovieGenres();
 
@@ -69,7 +68,7 @@ public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
     [Fact]
     public async Task MovieDetails()
     {
-        using Repo client = new(BasicOptions, new Cache(BasicOptions), _tokenSource);
+        using Repo client = new(BasicOptions, new Cache(BasicOptions, _cts), _cts);
         var details = await client.Movie(11);
 
         details.Should().NotBeNull();
@@ -88,7 +87,7 @@ public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
     {
         const int StarWarsId = 11;
 
-        using Repo client = new(BasicOptions, new Cache(BasicOptions), _tokenSource);
+        using Repo client = new(BasicOptions, new Cache(BasicOptions, _cts), _cts);
         var details = await client.Movie(11);
 
         details.Should().NotBeNull();
@@ -106,15 +105,15 @@ public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
     [Fact]
     public async Task GetScore()
     {
-        using Repo repo = new(BasicOptions, new Cache(BasicOptions), _tokenSource);
+        using Repo repo = new(BasicOptions, new Cache(BasicOptions, _cts), _cts);
 
         var searchTerm = "Star Wars".ToLower();
 
         var queryResult = await repo.QueryTitle(searchTerm);
 
-        var keywords = SearchHelpers.SanitizeForSearch(searchTerm, _tokenSource.Token, true); ;
+        var keywords = SearchHelpers.SanitizeForSearch(searchTerm, base._cts.Token, true); ;
 
-        var queryHits = await repo.QueryTitle<MovieQueryResponse>(keywords, keywords.Count(), _tokenSource.Token);
+        var queryHits = await repo.QueryTitle<MovieQueryResponse>(keywords, keywords.Count(), base._cts.Token);
 
         queryHits.Should().NotBeNull();
 
@@ -139,16 +138,16 @@ public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
     [Fact]
     public async Task GetScoreAndMatchRemoteMovies()
     {
-        using Repo repo = new(BasicOptions, new Cache(BasicOptions), _tokenSource);
+        using Repo repo = new(BasicOptions, new Cache(BasicOptions, _cts), base._cts);
 
         var searchTerm = "Training Day";
 
         var queryResult = await repo.QueryTitle(searchTerm);
 
-        var keywords = SearchHelpers.SanitizeForSearch(searchTerm, _tokenSource.Token, true); ;
+        var keywords = SearchHelpers.SanitizeForSearch(searchTerm, base._cts.Token, true); ;
 
         //query results
-        var queryHits = await repo.QueryTitle<MovieQueryResponse>(keywords, 1, _tokenSource.Token);
+        var queryHits = await repo.QueryTitle<MovieQueryResponse>(keywords, 1, base._cts.Token);
 
         queryHits.Should().NotBeNull();
 
@@ -175,8 +174,8 @@ public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
         {
             if (movie is null) continue;
 
-            var matchCount = SearchHelpers.MatchString(keywords, movie.title, _tokenSource.Token) * BasicOptions.Value.TitleWeight;
-            matchCount += SearchHelpers.MatchString(keywords, movie.overview, _tokenSource.Token) * BasicOptions.Value.OverviewWeight;
+            var matchCount = SearchHelpers.MatchString(keywords, movie.title, _cts.Token) * BasicOptions.Value.TitleWeight;
+            matchCount += SearchHelpers.MatchString(keywords, movie.overview, _cts.Token) * BasicOptions.Value.OverviewWeight;
 
             if (matchedMovies.ContainsKey(movie.id))
             {
@@ -196,11 +195,9 @@ public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
     [Fact]
     public async Task GetTotalScoreForQuery()
     {
-        CancellationTokenSource tokenSource = new();
-
         var minimumHitCount = 100;
 
-        using Repo repo = new(BasicOptions, new Cache(BasicOptions), tokenSource);
+        using Repo repo = new(BasicOptions, new Cache(BasicOptions, _cts), _cts);
 
         var searchTerm = "Training Day";
 
@@ -213,7 +210,7 @@ public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
     [Fact(Skip = "Endpoint is broken.")]
     public async Task DiscoverMovie()
     {
-        using Repo repo = new(BasicOptions, new Cache(BasicOptions), _tokenSource);
+        using Repo repo = new(BasicOptions, new Cache(BasicOptions, _cts), _cts);
 
         var searchTerm = "First|day";
 
@@ -224,8 +221,8 @@ public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
     public async Task MatchByOverview()
     {
 
-        using Repo repo = new(BasicOptions, new Cache(BasicOptions), _tokenSource);
-        ITMDB tmdb = new shared.TMDB.TMDB(repo, _tokenSource);
+        using Repo repo = new(BasicOptions, new Cache(BasicOptions, _cts), _cts);
+        ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
 
         var movies = await tmdb.QueryTitle("Training Day");
 
@@ -252,8 +249,8 @@ public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
     public async Task MatchKeywordsByAll()
     {
 
-        using Repo repo = new(BasicOptions, new Cache(BasicOptions), _tokenSource);
-        ITMDB tmdb = new shared.TMDB.TMDB(repo, _tokenSource);
+        using Repo repo = new(BasicOptions, new Cache(BasicOptions, _cts), _cts);
+        ITMDB tmdb = new shared.TMDB.TMDB(repo, base._cts);
 
         var movies = await tmdb.QueryTitle("Training Day");
 
@@ -300,8 +297,8 @@ public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
     public async Task MatchKeywordsCollection()
     {
 
-        using Repo repo = new(BasicOptions, new Cache(BasicOptions), _tokenSource);
-        ITMDB tmdb = new shared.TMDB.TMDB(repo, _tokenSource);
+        using Repo repo = new(BasicOptions, new Cache(BasicOptions, _cts), _cts);
+        ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
 
         var movies = await tmdb.QueryTitle("Inglourious Basterds");
 

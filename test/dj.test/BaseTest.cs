@@ -7,7 +7,7 @@ public class BaseTest : IDisposable
 {
     public ITestOutputHelper _output;
     private List<string> _filesToDelete = new();
-    public CancellationTokenSource _tokenSource = new();
+    public CancellationTokenSource _cts = new();
 
     public BaseTest(ITestOutputHelper output)
     {

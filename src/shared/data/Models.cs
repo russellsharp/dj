@@ -8,15 +8,15 @@ namespace shared.data;
 [Table("file")]
 public record File
 {
-    public string? path_hash;
-    public required string path;
-    public required DateTime date_modified;
-    public required DateTime date_created;
-    public required long size;
-    public required string extension;
-    public string? hash;
-    public string? attributes;
-    public string? extra_attributes;
+    public string? path_hash { get; init; }
+    public required string path { get; init; }
+    public required DateTime date_modified { get; init; }
+    public required DateTime date_created { get; init; }
+    public required long size { get; init; }
+    public required string extension { get; init; }
+    public string? hash { get; init; }
+    public string? attributes { get; init; }
+    public string? extra_attributes { get; init; }
 }
 
 public class UtcDateTimeHandler : SqlMapper.TypeHandler<DateTime>

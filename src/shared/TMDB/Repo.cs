@@ -12,10 +12,10 @@ namespace shared.TMDB;
 public interface IRepo
 {
     void Dispose();
-    Task<MovieQueryResponse?> QueryTitle(string query, int page = 1);
-    Task<MovieDetailsResponse?> Movie(long id);
-    Task<GenreResponse?> MovieGenres();
-    Task<IEnumerable<MatchScore<ResponseType>>> QueryTitle<ResponseType>(IEnumerable<string> keywords, int mimimumHitCount, CancellationToken token) where ResponseType : class;
+    Task<MovieQueryResponse?> QueryTitle(string query, int page = 1, CancellationToken? token = null);
+    Task<MovieDetailsResponse?> Movie(long id, CancellationToken? token = null);
+    Task<GenreResponse?> MovieGenres(CancellationToken? token = null);
+    Task<IEnumerable<MatchScore<ResponseType>>> QueryTitle<ResponseType>(IEnumerable<string> keywords, int mimimumHitCount, CancellationToken? token = null) where ResponseType : class;
     Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryOverviews(string searchTerm, int minimumHitCount, CancellationToken? token = null);
     Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryWithGroupedTerms(IEnumerable<IEnumerable<string>> query, int minimumHitCount, CancellationToken? token = null);
 }
@@ -58,6 +58,8 @@ public class Repo : IDisposable, IRepo
 
     public async Task<string> DiscoverMovie(string query, int page = 1, CancellationToken? token = null)
     {
+        token ??= _tokenSource.Token;
+
         var request = new RestRequest("discover/movie?", Method.Get);
         request.AddQueryParameter("query", query);
         request.AddQueryParameter("include_adult", _config.IncludeAdult);
@@ -69,12 +71,14 @@ public class Repo : IDisposable, IRepo
         request.AddHeader("accept", "application/json");
         request.AddHeader("Authorization", $"Bearer {_config.ApiKey}");
 
-        var response = await Get<MovieQueryResponse>(request);
+        var response = await Get<MovieQueryResponse>(request, token);
         return response?.ToString() ?? string.Empty;
     }
 
-    public async Task<MovieQueryResponse?> QueryTitle(string query, int page = 1)
+    public async Task<MovieQueryResponse?> QueryTitle(string query, int page = 1, CancellationToken? token = null)
     {
+        token ??= _tokenSource.Token;
+
         var request = new RestRequest("search/movie", Method.Get);
         request.AddQueryParameter("query", query);
         request.AddQueryParameter("include_adult", _config.IncludeAdult);
@@ -83,45 +87,53 @@ public class Repo : IDisposable, IRepo
         request.AddHeader("accept", "application/json");
         request.AddHeader("Authorization", $"Bearer {_config.ApiKey}");
 
-        return await Get<MovieQueryResponse>(request);
+        return await Get<MovieQueryResponse>(request, token);
     }
 
-    public async Task<MovieDetailsResponse?> Movie(long id)
+    public async Task<MovieDetailsResponse?> Movie(long id, CancellationToken? token = null)
     {
+        token ??= _tokenSource.Token;
+
         var request = new RestRequest("movie/{movieId}");
         request.AddUrlSegment("movieId", id);
         request.AddQueryParameter("language", Language);
         request.AddHeader("accept", "application/json");
         request.AddHeader("Authorization", $"Bearer {_config.ApiKey}");
-        return await Get<MovieDetailsResponse>(request);
+        return await Get<MovieDetailsResponse>(request, token);
     }
 
-    public async Task<GenreResponse?> MovieGenres()
+    public async Task<GenreResponse?> MovieGenres(CancellationToken? token = null)
     {
+        token ??= _tokenSource.Token;
+
         var request = new RestRequest("genre/movie/list");
         request.AddQueryParameter("language", Language);
         request.AddHeader("accept", "application/json");
         request.AddHeader("Authorization", $"Bearer {_config.ApiKey}");
 
-        return await Get<GenreResponse>(request);
+        return await Get<GenreResponse>(request, token);
     }
 
-    public async Task<IEnumerable<MatchScore<ResponseType>>> QueryTitle<ResponseType>(IEnumerable<string> keywords, int minimum_hits, CancellationToken token) where ResponseType : class
+    public async Task<IEnumerable<MatchScore<ResponseType>>> QueryTitle<ResponseType>(IEnumerable<string> keywords, int minimum_hits, CancellationToken? token = null) where ResponseType : class
     {
+        token ??= _tokenSource.Token;
+
         return await _cache.FindQueryHits<ResponseType>(keywords, minimum_hits, token);
     }
 
-    private async Task<ResponseType?> Get<ResponseType>(RestRequest request) where ResponseType : new()
+    private async Task<ResponseType?> Get<ResponseType>(RestRequest request, CancellationToken? token = null) where ResponseType : new()
     {
+        token ??= _tokenSource.Token;
+
         var requestUrl = _limiter.BuildUri(request);
 
-        if (_cache.Get<ResponseType>(requestUrl, out ResponseType? cachedResponse) && cachedResponse != null)
+        if (_cache.Get<ResponseType>(requestUrl, out ResponseType? cachedResponse, token) && cachedResponse != null)
         {
             return cachedResponse;
         }
         else
         {
-            var apiResponse = await _limiter.Get(request, _tokenSource.Token);
+            var apiResponse = await _limiter.Get(request, token.Value);
 
             Debug.WriteLine(apiResponse.Content);
 
@@ -131,7 +143,7 @@ public class Repo : IDisposable, IRepo
 
                 if (!string.IsNullOrWhiteSpace(content))
                 {
-                    _cache.Store<ResponseType>(requestUrl, content).GetAwaiter().GetResult();
+                    _cache.Store<ResponseType>(requestUrl, content, token).GetAwaiter().GetResult();
                     return JsonSerializer.Deserialize<ResponseType>(content) ?? new ResponseType();
                 }
 

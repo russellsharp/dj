@@ -270,7 +270,7 @@ public class Database : BaseTest, IDisposable
         await Task.WhenAll(fileCreation);
 
         var testFileData = testFiles
-            .AsParallel().WithCancellation(_tokenSource.Token)
+            .AsParallel().WithCancellation(_cts.Token)
             .Select(async x => await shared.FileHelper.PathToFile(Path.GetFullPath(x))).ToList();
         return await Task.WhenAll(testFileData);
     }
