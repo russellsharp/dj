@@ -128,13 +128,9 @@ public class djController(
 
         var localMedia = await _media.Files(type);
 
-        Console.WriteLine($"Local media count: {localMedia.Count()}");
-
         query = string.Join(' ', query.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.RemoveEmptyEntries));
 
         var sanitized = SearchHelpers.SanitizeForSearch(query, _cts.Token, true); ;
-
-        Console.WriteLine(string.Join(',', sanitized));
 
         var context = new MatchingContext
         {
@@ -149,15 +145,10 @@ public class djController(
         {
             if (media.path is null) continue;
 
-            Console.WriteLine($"media: {media.path}");
-
             var matchesByPath = await _tmdb.PathToTmdb(media.path, context, true, _cts.Token);
-
-            Console.WriteLine(matchesByPath.Count());
 
             if (matchesByPath is null) continue;
 
-            Console.WriteLine(1);
             foreach (var tmdbMatch in matchesByPath)
             {
                 var matchCount = SearchHelpers.MatchString(sanitized, tmdbMatch.title, _cts.Token) * 1;
@@ -165,12 +156,10 @@ public class djController(
 
                 if (matchedMovies.ContainsKey(media.path))
                 {
-                    Console.WriteLine(2);
                     matchedMovies[media.path].Hits += matchCount;
                 }
                 else
                 {
-                    Console.WriteLine(3);
                     matchedMovies.Add(media.path, new MatchScore<shared.data.File> { Hits = matchCount, Details = media });
                 }
             }
