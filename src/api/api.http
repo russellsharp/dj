@@ -18,6 +18,10 @@ GET {{api_HostAddress}}/api/media/media?type=Video&updateRepo=true
 Accept: application/json
 ###
 
-GET {{api_HostAddress}}/api/media/match?query=dirty,cop&type=Video&minimumHits=1
+GET {{api_HostAddress}}/api/media/match/local?query=dirty,cop&type=Video&minimumHits=1
+Accept: application/json
+###
+
+GET {{api_HostAddress}}/api/media/match/local/synonyms?query=dirty,cop&type=Video&minimumHits=1
 Accept: application/json
 ###

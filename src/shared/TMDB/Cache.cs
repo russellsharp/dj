@@ -125,6 +125,8 @@ public class Cache : IDisposable, ICache
         command.Parameters.AddWithValue("response_type", typeof(ResponseType).ToString());
         command.Parameters.AddWithValue("request", requestUrl);
 
+        await StoreTypedData(JsonSerializer.Deserialize<ResponseType>(content));
+
         await command.ExecuteNonQueryAsync(token.Value);
     }
 
@@ -266,6 +268,36 @@ public class Cache : IDisposable, ICache
             Debug.WriteLine($"Error while building hit list: {ex}");
             throw;
         }
+    }
+
+    public async Task StoreTypedData<ResponseType>(ResponseType contents, CancellationToken? token = null)
+    {
+        switch (contents)
+        {
+            case MovieDetailsResponse details:
+            {
+                await StoreMovieDetails(details, token);
+                break;
+            }
+            default:
+            {
+                throw new NotSupportedException($"{nameof(ResponseType)} is not supported for typed storage.");
+            }
+        }
+    }
+
+    public async Task StoreMovieDetails(MovieDetailsResponse details, CancellationToken? token = null)
+    {
+        var connection = _connection ?? throw new InvalidOperationException("Cache is not connected.");
+        const string sql = "INSERT INTO movie_details (id, details, title, overview) VALUES (@id, @Details, @title, @overview) ON CONFLICT(id) DO UPDATE SET details = EXCLUDED.details";
+        var detailString = JsonSerializer.Serialize(details);
+        using var command = new SqliteCommand(sql, connection);
+        command.Parameters.AddWithValue("id", details.id);
+        command.Parameters.AddWithValue("details", detailString);
+        command.Parameters.AddWithValue("overview", details.overview);
+        command.Parameters.AddWithValue("title", details.title);
+
+        await command.ExecuteNonQueryAsync();
     }
 
     public void Connect()

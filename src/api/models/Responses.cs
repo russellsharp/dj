@@ -1,6 +1,8 @@
 
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json.Serialization;
 using shared;
+using shared.TMDB;
 
 namespace api.models;
 
@@ -46,7 +48,31 @@ public record MediaFiles
     public List<shared.data.File> Files { get; init; }
 }
 
+public record MatchQueries
+{
+    public List<MatchScore<shared.TMDB.Models.Result>> Results { get; set; } = new();
+}
+
 public record Matches
 {
-    public List<MatchScore<shared.data.File>> Suggestions { get; init; }
+    public List<MatchScore<MediaReferences>> Suggestions { get; set; }
+}
+
+public record MediaReferences : shared.data.File
+{
+    public List<shared.TMDB.Models.MovieDetailsResponse> References { get; set; } = new();
+
+    [SetsRequiredMembers]
+    public MediaReferences(shared.data.File file)
+    {
+        path_hash = file.path_hash;
+        path = file.path;
+        date_modified = file.date_modified;
+        date_created = file.date_created;
+        size = file.size;
+        extension = file.extension;
+        hash = file.hash;
+        attributes = file.attributes;
+        extra_attributes = file.extra_attributes;
+    }
 }

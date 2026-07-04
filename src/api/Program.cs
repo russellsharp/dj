@@ -41,4 +41,7 @@ app.MapGet("/health", () =>
 })
 .WithName("health");
 
+var media = app.Services.GetRequiredService<IMediaCollection>();
+await media.Initialize(cts.Token);
+
 app.Run();

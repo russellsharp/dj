@@ -49,6 +49,18 @@ public class Thesaurus : IThesaurus
     private SqliteConnection? _connection;
     private bool _initialized = false;
 
+    private string DatabasePath
+    {
+        get
+        {
+            var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
+            var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
+            return Path.GetFullPath(Path.Combine(rootDir, _config.DatabasePath));
+        }
+    }
+
+
+
     public Thesaurus(IOptions<ThesaurusConfiguration> config)
     {
         // Initialize the offline WordNet Engine
@@ -80,17 +92,30 @@ public class Thesaurus : IThesaurus
 
         const string sql = @"SELECT * FROM thesaurus WHERE word = @word";
 
-        var connection = _connection ?? throw new InvalidOperationException("Thesaurus database is not connected.");
-        var command = connection.CreateCommand();
+        List<string> synonyms;
+        try
+        {
+            var connection = _connection ?? throw new InvalidOperationException("Thesaurus database is not connected.");
+            var command = connection.CreateCommand();
 
-        command.CommandText = sql;
-        command.Parameters.AddWithValue("word", baseWord);
+            command.CommandText = sql;
+            command.Parameters.AddWithValue("word", baseWord);
 
-        var entries = await connection.QueryAsync<ThesaurusEntry>(sql, new { word = baseWord });
+            var entries = await connection.QueryAsync<ThesaurusEntry>(sql, new { word = baseWord });
 
-        var synonyms = entries.SelectMany(entry => entry.synonyms_list);
+            synonyms = entries.SelectMany(entry => entry.synonyms_list).ToList();
 
-        Disconnect();
+            Disconnect();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine(ex);
+            throw;
+        }
+        finally
+        {
+            Disconnect();
+        }
 
         return synonyms;
     }
@@ -152,13 +177,13 @@ public class Thesaurus : IThesaurus
 
     private void Connect()
     {
-        var databasePath = Path.GetFullPath(_config.DatabasePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(DatabasePath) ?? throw new InvalidOperationException("Unable to determine thesaurus database directory"));
 
-        Directory.CreateDirectory(Path.GetDirectoryName(databasePath) ?? throw new InvalidOperationException("Unable to determine thesaurus database directory"));
+        Console.WriteLine(DatabasePath);
 
         var builder = new SqliteConnectionStringBuilder
         {
-            DataSource = databasePath,
+            DataSource = DatabasePath,
             Mode = SqliteOpenMode.ReadWriteCreate,
             Cache = SqliteCacheMode.Shared
         };
@@ -241,6 +266,7 @@ public class Thesaurus : IThesaurus
                 throw;
             }
         }
+        Disconnect();
     }
 }
 public class EmptyArrayOrStringConverter : JsonConverter<string>
