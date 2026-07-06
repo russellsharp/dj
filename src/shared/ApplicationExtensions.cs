@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using shared.thesaurus;
@@ -14,8 +15,8 @@ public static class ApplicationExtensions
                         .AddSingleton<shared.TMDB.ICache, shared.TMDB.Cache>()
                         .AddSingleton<shared.TMDB.IRepo, shared.TMDB.Repo>()
                         .AddSingleton<ITMDB, shared.TMDB.TMDB>()
-                        .AddSingleton<CancellationTokenSource>()
-                        .AddSingleton<shared.thesaurus.IThesaurus, shared.thesaurus.Thesaurus>();
+                        .AddSingleton<shared.thesaurus.IThesaurus, shared.thesaurus.Thesaurus>()
+                        .AddSingleton<ITaskMonitor, TaskMonitor>();
     }
 
     public static IServiceCollection AddConfiguration(this IHostApplicationBuilder builder)

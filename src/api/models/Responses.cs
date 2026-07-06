@@ -1,8 +1,9 @@
-
+using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json.Serialization;
 using shared;
-using shared.TMDB;
+using System.Globalization;
+using System.Text.Json;
 
 namespace api.models;
 
@@ -74,5 +75,57 @@ public record MediaReferences : shared.data.File
         hash = file.hash;
         attributes = file.attributes;
         extra_attributes = file.extra_attributes;
+    }
+}
+
+public record MediaUpdateStatus
+{
+    [Precision(2)]
+    public decimal PercentComplete { get; init; } = 0.00m;
+    public bool InProgress { get; init; } = false;
+    public string? TaskStatus { get; init; } = "NotCreated";
+
+    public MediaUpdateStatus(UpdateStatus status, TaskStatus? taskStatus)
+    {
+        PercentComplete = status.TotalFiles > 0 ? Decimal.Divide(status.FilesProcessed, status.TotalFiles) * 100m : 0;
+        InProgress = status.InProgress;
+        TaskStatus = taskStatus.Value.ToString();
+    }
+}
+
+public class DecimalPrecisionConverter : JsonConverter<decimal>
+{
+    private readonly string _format;
+
+    // Pass the desired number of decimal places here
+    public DecimalPrecisionConverter(int decimalPlaces)
+    {
+        _format = "0." + new string('0', decimalPlaces);
+    }
+
+    public override decimal Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        return reader.GetDecimal();
+    }
+
+    public override void Write(Utf8JsonWriter writer, decimal value, JsonSerializerOptions options)
+    {
+        writer.WriteRawValue(value.ToString(_format, CultureInfo.InvariantCulture));
+    }
+}
+
+
+public class PrecisionAttribute : JsonConverterAttribute
+{
+    private readonly int _decimalPlaces;
+
+    public PrecisionAttribute(int decimalPlaces)
+    {
+        _decimalPlaces = decimalPlaces;
+    }
+
+    public override JsonConverter CreateConverter(Type typeToConvert)
+    {
+        return new DecimalPrecisionConverter(_decimalPlaces);
     }
 }

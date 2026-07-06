@@ -25,3 +25,19 @@ Accept: application/json
 GET {{api_HostAddress}}/api/media/match/local/synonyms?query=dirty,cop&type=Video&minimumHits=1
 Accept: application/json
 ###
+
+POST {{api_HostAddress}}/api/media/update/?fromScratch=false&baseDirectory=//fatty/existing
+Accept: application/json
+###
+
+GET {{api_HostAddress}}/api/media/update/status/
+Accept: application/json
+###
+
+POST {{api_HostAddress}}/api/media/update/cancel
+Accept: application/json
+###
+
+POST {{api_HostAddress}}/api/media/queryTmdb/
+Accept: application/json
+###

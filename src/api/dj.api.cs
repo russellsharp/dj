@@ -1,4 +1,6 @@
+using System.Data;
 using System.Diagnostics;
+using System.Text.Json;
 using api.models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -15,6 +17,7 @@ public class djController(
     IOptions<MediaCollectionConfiguration> _configuration,
     IMediaCollection _media,
     ITMDB _tmdb,
+    ITaskMonitor _monitor,
     CancellationTokenSource _cts) : ControllerBase
 {
     private void log(string msg)
@@ -253,8 +256,6 @@ public class djController(
 
         queryMatches.AddRange(await _tmdb.QueryWithGroupedTerms(synonyms.ToList(), minimumHIts));
 
-        queryMatches.ForEach(x => Console.WriteLine(x.Details.));
-
         Console.WriteLine($"remote match count: {queryMatches.Count()}");
         //filter matches for local, maybe switch for not filtering
 
@@ -291,5 +292,50 @@ public class djController(
         }
         localMatches.Suggestions = localMatches.Suggestions.DistinctBy(x => x.Details.path).ToList();
         return localMatches;
+    }
+
+    private CancellationTokenSource _updateTokenSource = new();
+
+    private static CancellationToken? _linkedToken = null;
+
+    [HttpPost("update")]
+    public async Task<MediaUpdateStatus> Update([FromQuery] bool fromScratch = false, [FromQuery] string? baseDirectory = null)
+    {
+        var status = _media.Status;
+
+        if (status.InProgress)
+        {
+            return new MediaUpdateStatus(status, _monitor?.Status);
+        }
+
+        Console.WriteLine("kicking off");
+
+        _updateTokenSource.TryReset();
+        var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_updateTokenSource.Token, _cts.Token);
+
+        //do not await.
+        Task updateTask = Task.Run(async () => _media.UpdateRepos(baseDirectory, fromScratch, linkedCts.Token), linkedCts.Token);
+        _monitor.Set(updateTask, linkedCts);
+
+        return new MediaUpdateStatus(status, _monitor?.Status);
+    }
+
+    [HttpGet("update/status")]
+    public async Task<MediaUpdateStatus> UpdateStatus()
+    {
+        var status = _media.Status;
+        return new MediaUpdateStatus(status, _monitor.Status);
+    }
+
+    [HttpPost("update/cancel")]
+    public async Task<MediaUpdateStatus> UpdateCancel()
+    {
+        Console.WriteLine("Requesting cancellation.");
+
+        _monitor.CancelRequest();
+
+        var status = _media.Status;
+
+        return new MediaUpdateStatus(status, _monitor?.Status);
     }
 }

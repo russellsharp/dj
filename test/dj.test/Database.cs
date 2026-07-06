@@ -24,7 +24,7 @@ public class Database : BaseTest, IDisposable
 
         var optionsConfig = Options.Create(_dataConfig);
 
-        _db = new shared.data.Database(optionsConfig);
+        _db = new shared.data.Database(optionsConfig, _cts);
 
         _db.Connect();
         _db.Create();

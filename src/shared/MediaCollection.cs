@@ -1,7 +1,9 @@
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
+using System.Data;
 using System.Diagnostics;
 using System.Diagnostics.Tracing;
+using System.Net.NetworkInformation;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
 using shared.data;
@@ -21,11 +23,20 @@ public interface IMediaCollection
 {
     Task Initialize(CancellationToken token);
     Task Clear(CancellationToken token);
+    UpdateStatus Status { get; }
     Task UpdateRepos(string? baseDirectory = null, bool truncateDatabase = false, CancellationToken? token = null);
     Task<shared.data.File?> File(string filePath);
     Task<IEnumerable<shared.data.File>> Files(MediaType type);
     Task<IEnumerable<string>> Search(IEnumerable<string> patterns, CancellationToken? token);
     Task<IEnumerable<MatchScore<ResponseType>>> FindInPath<ResponseType>(IEnumerable<string> keywords, int? minimumHits = null, CancellationToken? token = null) where ResponseType : class;
+}
+
+
+public record UpdateStatus
+{
+    public bool InProgress { get; set; } = false;
+    public long FilesProcessed { get; set; } = 0;
+    public long TotalFiles { get; set; } = 0;
 }
 
 public class MediaCollection : IMediaCollection
@@ -85,12 +96,120 @@ public class MediaCollection : IMediaCollection
         _mediaRepo = fileData.ToDictionary(x => x.path, x => x);
     }
 
+    private static long _updateProcessing = 0;
+    private static long _numOfFilesTotal = 0;
+    private static long _numOfFilesProcessed = 0;
+
+    public UpdateStatus Status
+    {
+        get
+        {
+            return new UpdateStatus
+            {
+                InProgress = Interlocked.Read(ref _updateProcessing) == 1,
+                FilesProcessed = Interlocked.Read(ref _numOfFilesProcessed),
+                TotalFiles = Interlocked.Read(ref _numOfFilesTotal)
+            };
+        }
+    }
+
     public async Task UpdateRepos(string? baseDirectory = null, bool truncateDatabase = false, CancellationToken? token = null)
     {
         token ??= _cts.Token;
 
+        try
+        {
+            //set flag for in progress
+            _ = Interlocked.Exchange(ref _updateProcessing, 1);
 
-        var mediaDirectory = !string.IsNullOrEmpty(baseDirectory) ? Path.GetFullPath(baseDirectory) : Path.GetFullPath(_configuration.BaseDirectory);
+            var fileList = (await BuildRepoList(baseDirectory)).ToList();
+
+            Console.WriteLine($"Total files: {fileList.Count()}");
+
+            _ = Interlocked.Exchange(ref _numOfFilesTotal, fileList.Count());
+
+            _db.EnsureConnected();
+
+            if (truncateDatabase)
+            {
+                Console.WriteLine("Truncating database.");
+                await _db.Truncate();
+            }
+
+            Console.WriteLine("Starting update tasks.");
+            var paralllelOptions = new ParallelOptions { MaxDegreeOfParallelism = 10, CancellationToken = token.Value };
+            await Parallel.ForEachAsync(fileList, paralllelOptions, async (file, ct) => { await ProcessFile(file, token.Value); });
+            // var filesTasks = fileList.Select(async x => await ProcessFile(Path.GetFullPath(x), token.Value)).ToList();
+            // await Task.WhenAll(filesTasks);
+            Console.WriteLine("Finished update tasks.");
+
+            Console.WriteLine($"Remaining files to store: {_filesToStore.Count()}");
+
+            //files remaining to store
+            await InsertOrUpdateFIles(token);
+
+            _mediaRepo = (await _db.Files()).ToDictionary(x => x.path, x => x);
+
+            _db.Disconnect();
+        }
+        catch (Exception ex) when (ex is TaskCanceledException || ex is OperationCanceledException)
+        {
+            Console.WriteLine("Update process canceled.");
+            return;
+        }
+        finally
+        {
+            Console.WriteLine("Update completed.");
+            //clear flag for in progress
+            _ = Interlocked.Exchange(ref _updateProcessing, 0);
+        }
+    }
+
+    private ConcurrentBag<shared.data.File> _filesToStore = new();
+    private int MaximumBagSize = 20;
+    private readonly object _processFileQueueLock = new();
+    private static long _fileCount = 0;
+
+    private async Task InsertOrUpdateFIles(CancellationToken? token = null)
+    {
+        token ??= _cts.Token;
+
+        if (Monitor.TryEnter(_processFileQueueLock))
+        {
+            try
+            {
+                token?.ThrowIfCancellationRequested();
+                await _db.InsertOrUpdate(_filesToStore, token);
+                _filesToStore.Clear();
+                Interlocked.Add(ref _numOfFilesProcessed, _fileCount);
+                Interlocked.Exchange(ref _fileCount, 0);
+                token?.ThrowIfCancellationRequested();
+            }
+            catch (Exception ex) when (ex is OperationCanceledException || ex is TaskCanceledException)
+            {
+                Console.WriteLine("Update process canceled.");
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error while calling InsertOrUpdate: {ex}");
+                throw;
+            }
+            finally
+            {
+                if (Monitor.IsEntered(_processFileQueueLock))
+                {
+                    Monitor.Exit(_processFileQueueLock);
+                }
+            }
+        }
+    }
+
+    private async Task<IEnumerable<string>> BuildRepoList(string baseDirectory)
+    {
+        var mediaDirectory = !string.IsNullOrEmpty(baseDirectory) ? baseDirectory : _configuration.BaseDirectory;
+
+        mediaDirectory = Path.GetFullPath(mediaDirectory);
 
         EnumerationOptions options = new()
         {
@@ -101,112 +220,54 @@ public class MediaCollection : IMediaCollection
         if (!Directory.Exists(mediaDirectory))
         {
             _mediaRepo = new Dictionary<string, data.File>();
-            return;
+            return Enumerable.Empty<string>();
         }
+        _directoryRepo = Directory.EnumerateDirectories(mediaDirectory, "*", SearchOption.AllDirectories).ToDictionary(x => x, x => new DirectoryInfo(x));
+        _directoryRepo.Add(mediaDirectory, new DirectoryInfo(mediaDirectory));
+
+        //TODO: update files filtered by updated directory time
+
+        List<string> extensions = _configuration.VideoExtensions.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+        extensions.AddRange(_configuration.AudioExtensions.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        extensions = extensions.Select(x =>
+        {
+            //get file extension leaves the . prefixed.
+            if (x[0] != '.') return '.' + x.ToLower();
+            else { return x.ToLower(); }
+        }).ToList();
+
+        return Directory.EnumerateFiles(mediaDirectory, "*", SearchOption.AllDirectories).Where(x => extensions.Contains(Path.GetExtension(x).ToLower())).ToList();
+    }
+
+    public async Task ProcessFile(string filePath, CancellationToken? token = null)
+    {
+        token ??= _cts.Token;
 
         try
         {
-            _directoryRepo = Directory.EnumerateDirectories(mediaDirectory, "*", SearchOption.AllDirectories).ToDictionary(x => x, x => new DirectoryInfo(x));
-            _directoryRepo.Add(mediaDirectory, new DirectoryInfo(mediaDirectory));
+            token?.ThrowIfCancellationRequested();
 
-            //TODO: update files filtered by updated directory time
-
-            List<string> extensions = _configuration.VideoExtensions.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
-            extensions.AddRange(_configuration.AudioExtensions.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
-            extensions = extensions.Select(x =>
+            if (!await _db.FileExists(Path.GetFullPath(filePath)))
             {
-                //get file extension leaves the . prefixed.
-                if (x[0] != '.') return '.' + x.ToLower();
-                else { return x.ToLower(); }
-            }).ToList();
-
-            var fileList = Directory.EnumerateFiles(mediaDirectory, "*", SearchOption.AllDirectories).Where(x => extensions.Contains(Path.GetExtension(x).ToLower())).ToList();
-
-            _db.EnsureConnected();
-
-            if (truncateDatabase)
+                var newFile = await Task.Run(() => FileHelper.PathToFile(filePath));
+                _filesToStore.Add(newFile);
+                long count = Interlocked.Increment(ref _fileCount);
+                Console.WriteLine($"Files processed: {count}");
+            }
+            else
             {
-                await _db.Truncate();
+                Interlocked.Increment(ref _numOfFilesProcessed);
             }
 
-
-            // var paralllelOptions = new ParallelOptions { MaxDegreeOfParallelism = 10, CancellationToken = token.Value };
-            // await Parallel.ForEachAsync(fileList, paralllelOptions, async (file, ct) => { await ProcessFile(file, token.Value); });
-            var filesTasks = fileList.Select(async x => await ProcessFile(Path.GetFullPath(x), token.Value)).ToList();
-            await Task.WhenAll(filesTasks);
-
-            //files remaining to store
-            Debug.WriteLine($"Remaining files to store: {_filesToStore.Count()}");
-
+            if (Interlocked.Read(ref _fileCount) > MaximumBagSize)
             {
-                try
-                {
-                    Monitor.Enter(_processFileQueueLock);
-                    await _db.InsertOrUpdate(_filesToStore);
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"Error while calling InsertOrUpdate: {ex}");
-                    throw;
-                }
-                finally
-                {
-                    if (Monitor.IsEntered(_processFileQueueLock))
-                    {
-                        Monitor.Exit(_processFileQueueLock);
-                    }
-                }
+                await InsertOrUpdateFIles(token);
             }
-            _filesToStore.Clear();
 
-            _mediaRepo = (await _db.Files()).ToDictionary(x => x.path, x => x);
-
-            _db.Disconnect();
         }
-        catch (OperationCanceledException)
+        catch (Exception ex) when (ex is OperationCanceledException || ex is TaskCanceledException)
         {
             throw;
-        }
-    }
-
-    private ConcurrentBag<shared.data.File> _filesToStore = new();
-    private int MaximumBagSize = 20;
-    private readonly object _processFileQueueLock = new();
-    private static int _fileCount = 0;
-
-    public async Task ProcessFile(string filePath, CancellationToken token)
-    {
-        if (!await _db.FileExists(Path.GetFullPath(filePath)))
-        {
-            var newFile = await FileHelper.PathToFile(filePath);
-            _filesToStore.Add(newFile);
-            int count = Interlocked.Increment(ref _fileCount);
-            Debug.WriteLine($"Files processed: {count}, bag: {_filesToStore.Count()}");
-        }
-
-        if (_filesToStore.Count() > MaximumBagSize)
-        {
-            if (Monitor.TryEnter(_processFileQueueLock))
-            {
-                try
-                {
-                    Debug.WriteLine($"Files stored: {_filesToStore.Count()}");
-                    await _db.InsertOrUpdate(_filesToStore);
-                    _filesToStore.Clear();
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"Error while calling InsertOrUpdate: {ex}");
-                    throw;
-                }
-                finally
-                {
-                    if (Monitor.IsEntered(_processFileQueueLock))
-                    {
-                        Monitor.Exit(_processFileQueueLock);
-                    }
-                }
-            }
         }
 
     }

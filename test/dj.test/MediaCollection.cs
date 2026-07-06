@@ -41,7 +41,7 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
     {
         IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions, _cts), _cts);
         ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
-        IDatabase db = new shared.data.Database(BasicDatabaseConfig);
+        IDatabase db = new shared.data.Database(BasicDatabaseConfig, _cts);
         IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _cts);
 
         await media.Initialize(_cts.Token);
@@ -72,7 +72,7 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
     {
         IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions, _cts), _cts);
         ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
-        IDatabase db = new shared.data.Database(BasicDatabaseConfig);
+        IDatabase db = new shared.data.Database(BasicDatabaseConfig, _cts);
         IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _cts);
 
         await media.Initialize(_cts.Token);
@@ -91,7 +91,7 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
     {
         IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions, _cts), _cts);
         ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
-        IDatabase db = new shared.data.Database(BasicDatabaseConfig);
+        IDatabase db = new shared.data.Database(BasicDatabaseConfig, _cts);
         IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _cts);
 
         await media.UpdateRepos(BasicMediaOptions.Value.BaseDirectory, false, _cts.Token);
@@ -140,7 +140,7 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
     {
         IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions, _cts), _cts);
         ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
-        IDatabase db = new shared.data.Database(BasicDatabaseConfig);
+        IDatabase db = new shared.data.Database(BasicDatabaseConfig, _cts);
         IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _cts);
 
         await media.Initialize(_cts.Token);
@@ -178,7 +178,7 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
 
         IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions, _cts), _cts);
         ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
-        IDatabase db = new shared.data.Database(BasicDatabaseConfig);
+        IDatabase db = new shared.data.Database(BasicDatabaseConfig, _cts);
         IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _cts);
 
         // Initialize first to ensure the DB is ready for updates/checks
@@ -199,7 +199,7 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
 
         IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions, _cts), _cts);
         ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
-        IDatabase db = new shared.data.Database(BasicDatabaseConfig);
+        IDatabase db = new shared.data.Database(BasicDatabaseConfig, _cts);
         IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _cts);
 
         await media.Initialize(_cts.Token);
@@ -216,7 +216,7 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
 
         IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions, _cts), _cts);
         ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
-        IDatabase db = new shared.data.Database(BasicDatabaseConfig);
+        IDatabase db = new shared.data.Database(BasicDatabaseConfig, _cts);
         IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _cts);
 
         await media.Initialize(_cts.Token);

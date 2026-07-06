@@ -26,21 +26,21 @@ using Microsoft.Extensions.Options;
 public interface IDatabase
 {
     void Connect();
-    void Create();
+    void Create(CancellationToken? token = null);
     void Disconnect();
     void Dispose(bool disposing);
     void Dispose();
     void EnsureConnected();
-    Task<File?> File(string path);
-    Task<bool> FileExists(string filePath);
-    Task<IEnumerable<File>> Files();
-    Task<IEnumerable<File>> Files(IEnumerable<string> paths);
-    Task<IEnumerable<File>> FilesByDirectory(IEnumerable<string> paths);
-    Task<IEnumerable<File>> FilesByExtensions(IEnumerable<string> extensions);
-    Task Insert(File file);
-    Task InsertOrUpdate(IEnumerable<File> testData);
+    Task<File?> File(string path, CancellationToken? token = null);
+    Task<bool> FileExists(string filePath, CancellationToken? token = null);
+    Task<IEnumerable<File>> Files(CancellationToken? token = null);
+    Task<IEnumerable<File>> Files(IEnumerable<string> paths, CancellationToken? token = null);
+    Task<IEnumerable<File>> FilesByDirectory(IEnumerable<string> paths, CancellationToken? token = null);
+    Task<IEnumerable<File>> FilesByExtensions(IEnumerable<string> extensions, CancellationToken? token = null);
+    Task Insert(File file, CancellationToken? token = null);
+    Task InsertOrUpdate(IEnumerable<File> testData, CancellationToken? token = null);
     bool IsConnected();
-    Task Truncate();
+    Task Truncate(CancellationToken? token = null);
 }
 
 public class DatabaseNotConnected : Exception { }
@@ -51,6 +51,7 @@ public class Database : IDisposable, IDatabase
     private readonly DatabaseConfiguration _config;
     private SqliteConnection? _connection = null;
     private int _commandTimeoutSeconds = 20;
+    private CancellationTokenSource _cts;
 
     private string DatabasePath
     {
@@ -62,9 +63,11 @@ public class Database : IDisposable, IDatabase
         }
     }
 
-    public Database(IOptions<DatabaseConfiguration> config)
+    public Database(IOptions<DatabaseConfiguration> config, CancellationTokenSource cts)
     {
         _config = config.Value;
+
+        _cts = cts;
 
         SqlMapper.AddTypeHandler(new UtcDateTimeHandler());
     }
@@ -122,8 +125,10 @@ public class Database : IDisposable, IDatabase
         }
     }
 
-    public void Create()
+    public void Create(CancellationToken? token = null)
     {
+        token ??= _cts.Token;
+
         if (!IsConnected()) throw new DatabaseNotConnected();
 
         string query = GetQueryFromResource(QueryFiles.CreateDatabase);
@@ -163,8 +168,10 @@ public class Database : IDisposable, IDatabase
         }
     }
 
-    public async Task Insert(File file)
+    public async Task Insert(File file, CancellationToken? token = null)
     {
+        token ??= _cts.Token;
+
         if (!IsConnected()) throw new DatabaseNotConnected();
 
         try
@@ -196,7 +203,8 @@ public class Database : IDisposable, IDatabase
                     file.extra_attributes
                 };
 
-                await _connection.ExecuteAsync(sql, parameters, transaction, _commandTimeoutSeconds, CommandType.Text);
+                var command = new CommandDefinition(sql, parameters, transaction, _commandTimeoutSeconds, CommandType.Text, CommandFlags.Buffered, token.Value);
+                await _connection.ExecuteAsync(command);
                 transaction.Commit();
             }
             catch (Exception ex)
@@ -213,14 +221,18 @@ public class Database : IDisposable, IDatabase
         }
     }
 
-    public async Task InsertOrUpdate(IEnumerable<File> testData)
+    public async Task InsertOrUpdate(IEnumerable<File> testData, CancellationToken? token = null)
     {
         if (!IsConnected()) throw new DatabaseNotConnected();
 
+        token ??= _cts.Token;
+
         try
         {
+            token.Value.ThrowIfCancellationRequested();
+
             var connection = _connection ?? throw new DatabaseNotConnected();
-            using var transaction = await connection.BeginTransactionAsync();
+            using var transaction = await connection.BeginTransactionAsync(token.Value);
 
             const string sql = @"
             INSERT INTO file (
@@ -254,8 +266,10 @@ public class Database : IDisposable, IDatabase
 
             try
             {
-                await _connection.ExecuteAsync(sql, batchedParameters, transaction, _commandTimeoutSeconds, CommandType.Text);
-                await transaction.CommitAsync();
+                var command = new CommandDefinition(sql, batchedParameters, transaction, _commandTimeoutSeconds, CommandType.Text, CommandFlags.Buffered, token.Value);
+                await _connection.ExecuteAsync(command);
+
+                await transaction.CommitAsync(token.Value);
             }
             catch (Exception ex)
             {
@@ -264,6 +278,10 @@ public class Database : IDisposable, IDatabase
                 throw;
             }
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             Debug.WriteLine($"WHAT {ex}");
@@ -271,9 +289,11 @@ public class Database : IDisposable, IDatabase
         }
     }
 
-    public async Task<bool> FileExists(string filePath)
+    public async Task<bool> FileExists(string filePath, CancellationToken? token = null)
     {
         if (!IsConnected()) throw new DatabaseNotConnected();
+
+        token ??= _cts.Token;
 
         var connection = _connection ?? throw new DatabaseNotConnected();
         const string sql = @"SELECT EXISTS (SELECT 1 FROM file WHERE path_hash = @path_hash)";
@@ -289,9 +309,11 @@ public class Database : IDisposable, IDatabase
         }
     }
 
-    public async Task<shared.data.File?> File(string path)
+    public async Task<shared.data.File?> File(string path, CancellationToken? token = null)
     {
         if (!IsConnected()) throw new DatabaseNotConnected();
+
+        token ??= _cts.Token;
 
         var connection = _connection ?? throw new DatabaseNotConnected();
         const string sql = @"SELECT * FROM file WHERE path_hash = @path_hash;";
@@ -312,9 +334,11 @@ public class Database : IDisposable, IDatabase
         return file;
     }
 
-    public async Task<IEnumerable<shared.data.File>> Files()
+    public async Task<IEnumerable<shared.data.File>> Files(CancellationToken? token = null)
     {
         if (!IsConnected()) throw new DatabaseNotConnected();
+
+        token ??= _cts.Token;
 
         var connection = _connection ?? throw new DatabaseNotConnected();
         const string sql = @"SELECT * FROM file;";
@@ -335,9 +359,11 @@ public class Database : IDisposable, IDatabase
     }
 
 
-    public async Task<IEnumerable<shared.data.File>> Files(IEnumerable<string> paths)
+    public async Task<IEnumerable<shared.data.File>> Files(IEnumerable<string> paths, CancellationToken? token = null)
     {
         if (!IsConnected()) throw new DatabaseNotConnected();
+
+        token ??= _cts.Token;
 
         var connection = _connection ?? throw new DatabaseNotConnected();
         const string sql = @"SELECT * FROM file WHERE path_hash IN @path_hashes;";
@@ -358,9 +384,11 @@ public class Database : IDisposable, IDatabase
         return files;
     }
 
-    public async Task<IEnumerable<shared.data.File>> FilesByExtensions(IEnumerable<string> extensions)
+    public async Task<IEnumerable<shared.data.File>> FilesByExtensions(IEnumerable<string> extensions, CancellationToken? token = null)
     {
         if (!IsConnected()) throw new DatabaseNotConnected();
+
+        token ??= _cts.Token;
 
         var connection = _connection ?? throw new DatabaseNotConnected();
         const string sql = @"SELECT * FROM file WHERE extension IN @file_extensions;";
@@ -380,9 +408,11 @@ public class Database : IDisposable, IDatabase
         return files;
     }
 
-    public async Task<IEnumerable<shared.data.File>> FilesByDirectory(IEnumerable<string> paths)
+    public async Task<IEnumerable<shared.data.File>> FilesByDirectory(IEnumerable<string> paths, CancellationToken? token = null)
     {
         if (!IsConnected()) throw new DatabaseNotConnected();
+
+        token ??= _cts.Token;
 
         var connection = _connection ?? throw new DatabaseNotConnected();
         var sql = new StringBuilder(@"SELECT * FROM file WHERE ");
@@ -418,9 +448,11 @@ public class Database : IDisposable, IDatabase
         return files;
     }
 
-    public async Task Truncate()
+    public async Task Truncate(CancellationToken? token = null)
     {
         if (!IsConnected()) throw new DatabaseNotConnected();
+
+        token ??= _cts.Token;
 
         string query = GetQueryFromResource(QueryFiles.TruncateDatabase);
         using (var transaction = _connection?.BeginTransaction() ?? throw new NullReferenceException("Null database connection or failure to create transaction"))
