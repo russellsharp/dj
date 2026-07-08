@@ -94,7 +94,7 @@ public static class FileHelper
     {
         var fileInfo = new FileInfo(path);
 
-        var fileHash = await shared.FileHashes.HashFs(path);
+        // var fileHash = await shared.FileHashes.HashFs(path);
 
         var fullPath = Path.GetFullPath(path);
 
@@ -106,7 +106,7 @@ public static class FileHelper
             date_created = File.GetCreationTimeUtc(path),
             size = fileInfo.Length,
             extension = Path.GetExtension(fullPath),
-            hash = fileHash.ToString(),
+            hash = "", // fileHash.ToString(),
             attributes = File.GetAttributes(path).ToString()
         };
     }

@@ -36,20 +36,14 @@ public class Database : BaseTest, IDisposable
     {
         var act = () => _db.Connect();
         act.Should().NotThrow();
-
-        _db.IsConnected().Should().BeTrue();
     }
 
     [Fact]
     public async Task Create()
     {
-        _db.EnsureConnected();
-
         _db.Create();
 
         System.IO.File.Exists(Path.GetFullPath(_dataConfig.DataFile)).Should().BeTrue();
-
-        _db.IsConnected().Should().BeTrue();
     }
 
     [Fact]
@@ -59,7 +53,6 @@ public class Database : BaseTest, IDisposable
         await _db.Truncate();
         _db.Create();
         await _db.Truncate();
-        _db.Disconnect();
     }
 
     [Fact]
@@ -72,8 +65,6 @@ public class Database : BaseTest, IDisposable
         var file = await shared.FileHelper.PathToFile(testFile);
 
         await _db.Insert(file);
-
-        _db.Disconnect();
     }
 
     [Fact]
@@ -285,8 +276,6 @@ public class Database : BaseTest, IDisposable
             if (disposing)
             {
                 base.Dispose(disposing);
-
-                _db.Disconnect();
 
                 if (_deleteDatabaseFile && System.IO.File.Exists(_dataConfig.DataFile))
                 {

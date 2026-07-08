@@ -31,14 +31,6 @@ public interface IMediaCollection
     Task<IEnumerable<MatchScore<ResponseType>>> FindInPath<ResponseType>(IEnumerable<string> keywords, int? minimumHits = null, CancellationToken? token = null) where ResponseType : class;
 }
 
-
-public record UpdateStatus
-{
-    public bool InProgress { get; set; } = false;
-    public long FilesProcessed { get; set; } = 0;
-    public long TotalFiles { get; set; } = 0;
-}
-
 public class MediaCollection : IMediaCollection
 {
     private readonly MediaCollectionConfiguration _configuration;
@@ -65,40 +57,34 @@ public class MediaCollection : IMediaCollection
 
     public async Task Initialize(CancellationToken token)
     {
-        _db.EnsureConnected();
+        _db.Connect();
 
         _db.Create();
 
         await LoadDatabase(token);
-
-        _db.Disconnect();
     }
 
     public async Task Clear(CancellationToken token)
     {
-        _db.EnsureConnected();
-
         await _db.Truncate();
 
         _mediaRepo.Clear();
-
-        _db.Disconnect();
     }
 
     private async Task LoadDatabase(CancellationToken token)
     {
-        _db.EnsureConnected();
-
         var fileData = await _db.Files();
-
-        _db.Disconnect();
 
         _mediaRepo = fileData.ToDictionary(x => x.path, x => x);
     }
 
-    private static long _updateProcessing = 0;
+    private SemaphoreSlim _dbSemaphore = new(1, 1);
+    private ConcurrentQueue<shared.data.File> _filesToStore = new();
+    private static long _updateState = 0;
     private static long _numOfFilesTotal = 0;
     private static long _numOfFilesProcessed = 0;
+    private static long _filesQueued = 0;
+    private const int MaximumQueueSize = 20;
 
     public UpdateStatus Status
     {
@@ -106,7 +92,7 @@ public class MediaCollection : IMediaCollection
         {
             return new UpdateStatus
             {
-                InProgress = Interlocked.Read(ref _updateProcessing) == 1,
+                State = (UpdateState)Interlocked.Read(ref _updateState),
                 FilesProcessed = Interlocked.Read(ref _numOfFilesProcessed),
                 TotalFiles = Interlocked.Read(ref _numOfFilesTotal)
             };
@@ -115,20 +101,20 @@ public class MediaCollection : IMediaCollection
 
     public async Task UpdateRepos(string? baseDirectory = null, bool truncateDatabase = false, CancellationToken? token = null)
     {
+        var startTime = Stopwatch.GetTimestamp();
+
         token ??= _cts.Token;
 
         try
         {
             //set flag for in progress
-            _ = Interlocked.Exchange(ref _updateProcessing, 1);
+            Interlocked.Exchange(ref _updateState, (int)UpdateState.Running);
 
             var fileList = (await BuildRepoList(baseDirectory)).ToList();
 
             Console.WriteLine($"Total files: {fileList.Count()}");
 
-            _ = Interlocked.Exchange(ref _numOfFilesTotal, fileList.Count());
-
-            _db.EnsureConnected();
+            Interlocked.Exchange(ref _numOfFilesTotal, fileList.Count);
 
             if (truncateDatabase)
             {
@@ -143,69 +129,110 @@ public class MediaCollection : IMediaCollection
             // await Task.WhenAll(filesTasks);
             Console.WriteLine("Finished update tasks.");
 
-            Console.WriteLine($"Remaining files to store: {_filesToStore.Count()}");
+            Console.WriteLine($"Remaining files to store: {_filesToStore.Count}");
 
             //files remaining to store
             await InsertOrUpdateFIles(token);
 
             _mediaRepo = (await _db.Files()).ToDictionary(x => x.path, x => x);
 
-            _db.Disconnect();
+            Interlocked.Exchange(ref _updateState, (int)UpdateState.Complete);
         }
         catch (Exception ex) when (ex is TaskCanceledException || ex is OperationCanceledException)
         {
             Console.WriteLine("Update process canceled.");
+            Interlocked.Exchange(ref _updateState, (int)UpdateState.Canceled);
             return;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Exception thrown during update: {ex}");
+            Interlocked.Exchange(ref _updateState, (int)UpdateState.Errored);
         }
         finally
         {
             Console.WriteLine("Update completed.");
-            //clear flag for in progress
-            _ = Interlocked.Exchange(ref _updateProcessing, 0);
+
+            Interlocked.Exchange(ref _numOfFilesProcessed, 0);
+            Interlocked.Exchange(ref _numOfFilesTotal, 0);
+            Interlocked.Exchange(ref _filesQueued, 0);
+            _filesToStore.Clear();
+
+            var elapsedTime = Stopwatch.GetElapsedTime(startTime);
+            Console.WriteLine($"Time for update: {Stopwatch.GetElapsedTime(startTime).ToString("c")}");
         }
     }
 
-    private ConcurrentBag<shared.data.File> _filesToStore = new();
-    private int MaximumBagSize = 20;
-    private readonly object _processFileQueueLock = new();
-    private static long _fileCount = 0;
+    public async Task ProcessFile(string filePath, CancellationToken? token = null)
+    {
+        token ??= _cts.Token;
+
+        try
+        {
+            token?.ThrowIfCancellationRequested();
+
+            if (!await _db.FileExists(Path.GetFullPath(filePath)))
+            {
+                var newFile = await Task.Run(() => FileHelper.PathToFile(filePath));
+                _filesToStore.Enqueue(newFile);
+                Interlocked.Increment(ref _filesQueued);
+            }
+            else
+            {
+                //file is in the database and so is fully processed
+                Interlocked.Increment(ref _numOfFilesProcessed);
+            }
+
+            Console.WriteLine($"File queued: {Interlocked.Read(ref _filesQueued)}, Files Processed: {_numOfFilesProcessed}");
+
+            if (Interlocked.Read(ref _filesQueued) > MaximumQueueSize)
+            {
+                await InsertOrUpdateFIles(token);
+            }
+
+        }
+        catch (Exception ex) when (ex is OperationCanceledException || ex is TaskCanceledException)
+        {
+            throw;
+        }
+    }
 
     private async Task InsertOrUpdateFIles(CancellationToken? token = null)
     {
         token ??= _cts.Token;
 
-        if (Monitor.TryEnter(_processFileQueueLock))
+        try
         {
-            try
+            await _dbSemaphore.WaitAsync();
+
+            token?.ThrowIfCancellationRequested();
+            var files = new List<data.File>();
+            while (_filesToStore.TryDequeue(out var fileToStore) && !token!.Value.IsCancellationRequested)
             {
-                token?.ThrowIfCancellationRequested();
-                await _db.InsertOrUpdate(_filesToStore, token);
-                _filesToStore.Clear();
-                Interlocked.Add(ref _numOfFilesProcessed, _fileCount);
-                Interlocked.Exchange(ref _fileCount, 0);
-                token?.ThrowIfCancellationRequested();
+                files.Add(fileToStore);
             }
-            catch (Exception ex) when (ex is OperationCanceledException || ex is TaskCanceledException)
-            {
-                Console.WriteLine("Update process canceled.");
-                throw;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error while calling InsertOrUpdate: {ex}");
-                throw;
-            }
-            finally
-            {
-                if (Monitor.IsEntered(_processFileQueueLock))
-                {
-                    Monitor.Exit(_processFileQueueLock);
-                }
-            }
+            await _db.InsertOrUpdate(files, token);
+            Interlocked.Add(ref _numOfFilesProcessed, files.Count);
+            Interlocked.Exchange(ref _filesQueued, 0);
+            token?.ThrowIfCancellationRequested();
+        }
+        catch (Exception ex) when (ex is OperationCanceledException || ex is TaskCanceledException)
+        {
+            Console.WriteLine("Update process canceled.");
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error while calling InsertOrUpdate: {ex}");
+            throw;
+        }
+        finally
+        {
+            _dbSemaphore.Release();
         }
     }
 
-    private async Task<IEnumerable<string>> BuildRepoList(string baseDirectory)
+    private async Task<IEnumerable<string>> BuildRepoList(string? baseDirectory)
     {
         var mediaDirectory = !string.IsNullOrEmpty(baseDirectory) ? baseDirectory : _configuration.BaseDirectory;
 
@@ -237,39 +264,6 @@ public class MediaCollection : IMediaCollection
         }).ToList();
 
         return Directory.EnumerateFiles(mediaDirectory, "*", SearchOption.AllDirectories).Where(x => extensions.Contains(Path.GetExtension(x).ToLower())).ToList();
-    }
-
-    public async Task ProcessFile(string filePath, CancellationToken? token = null)
-    {
-        token ??= _cts.Token;
-
-        try
-        {
-            token?.ThrowIfCancellationRequested();
-
-            if (!await _db.FileExists(Path.GetFullPath(filePath)))
-            {
-                var newFile = await Task.Run(() => FileHelper.PathToFile(filePath));
-                _filesToStore.Add(newFile);
-                long count = Interlocked.Increment(ref _fileCount);
-                Console.WriteLine($"Files processed: {count}");
-            }
-            else
-            {
-                Interlocked.Increment(ref _numOfFilesProcessed);
-            }
-
-            if (Interlocked.Read(ref _fileCount) > MaximumBagSize)
-            {
-                await InsertOrUpdateFIles(token);
-            }
-
-        }
-        catch (Exception ex) when (ex is OperationCanceledException || ex is TaskCanceledException)
-        {
-            throw;
-        }
-
     }
 
     public async Task<IEnumerable<string>> Search(IEnumerable<string> patterns, CancellationToken? token)

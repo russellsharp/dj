@@ -1,100 +1,153 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+using System.Collections.Concurrent;
 
 namespace shared;
 
 public interface ITaskMonitor<T>
 {
-    void Set(Task<T> task, CancellationTokenSource cts);
-    TaskStatus? Status { get; }
-    bool TaskExists { get; }
-    void CancelRequest();
+    void Set(Guid id, Task<T> task, CancellationTokenSource cts);
+    TaskStatus? Status(Guid id);
+    bool TaskExists(Guid id);
+    void CancelRequest(Guid id);
 }
 
-public class TaskMonitor<T>(CancellationTokenSource? cts) : ITaskMonitor<T>
+public interface ITaskMonitor
 {
-    private CancellationTokenSource? _cts;
+    void CancelRequest(Guid id);
+    void Set(Guid id, Task task, CancellationTokenSource cts);
+    TaskStatus? Status(Guid id);
+    bool TaskExists(Guid id);
+}
 
-    private volatile Task<T>? _task = null;
+public class TaskMonitor<T>() : ITaskMonitor<T>
+{
+    private readonly ConcurrentDictionary<Guid, object> _locks = new();
 
-    private object _lock = new();
-
-    public void Set(Task<T> task, CancellationTokenSource cts)
+    private volatile ConcurrentDictionary<Guid, TaskContext> _tasks = new();
+    public void Set(Guid id, Task<T> task, CancellationTokenSource cts)
     {
-        lock (_lock)
+        var lockObject = _locks.GetOrAdd(id, _ => new());
+        lock (lockObject)
         {
-            Console.WriteLine($"[Monitor] Task registered. HashCode: {this.GetHashCode()}");
+            if (_tasks.ContainsKey(id))
+            {
+                throw new TaskExistsException($"Task {id} is already stored in monitor.");
+            }
 
-            _task = task;
-
-            _cts = cts;
+            _tasks.TryAdd(id, new TaskContext
+            {
+                Monitored = task,
+                Cts = cts,
+            });
         }
     }
 
-    public TaskStatus? Status
+    public TaskStatus? Status(Guid id)
     {
-        get
+        var lockObject = _locks.GetOrAdd(id, _ => new());
+        lock (lockObject)
         {
-            lock (_lock)
+            if (_tasks.TryGetValue(id, out var task))
             {
-                Console.WriteLine($"[Monitor] Task registered. HashCode: {this.GetHashCode()}");
-                Console.WriteLine($"task is canceled: {_task.IsCanceled}");
-                return _task?.Status;
+                return task?.Monitored?.Status;
+            }
+            else
+            {
+                throw new TaskDoesNotExist($"Attempting to get status of task {id} that does not exist.");
             }
         }
     }
-    public bool TaskExists { get { return _task is not null; } }
 
-    public void CancelRequest()
+    public bool TaskExists(Guid id) { return _tasks.ContainsKey(id); }
+
+    public void CancelRequest(Guid id)
     {
-        lock (_lock)
+        var lockObject = _locks.GetOrAdd(id, _ => new());
+        lock (lockObject)
         {
-            _cts?.Cancel();
+            if (_tasks.TryGetValue(id, out var task))
+            {
+                task.Cts.Cancel();
+            }
+            else
+            {
+                throw new TaskDoesNotExist($"Attempting to cancel task {id} that does not exist.");
+            }
         }
     }
-}
-public interface ITaskMonitor
-{
-    void Set(Task task, CancellationTokenSource cts);
-    TaskStatus? Status { get; }
-    bool TaskExists { get; }
-    void CancelRequest();
 }
 
 public class TaskMonitor() : ITaskMonitor
 {
-    private readonly object _lock = new object();
-    private volatile Task? _task = null;
-    private CancellationTokenSource _cts;
+    private readonly ConcurrentDictionary<Guid, object> _locks = new();
+    private volatile ConcurrentDictionary<Guid, TaskContext> _tasks = new();
 
-    public void Set(Task task, CancellationTokenSource cts)
+    public void Set(Guid id, Task task, CancellationTokenSource cts)
     {
-        lock (_lock)
+        var lockObject = _locks.GetOrAdd(id, _ => new());
+        lock (lockObject)
         {
-            _task = task;
-            _cts = cts;
+            if (_tasks.ContainsKey(id))
+            {
+                throw new TaskExistsException($"Task {task.Id} is already stored in monitor.");
+            }
+
+            _tasks.TryAdd(id, new TaskContext
+            {
+                Id = id,
+                Monitored = task,
+                Cts = cts,
+            });
         }
     }
 
-    public TaskStatus? Status
+    public TaskStatus? Status(Guid id)
     {
-        get
+        var lockObject = _locks.GetOrAdd(id, _ => new());
+        lock (lockObject)
         {
-            lock (_lock)
+            if (_tasks.TryGetValue(id, out var task))
             {
-                return _task?.Status;
+                return task?.Monitored?.Status;
+            }
+            else
+            {
+                throw new TaskDoesNotExist($"Attempting to get status of task {id} that does not exist.");
             }
         }
     }
-    public bool TaskExists { get { return _task is not null; } }
 
-    public void CancelRequest()
+    public bool TaskExists(Guid id) { return _tasks.ContainsKey(id); }
+
+    public void CancelRequest(Guid id)
     {
-        lock (_lock)
+        var lockObject = _locks.GetOrAdd(id, _ => new());
+        lock (lockObject)
         {
-            _cts?.Cancel();
+            if (_tasks.TryGetValue(id, out var task))
+            {
+                task.Cts.Cancel();
+            }
+            else
+            {
+                throw new TaskDoesNotExist($"Attempting to cancel task {id} that does not exist.");
+            }
         }
     }
+}
+
+public class TaskExistsException : Exception
+{
+    public TaskExistsException(string msg) : base(msg) { }
+}
+
+public class TaskDoesNotExist : Exception
+{
+    public TaskDoesNotExist(string msg) : base(msg) { }
+}
+
+public class TaskContext
+{
+    public Guid Id;
+    public Task? Monitored = null;
+    public CancellationTokenSource Cts;
 }

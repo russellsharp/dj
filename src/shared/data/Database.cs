@@ -27,10 +27,8 @@ public interface IDatabase
 {
     void Connect();
     void Create(CancellationToken? token = null);
-    void Disconnect();
     void Dispose(bool disposing);
     void Dispose();
-    void EnsureConnected();
     Task<File?> File(string path, CancellationToken? token = null);
     Task<bool> FileExists(string filePath, CancellationToken? token = null);
     Task<IEnumerable<File>> Files(CancellationToken? token = null);
@@ -39,7 +37,6 @@ public interface IDatabase
     Task<IEnumerable<File>> FilesByExtensions(IEnumerable<string> extensions, CancellationToken? token = null);
     Task Insert(File file, CancellationToken? token = null);
     Task InsertOrUpdate(IEnumerable<File> testData, CancellationToken? token = null);
-    bool IsConnected();
     Task Truncate(CancellationToken? token = null);
 }
 
@@ -49,7 +46,6 @@ public class Database : IDisposable, IDatabase
 {
     private static readonly ConcurrentDictionary<string, object> s_databaseLocks = new();
     private readonly DatabaseConfiguration _config;
-    private SqliteConnection? _connection = null;
     private int _commandTimeoutSeconds = 20;
     private CancellationTokenSource _cts;
 
@@ -60,6 +56,20 @@ public class Database : IDisposable, IDatabase
             var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
             var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
             return Path.GetFullPath(Path.Combine(rootDir, _config.DataFile));
+        }
+    }
+
+    private string ConnectionString
+    {
+        get
+        {
+            var builder = new SqliteConnectionStringBuilder
+            {
+                DataSource = DatabasePath,
+                Mode = SqliteOpenMode.ReadWriteCreate,
+                Cache = SqliteCacheMode.Shared
+            };
+            return builder.ConnectionString;
         }
     }
 
@@ -82,46 +92,11 @@ public class Database : IDisposable, IDatabase
         var lockObject = s_databaseLocks.GetOrAdd(DatabasePath, _ => new object());
         lock (lockObject)
         {
-            var builder = new SqliteConnectionStringBuilder
-            {
-                DataSource = DatabasePath,
-                Mode = SqliteOpenMode.ReadWriteCreate,
-                Cache = SqliteCacheMode.Shared
-            };
+            using var connection = new SqliteConnection(ConnectionString);
 
-            _connection = new SqliteConnection(builder.ConnectionString);
+            connection.Open();
 
-            _connection.Open();
-
-            // WAL mode allows one writer + multiple readers concurrently across connections.
-            // busy_timeout tells SQLite retry on a locked write for up to 5 s rather than
-            // // immediately returning SQLITE_BUSY.
-            _connection.Execute("PRAGMA journal_mode=WAL;");
-            _connection.Execute("PRAGMA busy_timeout=5000;");
-
-            Debug.Assert(_connection.Database == "main", $"Expected main, found: {_connection.Database}");
             Create();
-        }
-    }
-
-    public void Disconnect()
-    {
-        var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
-        var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
-
-        var dbPath = Path.GetFullPath(Path.Combine(rootDir, _config.DataFile));
-
-        var lockObject = s_databaseLocks.GetOrAdd(dbPath, _ => new object());
-        lock (lockObject)
-        {
-            var connectionToClose = _connection;
-            _connection = null;
-
-            if (connectionToClose is not null)
-            {
-                connectionToClose?.Close();
-                connectionToClose?.Dispose();
-            }
         }
     }
 
@@ -129,15 +104,17 @@ public class Database : IDisposable, IDatabase
     {
         token ??= _cts.Token;
 
-        if (!IsConnected()) throw new DatabaseNotConnected();
+        using var connection = new SqliteConnection(ConnectionString);
+
+        connection.Open();
 
         string query = GetQueryFromResource(QueryFiles.CreateDatabase);
 
-        using (var transaction = _connection?.BeginTransaction() ?? throw new NullReferenceException("Null database connection or failure to create transaction"))
+        using (var transaction = connection?.BeginTransaction() ?? throw new NullReferenceException("Null database connection or failure to create transaction"))
         {
             try
             {
-                using var command = new SqliteCommand(query, _connection, transaction);
+                using var command = new SqliteCommand(query, connection, transaction);
                 command.ExecuteNonQuery();
                 transaction.Commit();
             }
@@ -149,34 +126,16 @@ public class Database : IDisposable, IDatabase
         }
     }
 
-    public bool IsConnected()
-    {
-        return _connection is not null && _connection.State == ConnectionState.Open;
-    }
-
-    public void EnsureConnected()
-    {
-        if (_connection is null)
-        {
-            Connect();
-            return;
-        }
-
-        if (_connection.State != ConnectionState.Open)
-        {
-            _connection.Open();
-        }
-    }
-
     public async Task Insert(File file, CancellationToken? token = null)
     {
         token ??= _cts.Token;
 
-        if (!IsConnected()) throw new DatabaseNotConnected();
-
         try
         {
-            var connection = _connection ?? throw new DatabaseNotConnected();
+            using var connection = new SqliteConnection(ConnectionString);
+
+            await connection.OpenAsync(token.Value);
+
             using var transaction = connection.BeginTransaction();
             const string sql = @"
             INSERT INTO file (
@@ -204,7 +163,7 @@ public class Database : IDisposable, IDatabase
                 };
 
                 var command = new CommandDefinition(sql, parameters, transaction, _commandTimeoutSeconds, CommandType.Text, CommandFlags.Buffered, token.Value);
-                await _connection.ExecuteAsync(command);
+                await connection.ExecuteAsync(command);
                 transaction.Commit();
             }
             catch (Exception ex)
@@ -223,15 +182,16 @@ public class Database : IDisposable, IDatabase
 
     public async Task InsertOrUpdate(IEnumerable<File> testData, CancellationToken? token = null)
     {
-        if (!IsConnected()) throw new DatabaseNotConnected();
-
         token ??= _cts.Token;
 
         try
         {
             token.Value.ThrowIfCancellationRequested();
 
-            var connection = _connection ?? throw new DatabaseNotConnected();
+            using var connection = new SqliteConnection(ConnectionString);
+
+            await connection.OpenAsync(token.Value);
+
             using var transaction = await connection.BeginTransactionAsync(token.Value);
 
             const string sql = @"
@@ -267,7 +227,7 @@ public class Database : IDisposable, IDatabase
             try
             {
                 var command = new CommandDefinition(sql, batchedParameters, transaction, _commandTimeoutSeconds, CommandType.Text, CommandFlags.Buffered, token.Value);
-                await _connection.ExecuteAsync(command);
+                await connection.ExecuteAsync(command);
 
                 await transaction.CommitAsync(token.Value);
             }
@@ -291,31 +251,35 @@ public class Database : IDisposable, IDatabase
 
     public async Task<bool> FileExists(string filePath, CancellationToken? token = null)
     {
-        if (!IsConnected()) throw new DatabaseNotConnected();
-
         token ??= _cts.Token;
 
-        var connection = _connection ?? throw new DatabaseNotConnected();
-        const string sql = @"SELECT EXISTS (SELECT 1 FROM file WHERE path_hash = @path_hash)";
         try
         {
-            var path_hash = FileHelper.HashString(Path.GetFullPath(filePath));
-            return await connection.ExecuteScalarAsync<bool>(sql, new { path_hash = path_hash });
+            using (var connection = new SqliteConnection(ConnectionString))
+            {
+                await connection.OpenAsync(token.Value);
+                const string sql = @"SELECT EXISTS (SELECT 1 FROM file WHERE path_hash = @path_hash)";
+                var path_hash = FileHelper.HashString(Path.GetFullPath(filePath));
+                var command = new CommandDefinition(sql, new { path_hash }, null, _commandTimeoutSeconds, CommandType.Text, CommandFlags.None, token.Value);
+                var result = await connection.ExecuteScalarAsync<bool>(command);
+                return result;
+            }
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Exception while checking for file entry: {ex}");
+            Console.WriteLine($"Exception while checking for file entry: {ex}");
             throw;
         }
     }
 
     public async Task<shared.data.File?> File(string path, CancellationToken? token = null)
     {
-        if (!IsConnected()) throw new DatabaseNotConnected();
-
         token ??= _cts.Token;
 
-        var connection = _connection ?? throw new DatabaseNotConnected();
+        using var connection = new SqliteConnection(ConnectionString);
+
+        await connection.OpenAsync(token.Value);
+
         const string sql = @"SELECT * FROM file WHERE path_hash = @path_hash;";
 
         shared.data.File? file = null;
@@ -336,36 +300,34 @@ public class Database : IDisposable, IDatabase
 
     public async Task<IEnumerable<shared.data.File>> Files(CancellationToken? token = null)
     {
-        if (!IsConnected()) throw new DatabaseNotConnected();
-
         token ??= _cts.Token;
 
-        var connection = _connection ?? throw new DatabaseNotConnected();
-        const string sql = @"SELECT * FROM file;";
+        using var connection = new SqliteConnection(ConnectionString);
 
-        var files = Enumerable.Empty<shared.data.File>();
+        await connection.OpenAsync(token.Value);
+
+        const string sql = @"SELECT * FROM file;";
 
         try
         {
-            files = await connection.QueryAsync<shared.data.File>(sql, null, null, _commandTimeoutSeconds, CommandType.Text);
+            return await connection.QueryAsync<shared.data.File>(sql, null, null, _commandTimeoutSeconds, CommandType.Text);
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"Error while querying file record: {ex}");
             throw;
         }
-
-        return files;
     }
 
 
     public async Task<IEnumerable<shared.data.File>> Files(IEnumerable<string> paths, CancellationToken? token = null)
     {
-        if (!IsConnected()) throw new DatabaseNotConnected();
-
         token ??= _cts.Token;
 
-        var connection = _connection ?? throw new DatabaseNotConnected();
+        using var connection = new SqliteConnection(ConnectionString);
+
+        await connection.OpenAsync(token.Value);
+
         const string sql = @"SELECT * FROM file WHERE path_hash IN @path_hashes;";
 
         var files = Enumerable.Empty<shared.data.File>();
@@ -386,11 +348,12 @@ public class Database : IDisposable, IDatabase
 
     public async Task<IEnumerable<shared.data.File>> FilesByExtensions(IEnumerable<string> extensions, CancellationToken? token = null)
     {
-        if (!IsConnected()) throw new DatabaseNotConnected();
-
         token ??= _cts.Token;
 
-        var connection = _connection ?? throw new DatabaseNotConnected();
+        using var connection = new SqliteConnection(ConnectionString);
+
+        await connection.OpenAsync(token.Value);
+
         const string sql = @"SELECT * FROM file WHERE extension IN @file_extensions;";
 
         var files = Enumerable.Empty<shared.data.File>();
@@ -405,16 +368,18 @@ public class Database : IDisposable, IDatabase
             throw;
         }
 
+        connection.Close();
         return files;
     }
 
     public async Task<IEnumerable<shared.data.File>> FilesByDirectory(IEnumerable<string> paths, CancellationToken? token = null)
     {
-        if (!IsConnected()) throw new DatabaseNotConnected();
-
         token ??= _cts.Token;
 
-        var connection = _connection ?? throw new DatabaseNotConnected();
+        using var connection = new SqliteConnection(ConnectionString);
+
+        await connection.OpenAsync(token.Value);
+
         var sql = new StringBuilder(@"SELECT * FROM file WHERE ");
 
         var conditions = new List<string>();
@@ -450,16 +415,19 @@ public class Database : IDisposable, IDatabase
 
     public async Task Truncate(CancellationToken? token = null)
     {
-        if (!IsConnected()) throw new DatabaseNotConnected();
 
         token ??= _cts.Token;
 
+        using var connection = new SqliteConnection(ConnectionString);
+
+        await connection.OpenAsync(token.Value);
+
         string query = GetQueryFromResource(QueryFiles.TruncateDatabase);
-        using (var transaction = _connection?.BeginTransaction() ?? throw new NullReferenceException("Null database connection or failure to create transaction"))
+        using (var transaction = connection?.BeginTransaction() ?? throw new NullReferenceException("Null database connection or failure to create transaction"))
         {
             try
             {
-                using var command = new SqliteCommand(query, _connection, transaction);
+                using var command = new SqliteCommand(query, connection, transaction);
                 command.ExecuteNonQuery();
                 transaction.Commit();
             }
@@ -500,8 +468,6 @@ public class Database : IDisposable, IDatabase
         {
             if (disposing)
             {
-                if (_connection is not null)
-                    _connection.Close();
             }
 
             //dispose unmanaged objects

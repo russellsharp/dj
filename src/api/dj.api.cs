@@ -298,14 +298,17 @@ public class djController(
 
     private static CancellationToken? _linkedToken = null;
 
+    private static Guid MediaUpdateJobId = new Guid("f5622381-5d13-4a8d-b477-55ef23c2a1dd");
+    private static Guid TmdbUpdateJobId = new Guid("04abfbfd-287a-4d2e-acc4-b54e54136ae0");
+
     [HttpPost("update")]
     public async Task<MediaUpdateStatus> Update([FromQuery] bool fromScratch = false, [FromQuery] string? baseDirectory = null)
     {
         var status = _media.Status;
 
-        if (status.InProgress)
+        if (status.State == UpdateState.Running)
         {
-            return new MediaUpdateStatus(status, _monitor?.Status);
+            return new MediaUpdateStatus(status, _monitor.Status(TmdbUpdateJobId));
         }
 
         Console.WriteLine("kicking off");
@@ -315,16 +318,17 @@ public class djController(
 
         //do not await.
         Task updateTask = Task.Run(async () => _media.UpdateRepos(baseDirectory, fromScratch, linkedCts.Token), linkedCts.Token);
-        _monitor.Set(updateTask, linkedCts);
+        _monitor.Set(MediaUpdateJobId, updateTask, linkedCts);
 
-        return new MediaUpdateStatus(status, _monitor?.Status);
+        status = _media.Status;
+        return new MediaUpdateStatus(status, _monitor?.Status(MediaUpdateJobId));
     }
 
     [HttpGet("update/status")]
-    public async Task<MediaUpdateStatus> UpdateStatus()
+    public async Task<MediaUpdateStatus> UpdateStatus([FromQuery] int taskId)
     {
         var status = _media.Status;
-        return new MediaUpdateStatus(status, _monitor.Status);
+        return new MediaUpdateStatus(status, _monitor.Status(MediaUpdateJobId));
     }
 
     [HttpPost("update/cancel")]
@@ -332,10 +336,52 @@ public class djController(
     {
         Console.WriteLine("Requesting cancellation.");
 
-        _monitor.CancelRequest();
+        _monitor.CancelRequest(MediaUpdateJobId);
 
         var status = _media.Status;
 
-        return new MediaUpdateStatus(status, _monitor?.Status);
+        return new MediaUpdateStatus(status, _monitor?.Status(MediaUpdateJobId));
+    }
+
+    [HttpPost("tmdb/update")]
+    public async Task<MediaUpdateStatus> TmdbUpdate()
+    {
+        _updateTokenSource.TryReset();
+
+        var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_updateTokenSource.Token, _cts.Token);
+
+        var files = (await _media.Files(MediaType.Video)).ToList();
+
+        var context = new MatchingContext
+        {
+            MinimumScore = 100,
+            PathDepthMin = 1,
+            PathDepthMax = 2
+        };
+
+        var paths = files.Select(x => x.path);
+
+        var populateTask = _tmdb.Populate(paths, context, false, linkedCts.Token);
+
+        _monitor.Set(TmdbUpdateJobId, populateTask, linkedCts);
+
+        var status = _tmdb.Status;
+
+        return new MediaUpdateStatus(status, _monitor.Status(TmdbUpdateJobId));
+    }
+
+    [HttpPost("tmdb/update/cancel")]
+    public async Task<MediaUpdateStatus> TmdbUpdateCancel()
+    {
+        _monitor.CancelRequest(TmdbUpdateJobId);
+        var status = _tmdb.Status;
+        return new MediaUpdateStatus(status, _monitor.Status(TmdbUpdateJobId));
+    }
+
+    [HttpGet("tmdb/update/status")]
+    public async Task<MediaUpdateStatus> TmdbUpdateStatus()
+    {
+        var status = _tmdb.Status;
+        return new MediaUpdateStatus(status, _monitor.Status(TmdbUpdateJobId));
     }
 }

@@ -26,7 +26,7 @@ GET {{api_HostAddress}}/api/media/match/local/synonyms?query=dirty,cop&type=Vide
 Accept: application/json
 ###
 
-POST {{api_HostAddress}}/api/media/update/?fromScratch=false&baseDirectory=//fatty/existing
+POST {{api_HostAddress}}/api/media/update/?fromScratch=true&baseDirectory=//fatty/existing
 Accept: application/json
 ###
 
@@ -38,6 +38,14 @@ POST {{api_HostAddress}}/api/media/update/cancel
 Accept: application/json
 ###
 
-POST {{api_HostAddress}}/api/media/queryTmdb/
+POST {{api_HostAddress}}/api/media/tmdb/update
+Accept: application/json
+###
+
+POST {{api_HostAddress}}/api/media/tmdb/update/cancel
+Accept: application/json
+###
+
+GET {{api_HostAddress}}/api/media/tmdb/update/status
 Accept: application/json
 ###

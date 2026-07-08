@@ -35,7 +35,7 @@ public class Cache : IDisposable, ICache
     private readonly CancellationTokenSource _tokenSource;
     private SqliteConnection? _connection = null;
     private static readonly ConcurrentDictionary<string, object> s_databaseLocks = new();
-
+    private const int _commandTimeoutMs = 2000;
     private string DatabasePath
     {
         get
@@ -79,17 +79,18 @@ public class Cache : IDisposable, ICache
     {
         token ??= _tokenSource.Token;
 
-        var connection = _connection ?? throw new InvalidOperationException("Cache is not connected.");
+        using var connection = new SqliteConnection(ConnectionString);
+        connection.Open();
+
         var sql = $"SELECT response FROM tmdb_cache WHERE url_hash = @request_hash AND response_type = @type";
 
         var requestHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(tmdb_request_url)));
-        using var command = new SqliteCommand(sql, connection);
+
         try
         {
-            command.Parameters.AddWithValue("request_hash", requestHash);
-            command.Parameters.AddWithValue("type", typeof(ResponseType).ToString());
-
-            var result = command.ExecuteScalar();
+            var parameters = new { request_hash = requestHash, type = typeof(ResponseType).ToString() };
+            var command = new CommandDefinition(sql, parameters, null, _commandTimeoutMs, CommandType.Text, CommandFlags.None, token.Value);
+            var result = connection.ExecuteScalar<string>(command);
 
             if (result != null)
             {
@@ -104,10 +105,10 @@ public class Cache : IDisposable, ICache
         catch (Exception ex)
         {
             Debug.WriteLine($"Error while executing sql: {sql}, {ex}");
-            response = default(ResponseType);
+            response = default;
             throw;
         }
-        response = default(ResponseType);
+        response = default;
         return false;
     }
 
@@ -115,7 +116,9 @@ public class Cache : IDisposable, ICache
     {
         token ??= _tokenSource.Token;
 
-        var connection = _connection ?? throw new InvalidOperationException("Cache is not connected.");
+        using var connection = new SqliteConnection(ConnectionString);
+        connection.Open();
+
         var sql = "INSERT INTO tmdb_cache (url_hash, url, response, response_type) VALUES (@request_hash, @request, @response, @response_type) ON CONFLICT(url_hash) DO UPDATE SET response = excluded.response, response_type = excluded.response_type";
 
         var requestHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(requestUrl)));
@@ -125,7 +128,8 @@ public class Cache : IDisposable, ICache
         command.Parameters.AddWithValue("response_type", typeof(ResponseType).ToString());
         command.Parameters.AddWithValue("request", requestUrl);
 
-        await StoreTypedData(JsonSerializer.Deserialize<ResponseType>(content));
+        //TODO: Implement typed data store if useful
+        // await StoreTypedData(JsonSerializer.Deserialize<ResponseType>(content));
 
         await command.ExecuteNonQueryAsync(token.Value);
     }
@@ -265,7 +269,7 @@ public class Cache : IDisposable, ICache
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Error while building hit list: {ex}");
+            Console.WriteLine($"Error while building hit list: {ex}");
             throw;
         }
     }
@@ -279,15 +283,23 @@ public class Cache : IDisposable, ICache
                 await StoreMovieDetails(details, token);
                 break;
             }
+            case MovieQueryResponse result:
+            {
+                await StoreMovieQuery(result, token);
+                break;
+            }
             default:
             {
-                throw new NotSupportedException($"{nameof(ResponseType)} is not supported for typed storage.");
+                throw new NotSupportedException($"{typeof(ResponseType).Name} is not supported for typed storage.");
             }
         }
     }
 
     public async Task StoreMovieDetails(MovieDetailsResponse details, CancellationToken? token = null)
     {
+
+        throw new NotImplementedException();
+
         var connection = _connection ?? throw new InvalidOperationException("Cache is not connected.");
         const string sql = "INSERT INTO movie_details (id, details, title, overview) VALUES (@id, @Details, @title, @overview) ON CONFLICT(id) DO UPDATE SET details = EXCLUDED.details";
         var detailString = JsonSerializer.Serialize(details);
@@ -300,6 +312,13 @@ public class Cache : IDisposable, ICache
         await command.ExecuteNonQueryAsync();
     }
 
+    public async Task StoreMovieQuery(MovieQueryResponse result, CancellationToken? token = null)
+    {
+        using var connection = new SqliteConnection(ConnectionString);
+        await connection.OpenAsync();
+
+        throw new NotImplementedException();
+    }
     public void Connect()
     {
         Directory.CreateDirectory(Path.GetDirectoryName(DatabasePath) ?? throw new InvalidOperationException("Unable to determine database directory"));
@@ -434,14 +453,16 @@ public class Cache : IDisposable, ICache
     #region IDisposable
     private int _disposed = 0;
 
-
     public virtual void Dispose(bool disposing)
     {
         if (Interlocked.CompareExchange(ref _disposed, 1, 0) == 0)
         {
             if (disposing)
-                if (_connection != null && _connection.State == ConnectionState.Open)
-                    _connection?.Close();
+            {
+                var conn = _connection;
+                if (conn != null && conn.State == ConnectionState.Open)
+                    conn?.Close();
+            }
 
             //dispose unmanaged objects
         }

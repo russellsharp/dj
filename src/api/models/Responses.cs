@@ -82,14 +82,14 @@ public record MediaUpdateStatus
 {
     [Precision(2)]
     public decimal PercentComplete { get; init; } = 0.00m;
-    public bool InProgress { get; init; } = false;
+    public UpdateState State { get; init; } = UpdateState.NotStarted;
     public string? TaskStatus { get; init; } = "NotCreated";
 
     public MediaUpdateStatus(UpdateStatus status, TaskStatus? taskStatus)
     {
         PercentComplete = status.TotalFiles > 0 ? Decimal.Divide(status.FilesProcessed, status.TotalFiles) * 100m : 0;
-        InProgress = status.InProgress;
-        TaskStatus = taskStatus.Value.ToString();
+        State = status.State;
+        TaskStatus = taskStatus?.ToString();
     }
 }
 
