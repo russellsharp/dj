@@ -20,12 +20,25 @@ public class ApplicationServices : BaseTest
 {
     private HostApplicationBuilder _builder;
     private IHost _host;
+    private CancellationTokenSource _cts;
 
     public ApplicationServices(ITestOutputHelper output) : base(output)
     {
         var args = new string[] { "", "" };
+        _cts = new CancellationTokenSource();
+
+        Console.CancelKeyPress += (sender, e) =>
+        {
+            Console.WriteLine("\nStopping program...");
+            e.Cancel = true; // Prevents the app from closing immediately
+            _cts.Cancel();    // Sends the cancellation signal
+        };
+
+        var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token, TestContext.Current.CancellationToken);
+
         _builder = Host.CreateApplicationBuilder(args);
         _builder.Services.AddServices();
+        _builder.Services.AddSingleton(linkedCts);
 
         //load our inmemory config for testing before we build services
         LoadTestConfigs();

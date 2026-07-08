@@ -205,7 +205,7 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
         await media.Initialize(_cts.Token);
 
         // Act & Assert: Expect a specific exception (e.g., KeyNotFoundException or custom DB exception)
-        await Assert.ThrowsAsync<FileNotFoundException>(() => media.File(nonExistentPath));
+        await Assert.ThrowsAsync<FileLoadException>(() => media.File(nonExistentPath));
     }
 
     [Fact]
