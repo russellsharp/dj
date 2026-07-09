@@ -30,7 +30,7 @@ public class djController(
     }
 
     [HttpGet("search")]
-    public async Task<QueryResults> Search([FromQuery, StringLength(100)] string query)
+    public async Task<IResult> Search([FromQuery, StringLength(100)] string query)
     {
         log("Updating repo...");
 
@@ -50,11 +50,11 @@ public class djController(
 
         var results = searchMatches.OrderBy(x => x.Hits).Select(x => new Media { FilePath = x.Details.path, Title = x.Details.path, Type = MediaType.Video, Hits = Convert.ToInt32(x.Hits) });
 
-        return new QueryResults { Media = results.ToList() };
+        return Results.Ok(new QueryResults { Media = results.ToList() });
     }
 
     [HttpGet("query")]
-    public async Task<TMDBResults> Query([FromQuery] string query, [FromQuery] MediaType type)
+    public async Task<IResult> Query([FromQuery] string query, [FromQuery] MediaType type)
     {
         log("Updating repo...");
 
@@ -76,11 +76,11 @@ public class djController(
                         .OrderByDescending(x => x.popularity)
                         .Select(x => new TMDBSummary { Id = x.id.Value, Title = x.title, Type = MediaType.Video, Rank = x.popularity.Value, Overview = x.overview });
 
-        return new TMDBResults { Media = results.ToList() };
+        return Results.Ok(new TMDBResults { Media = results.ToList() });
     }
 
     [HttpGet("details")]
-    public async Task<TMDBDetailResults> Details([FromQuery] string query, [FromQuery] MediaType type, [FromQuery] bool updateRepo = false)
+    public async Task<IResult> Details([FromQuery] string query, [FromQuery] MediaType type, [FromQuery] bool updateRepo = false)
     {
         if (updateRepo)
         {
@@ -107,12 +107,12 @@ public class djController(
 
         var results = details.Select(x => new TMDBDetails { Id = x.id, ImdbId = x.imdb_id, Overview = x.overview, Rank = x.popularity.Value, Title = x.title, Type = MediaType.Video });
 
-        return new TMDBDetailResults { Media = results.ToList() };
+        return Results.Ok(new TMDBDetailResults { Media = results.ToList() });
     }
 
 
     [HttpGet("media")]
-    public async Task<MediaFiles> Media([FromQuery] MediaType type, [FromQuery] bool updateRepo = false)
+    public async Task<IResult> Media([FromQuery] MediaType type, [FromQuery] bool updateRepo = false)
     {
         if (updateRepo)
         {
@@ -126,11 +126,11 @@ public class djController(
 
         files.ToList().ForEach(x => Console.WriteLine(x.path));
 
-        return new MediaFiles { Files = files.ToList() };
+        return Results.Ok(new MediaFiles { Files = files.ToList() });
     }
 
     [HttpGet("match/queries")]
-    public async Task<MatchQueries> MatchQueries([FromQuery] string query, [FromQuery] MediaType type, [FromQuery] int minimumHits)
+    public async Task<IResult> MatchQueries([FromQuery] string query, [FromQuery] MediaType type, [FromQuery] int minimumHits)
     {
         var localMedia = await _media.Files(type);
 
@@ -174,14 +174,14 @@ public class djController(
 
         var orderedMatches = matchedMovies.Values.OrderByDescending(x => x.Hits);
 
-        return new MatchQueries
+        return Results.Ok(new MatchQueries
         {
             Results = orderedMatches.Where(x => x.Hits >= minimumHits).ToList()
-        };
+        });
     }
 
     [HttpGet("match/local")]
-    public async Task<Matches> MatchLocal([FromQuery] string query, [FromQuery] MediaType type, [FromQuery] int minimumHits)
+    public async Task<IResult> MatchLocal([FromQuery] string query, [FromQuery] MediaType type, [FromQuery] int minimumHits)
     {
         var localMedia = await _media.Files(type);
 
@@ -221,10 +221,10 @@ public class djController(
 
         var orderedMatches = matchedMovies.Values.OrderByDescending(x => x.Hits);
 
-        return new Matches
+        return Results.Ok(new Matches
         {
             Suggestions = orderedMatches.Where(x => x.Hits >= minimumHits).ToList()
-        };
+        });
     }
 
     private static IOptions<ThesaurusConfiguration> thesaurusOptionsDefaults = Options.Create(new ThesaurusConfiguration()
@@ -234,7 +234,7 @@ public class djController(
     });
 
     [HttpGet("match/local/synonyms")]
-    public async Task<Matches> MatchLocalSynonyms([FromQuery] string query, [FromQuery] MediaType type, [FromQuery] int minimumHIts)
+    public async Task<IResult> MatchLocalSynonyms([FromQuery] string query, [FromQuery] MediaType type, [FromQuery] int minimumHIts)
     {
         var localMedia = await _media.Files(type);
 
@@ -294,24 +294,21 @@ public class djController(
             }
         }
         localMatches.Suggestions = localMatches.Suggestions.DistinctBy(x => x.Details.path).ToList();
-        return localMatches;
+        return Results.Ok(localMatches);
     }
 
     private CancellationTokenSource _updateTokenSource = new();
-
-    private static CancellationToken? _linkedToken = null;
-
     private static Guid MediaUpdateJobId = new Guid("f5622381-5d13-4a8d-b477-55ef23c2a1dd");
     private static Guid TmdbUpdateJobId = new Guid("04abfbfd-287a-4d2e-acc4-b54e54136ae0");
 
     [HttpPost("update")]
-    public async Task<MediaUpdateStatus> Update([FromQuery] bool fromScratch = false, [FromQuery] string? baseDirectory = null)
+    public async Task<IResult> Update([FromQuery] bool fromScratch = false, [FromQuery] string? baseDirectory = null)
     {
         var status = _media.Status;
 
         if (status.State == UpdateState.Running)
         {
-            return new MediaUpdateStatus(status, _monitor.Status(TmdbUpdateJobId));
+            return Results.Ok(new MediaUpdateStatus(status, _monitor.Status(TmdbUpdateJobId)));
         }
 
         Console.WriteLine("kicking off");
@@ -324,30 +321,45 @@ public class djController(
         _monitor.Set(MediaUpdateJobId, updateTask, linkedCts);
 
         status = _media.Status;
-        return new MediaUpdateStatus(status, _monitor?.Status(MediaUpdateJobId));
+        return Results.Ok(new MediaUpdateStatus(status, _monitor?.Status(MediaUpdateJobId)));
     }
 
     [HttpGet("update/status")]
-    public async Task<MediaUpdateStatus> UpdateStatus([FromQuery] int taskId)
+    public async Task<IResult> UpdateStatus([FromQuery] int taskId)
     {
-        var status = _media.Status;
-        return new MediaUpdateStatus(status, _monitor.Status(MediaUpdateJobId));
+        try
+        {
+            var status = _media.Status;
+            return Results.Ok(new MediaUpdateStatus(status, _monitor.Status(MediaUpdateJobId)));
+        }
+        catch (TaskDoesNotExist)
+        {
+            return Results.NotFound("Media update task does not exist.");
+        }
     }
 
     [HttpPost("update/cancel")]
-    public async Task<MediaUpdateStatus> UpdateCancel()
+    public async Task<IResult> UpdateCancel()
     {
-        Console.WriteLine("Requesting cancellation.");
+        try
+        {
+            Console.WriteLine("Requesting cancellation.");
 
-        _monitor.CancelRequest(MediaUpdateJobId);
+            _monitor.CancelRequest(MediaUpdateJobId);
 
-        var status = _media.Status;
+            var status = _media.Status;
 
-        return new MediaUpdateStatus(status, _monitor?.Status(MediaUpdateJobId));
+            return Results.Ok(new MediaUpdateStatus(status, _monitor?.Status(MediaUpdateJobId)));
+
+        }
+        catch (TaskDoesNotExist)
+        {
+            return Results.NotFound("Media update task does not exist.");
+        }
     }
 
     [HttpPost("tmdb/update")]
-    public async Task<MediaUpdateStatus> TmdbUpdate()
+    public async Task<IResult> TmdbUpdate()
     {
         _updateTokenSource.TryReset();
 
@@ -370,21 +382,35 @@ public class djController(
 
         var status = _tmdb.Status;
 
-        return new MediaUpdateStatus(status, _monitor.Status(TmdbUpdateJobId));
+        return Results.Ok(new MediaUpdateStatus(status, _monitor.Status(TmdbUpdateJobId)));
     }
 
     [HttpPost("tmdb/update/cancel")]
-    public async Task<MediaUpdateStatus> TmdbUpdateCancel()
+    public async Task<IResult> TmdbUpdateCancel()
     {
-        _monitor.CancelRequest(TmdbUpdateJobId);
-        var status = _tmdb.Status;
-        return new MediaUpdateStatus(status, _monitor.Status(TmdbUpdateJobId));
+        try
+        {
+            _monitor.CancelRequest(TmdbUpdateJobId);
+            var status = _tmdb.Status;
+            return Results.Ok(new MediaUpdateStatus(status, _monitor.Status(TmdbUpdateJobId)));
+        }
+        catch (TaskDoesNotExist)
+        {
+            return Results.NotFound("TMDB update task does not exist.");
+        }
     }
 
     [HttpGet("tmdb/update/status")]
-    public async Task<MediaUpdateStatus> TmdbUpdateStatus()
+    public async Task<IResult> TmdbUpdateStatus()
     {
-        var status = _tmdb.Status;
-        return new MediaUpdateStatus(status, _monitor.Status(TmdbUpdateJobId));
+        try
+        {
+            var status = _tmdb.Status;
+            return Results.Ok(new MediaUpdateStatus(status, _monitor.Status(TmdbUpdateJobId)));
+        }
+        catch (TaskDoesNotExist)
+        {
+            return Results.NotFound("TMDB update task does not exist.");
+        }
     }
 }

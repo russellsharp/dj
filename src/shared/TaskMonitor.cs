@@ -86,17 +86,12 @@ public class TaskMonitor() : ITaskMonitor
         var lockObject = _locks.GetOrAdd(id, _ => new());
         lock (lockObject)
         {
-            if (_tasks.ContainsKey(id))
-            {
-                throw new TaskExistsException($"Task {task.Id} is already stored in monitor.");
-            }
-
-            _tasks.TryAdd(id, new TaskContext
+            _tasks[id] = new TaskContext
             {
                 Id = id,
                 Monitored = task,
                 Cts = cts,
-            });
+            };
         }
     }
 

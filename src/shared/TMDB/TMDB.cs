@@ -149,7 +149,7 @@ public class TMDB : ITMDB
         }
         finally
         {
-            Console.WriteLine($"{(_totalFilesToQuery > 0 ? ((decimal)_filesQueried / (decimal)_totalFilesToQuery) * 100.0m : 0):F2}%");
+            Console.WriteLine($"{(_totalFilesToQuery > 0 ? (decimal)_filesQueried / (decimal)_totalFilesToQuery * 100.0m : 0):F2}%");
         }
     }
 

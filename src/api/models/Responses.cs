@@ -82,6 +82,7 @@ public record MediaUpdateStatus
 {
     [Precision(2)]
     public decimal PercentComplete { get; init; } = 0.00m;
+    [JsonConverter(typeof(JsonStringEnumConverter))]
     public UpdateState State { get; init; } = UpdateState.NotStarted;
     public string? TaskStatus { get; init; } = "NotCreated";
 

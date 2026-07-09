@@ -9,9 +9,10 @@ namespace api
 {
     [ApiController]
     [AllowAnonymous]
+    [Route("api")]
     public class HealthController
     {
-        [HttpGet("health")]
+        [HttpGet("health"), AllowAnonymous]
         public async Task<IResult> Health()
         {
             return Results.Ok("Just good folks.");

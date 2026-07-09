@@ -1,59 +1,79 @@
-@api_HostAddress = http://localhost:5282
+# Disable SSL certificate strictness for local dev certificates
+@settings = {"request.certificates.strictSSL": false}
+
+# Corrected port variables based on your console logs
+@api_HostAddressSecure = https://localhost:7123/api
+@api_HostAddress = http://localhost:5282/api
 
 GET {{api_HostAddress}}/health
 Accept: application/json
 ###
 
+# @name tokenAnon
 GET {{api_HostAddress}}/token/anonymous
 Accept: application/json
 ###
 
-GET {{api_HostAddress}}/api/media/search?query=training,day
-Accept: application/json
+@token = {{tokenAnon.response.body.$}}
+
+GET {{api_HostAddressSecure}}/media/search?query=training,day
+Content-Type: application/json
+Authorization: Bearer {{tokenAnon.response.body.$}}
 
 ###
 
-GET {{api_HostAddress}}/api/media/query?query=training,day
+GET {{api_HostAddressSecure}}/media/query?query=training,day
 Accept: application/json
+Authorization: Bearer {{tokenAnon.response.body.$}}
 
 ###
 
-GET {{api_HostAddress}}/api/media/details?query=training,day
+GET {{api_HostAddressSecure}}/media/details?query=training,day
 Accept: application/json
+Authorization: Bearer {{tokenAnon.response.body.$}}
 ###
 
-GET {{api_HostAddress}}/api/media/media?type=Video&updateRepo=true
+GET {{api_HostAddressSecure}}/media/media?type=Video&updateRepo=true
 Accept: application/json
+Authorization: Bearer {{tokenAnon.response.body.$}}
 ###
 
-GET {{api_HostAddress}}/api/media/match/local?query=dirty,cop&type=Video&minimumHits=1
+GET {{api_HostAddressSecure}}/media/match/local?query=dirty,cop&type=Video&minimumHits=1
 Accept: application/json
+Authorization: Bearer {{tokenAnon.response.body.$}}
 ###
 
-GET {{api_HostAddress}}/api/media/match/local/synonyms?query=dirty,cop&type=Video&minimumHits=1
+GET {{api_HostAddressSecure}}/media/match/local/synonyms?query=dirty,cop&type=Video&minimumHits=1
 Accept: application/json
+Authorization: Bearer {{tokenAnon.response.body.$}}
 ###
 
-POST {{api_HostAddress}}/api/media/update/?fromScratch=true&baseDirectory=//fatty/existing
+POST {{api_HostAddressSecure}}/media/update/?fromScratch=true&baseDirectory=//fatty/existing
 Accept: application/json
+Authorization: Bearer {{tokenAnon.response.body.$}}
 ###
 
-GET {{api_HostAddress}}/api/media/update/status/
+GET {{api_HostAddressSecure}}/media/update/status/
 Accept: application/json
+Authorization: Bearer {{tokenAnon.response.body.$}}
 ###
 
-POST {{api_HostAddress}}/api/media/update/cancel
+POST {{api_HostAddressSecure}}/media/update/cancel
 Accept: application/json
+Authorization: Bearer {{tokenAnon.response.body.$}}
 ###
 
-POST {{api_HostAddress}}/api/media/tmdb/update
+POST {{api_HostAddressSecure}}/media/tmdb/update
 Accept: application/json
+Authorization: Bearer {{tokenAnon.response.body.$}}
 ###
 
-POST {{api_HostAddress}}/api/media/tmdb/update/cancel
+POST {{api_HostAddressSecure}}/media/tmdb/update/cancel
 Accept: application/json
+Authorization: Bearer {{tokenAnon.response.body.$}}
 ###
 
-GET {{api_HostAddress}}/api/media/tmdb/update/status
+GET {{api_HostAddressSecure}}/media/tmdb/update/status
 Accept: application/json
+Authorization: Bearer {{tokenAnon.response.body.$}}
 ###

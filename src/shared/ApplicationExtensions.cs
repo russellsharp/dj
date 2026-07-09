@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
@@ -11,7 +12,6 @@ using Microsoft.IdentityModel.Tokens;
 using shared.http;
 using shared.thesaurus;
 using shared.TMDB;
-
 namespace shared;
 
 public static class ApplicationExtensions
@@ -25,6 +25,7 @@ public static class ApplicationExtensions
                         .AddSingleton<ITMDB, shared.TMDB.TMDB>()
                         .AddSingleton<shared.thesaurus.IThesaurus, shared.thesaurus.Thesaurus>()
                         .AddSingleton<ITaskMonitor, TaskMonitor>();
+
         return builder;
     }
 
@@ -43,8 +44,6 @@ public static class ApplicationExtensions
         {
             ["Host:Jwt:Key"] = GetKeyFromStore()
         };
-
-        Console.WriteLine(GetKeyFromStore());
 
         builder.Configuration.AddInMemoryCollection(jwtKeyConfiguration);
 
@@ -67,11 +66,11 @@ public static class ApplicationExtensions
     {
         var host = builder.Configuration.GetSection($"{HostConfiguration.SectionName}").Get<HostConfiguration>();
 
-        builder.Services.AddHttpsRedirection(options =>
-            {
-                options.RedirectStatusCode = StatusCodes.Status307TemporaryRedirect;
-                options.HttpsPort = 443; // Replace with 7297 or your specific HTTPS local port if needed
-            });
+        // builder.Services.AddHttpsRedirection(options =>
+        //     {
+        //         options.RedirectStatusCode = StatusCodes.Status307TemporaryRedirect;
+        //         options.HttpsPort = 7123;
+        //     });
 
         builder.Services
             .AddScoped<ITokenGenerator, AnonymousTokenGenerator>()
@@ -141,7 +140,12 @@ public static class ApplicationExtensions
 
     public static WebApplication SetupSecurity(this WebApplication app)
     {
+        // app.UseWhen(context => !context.Request.Path.StartsWithSegments("/health"), builder =>
+        //     {
+        //         app.UseHttpsRedirection();
+        //     })
         app.UseHttpsRedirection()
+        .UseHttpsRedirection()
             .UseRateLimiter()
             .UseAuthentication()
             .UseAuthorization()

@@ -212,8 +212,6 @@ public class Cache : IDisposable, ICache
 
             if (!caseStatements.Any()) return new List<MatchScore<MovieDetailsResponse>>();
 
-            Debug.WriteLine($"Querying overview: {sql}");
-
             var connection = _connection ?? throw new InvalidOperationException("Cache is not connected.");
             var matches = await connection.QueryAsync(new CommandDefinition(sql, cancellationToken: token.Value));
             return matches.Select(x =>
@@ -252,8 +250,6 @@ public class Cache : IDisposable, ICache
             string suffix = $" AS Hits \n FROM tmdb_cache \n WHERE response_type = '{typeof(MovieDetailsResponse)}' AND Hits >= {minimumHits} \n ORDER BY Hits;";
             var caseStatements = cases.Where(x => !string.IsNullOrEmpty(x)).Select(x => $"(CASE WHEN {x} THEN 1 ELSE 0 END)");
             string sql = $"{sqlPrefix} ({string.Join(" + \n", caseStatements)}) {suffix}";
-
-            Debug.WriteLine($"Querying overview with synonyms:\n {sql}");
 
             var connection = _connection ?? throw new InvalidOperationException("Cache is not connected.");
             var matches = await connection.QueryAsync(new CommandDefinition(sql, cancellationToken: token.Value));
@@ -334,7 +330,6 @@ public class Cache : IDisposable, ICache
         {
             _connection = new SqliteConnection(ConnectionString);
 
-            Console.WriteLine(ConnectionString);
             _connection.Open();
 
             var access = FileHelper.CanAccessFile(DatabasePath, FileAccess.ReadWrite);

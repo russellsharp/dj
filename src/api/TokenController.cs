@@ -1,17 +1,15 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using shared.http;
 
 namespace api
 {
     [ApiController]
-    [Route("token")]
+    [AllowAnonymous]
+    [Route("api/token")]
     public class TokenController(ITokenGenerator _tokenGen)
     {
-        [HttpGet("anonymous")]
+        [HttpGet("anonymous"), AllowAnonymous]
         public async Task<string> RequestAnonymousToken()
         {
             return await _tokenGen.GenerateAnonymousToken();
