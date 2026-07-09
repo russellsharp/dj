@@ -4,13 +4,16 @@ using System.Text.Json;
 using api.models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using System.ComponentModel.DataAnnotations;
 using shared;
 using shared.thesaurus;
 using shared.TMDB;
 using shared.TMDB.Models;
+using Microsoft.AspNetCore.Authorization;
 
 namespace api.controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/media")]
 public class djController(
@@ -27,7 +30,7 @@ public class djController(
     }
 
     [HttpGet("search")]
-    public async Task<QueryResults> Search([FromQuery] string query)
+    public async Task<QueryResults> Search([FromQuery, StringLength(100)] string query)
     {
         log("Updating repo...");
 

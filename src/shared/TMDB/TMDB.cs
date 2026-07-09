@@ -228,7 +228,6 @@ public class TMDB : ITMDB
     {
         get
         {
-            Console.WriteLine($"Total Files: {_totalFilesToQuery}, files queried: {_filesQueried}");
             return new UpdateStatus
             {
                 State = (UpdateState)Interlocked.Read(ref _updateState),

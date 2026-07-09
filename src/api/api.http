@@ -1,5 +1,13 @@
 @api_HostAddress = http://localhost:5282
 
+GET {{api_HostAddress}}/health
+Accept: application/json
+###
+
+GET {{api_HostAddress}}/token/anonymous
+Accept: application/json
+###
+
 GET {{api_HostAddress}}/api/media/search?query=training,day
 Accept: application/json
 

@@ -10,6 +10,7 @@
     <PackageReference Include="Dapper" Version="2.1.79" />
     <PackageReference Include="Dapper.Contrib" Version="2.0.78" />
     <PackageReference Include="Dapper.Logging" Version="0.4.3" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.9" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.9" />
   <!-- Force the background dependency to use the latest safe version -->
   <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />

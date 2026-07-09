@@ -34,10 +34,10 @@ public class ApplicationServices : BaseTest
             _cts.Cancel();    // Sends the cancellation signal
         };
 
-        var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token, TestContext.Current.CancellationToken);
-
         _builder = Host.CreateApplicationBuilder(args);
-        _builder.Services.AddServices();
+        _builder.AddServices();
+
+        var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token, TestContext.Current.CancellationToken);
         _builder.Services.AddSingleton(linkedCts);
 
         //load our inmemory config for testing before we build services
