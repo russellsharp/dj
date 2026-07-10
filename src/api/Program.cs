@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Scalar.AspNetCore;
 using shared;
 using shared.http;
 
@@ -15,11 +16,11 @@ Console.CancelKeyPress += (sender, e) =>
 
 var builder = WebApplication.CreateBuilder(args);
 
-//TODO: Add documentation and publishing of endpoints/models
-//TODO: OpenApi what
-
 // Add services to the container.
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options =>
+{
+    options.OpenApiVersion = Microsoft.OpenApi.OpenApiSpecVersion.OpenApi3_1;
+});
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -40,7 +41,9 @@ app.MapControllers();
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
+    //TODO: Add models to generated yaml or json
     app.MapOpenApi();
+    app.MapScalarApiReference();
 }
 
 //initialize the media service to preload the files from database

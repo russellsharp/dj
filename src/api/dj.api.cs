@@ -32,12 +32,6 @@ public class djController(
     [HttpGet("search")]
     public async Task<IResult> Search([FromQuery, StringLength(100)] string query)
     {
-        log("Updating repo...");
-
-        await _media.UpdateRepos(null, false, _cts.Token);
-
-        log("Update complete.");
-
         var searchTerms = string.Join(' ', query.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
 
         var sanitizedTerms = SearchHelpers.SanitizeForSearch(searchTerms, _cts.Token, true);
@@ -56,12 +50,6 @@ public class djController(
     [HttpGet("query")]
     public async Task<IResult> Query([FromQuery] string query, [FromQuery] MediaType type)
     {
-        log("Updating repo...");
-
-        await _media.UpdateRepos(null, false, _cts.Token);
-
-        log("Update complete.");
-
         var searchTerms = string.Join(' ', query.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
 
         var sanitizedTerms = SearchHelpers.SanitizeForSearch(searchTerms, _cts.Token, true);
@@ -308,7 +296,8 @@ public class djController(
 
         if (status.State == UpdateState.Running)
         {
-            return Results.Ok(new MediaUpdateStatus(status, _monitor.Status(TmdbUpdateJobId)));
+            var taskStatus = _monitor.Status(MediaUpdateJobId);
+            return Results.Ok(new MediaUpdateStatus(status, taskStatus));
         }
 
         Console.WriteLine("kicking off");
@@ -317,7 +306,7 @@ public class djController(
         var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_updateTokenSource.Token, _cts.Token);
 
         //do not await.
-        Task updateTask = Task.Run(async () => _media.UpdateRepos(baseDirectory, fromScratch, linkedCts.Token), linkedCts.Token);
+        Task updateTask = Task.Run(async () => await _media.UpdateRepos(baseDirectory, fromScratch, linkedCts.Token), linkedCts.Token);
         _monitor.Set(MediaUpdateJobId, updateTask, linkedCts);
 
         status = _media.Status;
@@ -361,6 +350,13 @@ public class djController(
     [HttpPost("tmdb/update")]
     public async Task<IResult> TmdbUpdate()
     {
+        var status = _tmdb.Status;
+
+        if (status.State == UpdateState.Running)
+        {
+            return Results.BadRequest("TMDB populate task is already running.");
+        }
+
         _updateTokenSource.TryReset();
 
         var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_updateTokenSource.Token, _cts.Token);
@@ -376,11 +372,18 @@ public class djController(
 
         var paths = files.Select(x => x.path);
 
-        var populateTask = _tmdb.Populate(paths, context, false, linkedCts.Token);
+        try
+        {
+            var populateTask = _tmdb.Populate(paths, context, false, linkedCts.Token);
 
-        _monitor.Set(TmdbUpdateJobId, populateTask, linkedCts);
+            _monitor.Set(TmdbUpdateJobId, populateTask, linkedCts);
+        }
+        catch (InvalidOperationException)
+        {
+            return Results.BadRequest("TMDB populate task already in progress.");
+        }
 
-        var status = _tmdb.Status;
+        status = _tmdb.Status;
 
         return Results.Ok(new MediaUpdateStatus(status, _monitor.Status(TmdbUpdateJobId)));
     }

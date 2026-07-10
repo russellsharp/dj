@@ -107,6 +107,12 @@ public class MediaCollection : IMediaCollection
 
         try
         {
+            if ((UpdateState)Interlocked.Read(ref _updateState) == UpdateState.Running)
+            {
+                Console.WriteLine("Media repo update requested while update is already running.");
+                return;
+            }
+
             //set flag for in progress
             Interlocked.Exchange(ref _updateState, (int)UpdateState.Running);
 

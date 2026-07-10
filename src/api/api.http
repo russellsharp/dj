@@ -9,6 +9,10 @@ GET {{api_HostAddress}}/health
 Accept: application/json
 ###
 
+Get https://localhost:7123/openapi/v1.json
+Accept: application/json
+###
+
 # @name tokenAnon
 GET {{api_HostAddress}}/token/anonymous
 Accept: application/json
@@ -16,7 +20,7 @@ Accept: application/json
 
 @token = {{tokenAnon.response.body.$}}
 
-GET {{api_HostAddressSecure}}/media/search?query=training,day
+GET {{api_HostAddress}}/media/search?query=training,day
 Content-Type: application/json
 Authorization: Bearer {{tokenAnon.response.body.$}}
 

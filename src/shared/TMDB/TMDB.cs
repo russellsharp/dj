@@ -202,6 +202,10 @@ public class TMDB : ITMDB
 
         try
         {
+            if ((UpdateState)Interlocked.Read(ref _updateState) == UpdateState.Running)
+            {
+                throw new InvalidOperationException("TMDB populate task already running.");
+            }
             Interlocked.Exchange(ref _totalFilesToQuery, paths.LongCount());
             Interlocked.Exchange(ref _filesQueried, 0);
             Interlocked.Exchange(ref _updateState, (long)UpdateState.Running);

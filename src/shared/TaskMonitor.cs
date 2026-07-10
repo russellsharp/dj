@@ -100,14 +100,7 @@ public class TaskMonitor() : ITaskMonitor
         var lockObject = _locks.GetOrAdd(id, _ => new());
         lock (lockObject)
         {
-            if (_tasks.TryGetValue(id, out var task))
-            {
-                return task?.Monitored?.Status;
-            }
-            else
-            {
-                throw new TaskDoesNotExist($"Attempting to get status of task {id} that does not exist.");
-            }
+            return _tasks.TryGetValue(id, out var task) ? task?.Monitored?.Status : null;
         }
     }
 
