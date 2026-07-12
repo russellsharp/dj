@@ -12,6 +12,6 @@
     <Project Path="test/dj.test.csproj" />
   </Folder>
   <Folder Name="/benchmark-cli/">
-    <Project Path="src/benchmark-cli/benchmark-cli.csproj"/>
+    <Project Path="test/benchmark-cli/benchmark-cli.csproj" />
   </Folder>
 </Solution>

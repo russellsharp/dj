@@ -127,7 +127,7 @@ public class Repo : IDisposable, IRepo
 
         var requestUrl = _limiter.BuildUri(request);
 
-        if (_cache.Get<ResponseType>(requestUrl, out ResponseType? cachedResponse, token) && cachedResponse != null)
+        if (_cache.Get(requestUrl, out ResponseType? cachedResponse, token) && cachedResponse != null)
         {
             return cachedResponse;
         }
@@ -135,9 +135,8 @@ public class Repo : IDisposable, IRepo
         {
             var apiResponse = await _limiter.Get(request, token.Value);
 
-            Debug.WriteLine(apiResponse.Content);
-
-            if (apiResponse.StatusCode == System.Net.HttpStatusCode.OK)
+            if (apiResponse.StatusCode == System.Net.HttpStatusCode.OK &&
+                apiResponse.ResponseStatus != ResponseStatus.Error)
             {
                 var content = apiResponse.Content ?? string.Empty;
 
@@ -152,7 +151,7 @@ public class Repo : IDisposable, IRepo
             else
             {
                 Debug.WriteLine($"Failed requesting from TMDB with response code: {apiResponse.StatusCode}");
-                return new ResponseType();
+                return default;
             }
         }
     }

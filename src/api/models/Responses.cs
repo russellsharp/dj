@@ -78,6 +78,11 @@ public record MediaReferences : shared.data.File
     }
 }
 
+public class Error
+{
+    public string Message { get; init; } = "";
+}
+
 public record MediaUpdateStatus
 {
     [Precision(2)]
@@ -85,12 +90,14 @@ public record MediaUpdateStatus
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public UpdateState State { get; init; } = UpdateState.NotStarted;
     public string? TaskStatus { get; init; } = "NotCreated";
+    public string? Message { get; init; } = "";
 
-    public MediaUpdateStatus(UpdateStatus status, TaskStatus? taskStatus)
+    public MediaUpdateStatus(UpdateStatus status, TaskStatus? taskStatus = default, string? message = default)
     {
         PercentComplete = status.TotalFiles > 0 ? Decimal.Divide(status.FilesProcessed, status.TotalFiles) * 100m : 0;
         State = status.State;
         TaskStatus = taskStatus?.ToString();
+        Message = message;
     }
 }
 

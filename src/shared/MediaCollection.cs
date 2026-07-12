@@ -131,8 +131,6 @@ public class MediaCollection : IMediaCollection
             Console.WriteLine("Starting update tasks.");
             var paralllelOptions = new ParallelOptions { MaxDegreeOfParallelism = 10, CancellationToken = token.Value };
             await Parallel.ForEachAsync(fileList, paralllelOptions, async (file, ct) => { await ProcessFile(file, token.Value); });
-            // var filesTasks = fileList.Select(async x => await ProcessFile(Path.GetFullPath(x), token.Value)).ToList();
-            // await Task.WhenAll(filesTasks);
             Console.WriteLine("Finished update tasks.");
 
             Console.WriteLine($"Remaining files to store: {_filesToStore.Count}");
@@ -169,7 +167,7 @@ public class MediaCollection : IMediaCollection
         }
     }
 
-    public async Task ProcessFile(string filePath, CancellationToken? token = null)
+    private async Task ProcessFile(string filePath, CancellationToken? token = null)
     {
         token ??= _cts.Token;
 
@@ -188,8 +186,6 @@ public class MediaCollection : IMediaCollection
                 //file is in the database and so is fully processed
                 Interlocked.Increment(ref _numOfFilesProcessed);
             }
-
-            Console.WriteLine($"File queued: {Interlocked.Read(ref _filesQueued)}, Files Processed: {_numOfFilesProcessed}");
 
             if (Interlocked.Read(ref _filesQueued) > MaximumQueueSize)
             {

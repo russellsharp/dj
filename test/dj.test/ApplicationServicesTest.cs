@@ -20,7 +20,6 @@ public class ApplicationServices : BaseTest
 {
     private HostApplicationBuilder _builder;
     private IHost _host;
-    private CancellationTokenSource _cts;
 
     public ApplicationServices(ITestOutputHelper output) : base(output)
     {

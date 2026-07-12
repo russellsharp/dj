@@ -1,5 +1,4 @@
 using System.Text;
-using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
@@ -38,21 +37,8 @@ public static class ApplicationExtensions
         return File.ReadAllText(filePath);
     }
 
-    private static IHostApplicationBuilder AddJwtKey(this IHostApplicationBuilder builder)
-    {
-        var jwtKeyConfiguration = new Dictionary<string, string?>
-        {
-            ["Host:Jwt:Key"] = GetKeyFromStore()
-        };
-
-        builder.Configuration.AddInMemoryCollection(jwtKeyConfiguration);
-
-        return builder;
-    }
-
     public static IHostApplicationBuilder AddConfiguration(this IHostApplicationBuilder builder)
     {
-        builder.AddJwtKey();
         builder.Services.Configure<MediaCollectionConfiguration>(builder.Configuration.GetSection(MediaCollectionConfiguration.SectionName))
                                 .Configure<shared.data.DatabaseConfiguration>(builder.Configuration.GetSection(shared.data.DatabaseConfiguration.SectionName))
                                 .Configure<shared.EndpointConfig>(builder.Configuration.GetSection("TMDB"))
@@ -140,10 +126,6 @@ public static class ApplicationExtensions
 
     public static WebApplication SetupSecurity(this WebApplication app)
     {
-        // app.UseWhen(context => !context.Request.Path.StartsWithSegments("/health"), builder =>
-        //     {
-        //         app.UseHttpsRedirection();
-        //     })
         app.UseHttpsRedirection()
         .UseHttpsRedirection()
             .UseRateLimiter()

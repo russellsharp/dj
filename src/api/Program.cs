@@ -41,9 +41,9 @@ app.MapControllers();
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
-    //TODO: Add models to generated yaml or json
     app.MapOpenApi();
     app.MapScalarApiReference();
+    app.UseDeveloperExceptionPage();
 }
 
 //initialize the media service to preload the files from database
