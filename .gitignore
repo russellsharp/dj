@@ -11,3 +11,4 @@ BenchmarkDotNet.Artifacts/**
 **/BenchmarkDotNet.Artifacts/**
 *.suo
 .vs/**
+backup/**

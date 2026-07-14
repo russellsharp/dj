@@ -5,11 +5,17 @@
   <Folder Name="/api/">
     <Project Path="src/api/api.csproj" />
   </Folder>
+  <Folder Name="/api.core/">
+    <Project Path="src/api.core/api.core.csproj" />
+  </Folder>
   <Folder Name="/shared/">
     <Project Path="src/shared/shared.csproj" />
   </Folder>
   <Folder Name="/test/">
-    <Project Path="test/dj.test.csproj" />
+    <Project Path="test/dj.test/dj.test.csproj" />
+  </Folder>
+  <Folder Name="/dj.test.system/">
+    <Project Path="test/dj.test.system/dj.test.system.csproj" />
   </Folder>
   <Folder Name="/benchmark-cli/">
     <Project Path="test/benchmark-cli/benchmark-cli.csproj" />

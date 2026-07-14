@@ -22,9 +22,7 @@ public interface IRateLimiter
 public class RateLimiter : IRateLimiter
 {
     private readonly RestClient _client;
-    private readonly AsyncRateLimitPolicy _rateLimitPolicy;
     private readonly EndpointConfig _config;
-    private AsyncRetryPolicy _retryPolicy;
     private Polly.Wrap.AsyncPolicyWrap _pipeline;
 
     public RateLimiter(IOptions<EndpointConfig> options)
@@ -34,12 +32,12 @@ public class RateLimiter : IRateLimiter
 
         _client = new RestClient(_config.BaseUrl);
 
-        var rateLimitPolicy = Policy.RateLimitAsync(1, TimeSpan.FromSeconds(10), 1);
+        var rateLimitPolicy = Policy.RateLimitAsync(_config.RequestLimit, TimeSpan.FromSeconds(_config.RequestWindowSeconds), _config.RequestBurstMax);
 
         var retryPolicy = Policy
             .Handle<RateLimitRejectedException>()
             .WaitAndRetryAsync(
-                retryCount: 5,
+                retryCount: _config.AttemptCountMax,
                 sleepDurationProvider: (retryCount, exception, context) =>
                 {
                     // If rejected, wait exactly what the rate limiter says is left in the window

@@ -11,6 +11,7 @@ using shared.TMDB;
 using shared.TMDB.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Http;
 
 namespace api.controllers;
 

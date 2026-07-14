@@ -1,7 +1,7 @@
 using System.Text.Json.Serialization;
 using Scalar.AspNetCore;
 using shared;
-using shared.http;
+using api.controllers;
 
 // var key = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
 // File.WriteAllText("./super_secret_key.secret", key);
@@ -51,3 +51,5 @@ var media = app.Services.GetRequiredService<IMediaCollection>();
 await media.Initialize(cts.Token);
 
 app.Run();
+
+public partial class Program { }

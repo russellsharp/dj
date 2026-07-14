@@ -1,3 +1,4 @@
+using Polly;
 using shared.TMDB;
 namespace shared;
 
@@ -9,6 +10,7 @@ public class EndpointConfig
     public string DatabasePath { get; init; } = "testdata/tmdb.db";
     public int RequestLimit { init; get; } = 40;
     public int RequestWindowSeconds { init; get; } = 10;
+    public int RequestBurstMax { init; get; } = 1;
     public int AttemptCountMax { init; get; } = 10;
     public int BackOffTimeMs { init; get; } = 1000;
     public int TitleWeight { init; get; } = 100;
