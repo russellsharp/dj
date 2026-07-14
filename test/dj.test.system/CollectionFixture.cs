@@ -1,13 +1,24 @@
 using System.Diagnostics;
+using System.Text;
 using System.Text.Json.Serialization;
+using api.controllers;
+using dj.test.system;
 using FluentAssertions;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.VisualStudio.TestPlatform.TestHost;
 using shared;
+using shared.http;
+using shared.TMDB;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -17,31 +28,61 @@ namespace dj.test.system;
 public class SearchFixture : ICollectionFixture<SystemFixture> { }
 
 [Collection("SearchCalls")]
-public class SearchTests(SystemFixture _fixture, ITestOutputHelper _output)
+public class SearchTests : BaseTest
 {
+    private SystemFixture _fixture;
+    public SearchTests(SystemFixture fixture, ITestOutputHelper logger) : base(logger)
+    {
+        _fixture = fixture;
+    }
+
     [Fact]
     public async Task TestTest()
     {
         await _fixture.Initliaize();
-        true.Should().BeTrue();
-        Debug.WriteLine("helloh");
-        Console.WriteLine("ahahhaahah");
-        _output.WriteLine("hellooooooo");
+
+        var searchTerms = "training,day";
+
+        var response = await _fixture.Client.GetAsync($"/api/media/query?{searchTerms}");
+
+        // var response = await _fixture.Client.GetAsync("/test");
+
+        var content = await response.Content.ReadAsStringAsync();
+
+        Log(content);
+
+        response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
+
+        content.Should().NotBeNullOrEmpty();
+
+    }
+}
+
+public class BaseTest(ITestOutputHelper _log)
+{
+    public const string BaseUrl = "https://localhost:7123/api";
+
+    public void Log(object msg)
+    {
+        var message = Convert.ToString(msg);
+        Debug.WriteLine(message);
+        Console.WriteLine(message);
+        _log.WriteLine(message);
     }
 }
 
 public class SystemFixture : IDisposable
 {
-    protected IHost _host;
-    protected HttpClient _client;
-    public SystemFixture()
+    protected TestServer _server;
+    public HttpClient Client;
+    public SystemFixture(/*TestWebApplicationFactory<Program> factory*/)
     {
+        // Client = factory.CreateClient();
         // Initliaize().GetAwaiter().GetResult();
     }
 
     public async Task Initliaize()
     {
-
         var cts = new CancellationTokenSource();
         Console.CancelKeyPress += (sender, e) =>
         {
@@ -53,13 +94,12 @@ public class SystemFixture : IDisposable
         var args = Array.Empty<string>();
         var builder = WebApplication.CreateBuilder(args);
 
-        // Add services to the container.
-
         builder.Services.AddControllers()
-        .AddJsonOptions(options =>
-        {
-            options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
-        });
+            .AddApplicationPart(typeof(djController).Assembly)
+            .AddJsonOptions(options =>
+            {
+                options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+            });
 
         builder.AddConfiguration()
                 .AddServices()
@@ -68,24 +108,18 @@ public class SystemFixture : IDisposable
 
         builder.Services.AddSingleton(cts);
 
+        builder.WebHost.UseTestServer();
+        builder.WebHost.UseSetting("https_port", "443");
+
         var app = builder.Build();
         app.SetupSecurity(); //must come before MapControllers
         app.MapControllers();
 
-        _host = await new HostBuilder()
-            .ConfigureWebHost(webBuilder =>
-            {
-                webBuilder
-                    .UseTestServer() // In-memory server
-                    .Configure(app => app.Run(async ctx => await ctx.Response.WriteAsync("Hello")));
-            })
-            .StartAsync();
+        await app.StartAsync();
 
+        _server = app.GetTestServer();
 
-        _client = _host.GetTestClient();
-
-        var response = await _client.GetStringAsync("/");
-        response.Should().NotBeNullOrEmpty();
+        Client = app.GetTestClient();
     }
 
     #region IDisposable
@@ -116,4 +150,21 @@ public class SystemFixture : IDisposable
         Dispose(false);
     }
     #endregion IDisposable
+}
+
+public class TestWebApplicationFactory<TProgram> : WebApplicationFactory<TProgram> where TProgram : class
+{
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        builder.UseEnvironment("Testing");
+
+        builder.ConfigureAppConfiguration((context, config) =>
+        {
+        });
+
+        builder.ConfigureTestServices(services =>
+        {
+
+        });
+    }
 }

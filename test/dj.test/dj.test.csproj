@@ -25,7 +25,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="../reference/**">
+    <None Include="../../reference/**">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>

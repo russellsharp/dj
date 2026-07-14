@@ -52,11 +52,11 @@ public static class ApplicationExtensions
     {
         var host = builder.Configuration.GetSection($"{HostConfiguration.SectionName}").Get<HostConfiguration>();
 
-        builder.Services.AddHttpsRedirection(options =>
-            {
-                options.RedirectStatusCode = StatusCodes.Status307TemporaryRedirect;
-                options.HttpsPort = 7123;
-            });
+        // builder.Services.AddHttpsRedirection(options =>
+        //     {
+        //         options.RedirectStatusCode = StatusCodes.Status307TemporaryRedirect;
+        //         options.HttpsPort = 7123;
+        //     });
 
         builder.Services
             .AddScoped<ITokenGenerator, AnonymousTokenGenerator>()
@@ -126,8 +126,7 @@ public static class ApplicationExtensions
 
     public static WebApplication SetupSecurity(this WebApplication app)
     {
-        app.UseHttpsRedirection()
-        .UseHttpsRedirection()
+        app/*.UseHttpsRedirection()*/
             .UseRateLimiter()
             .UseAuthentication()
             .UseAuthorization()
