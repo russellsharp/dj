@@ -34,13 +34,14 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\shared\shared.csproj" />
     <ProjectReference Include="..\..\src\api.core\api.core.csproj" />
+    <ProjectReference Include="..\..\src\api\api.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <None Include="../../reference/**">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
-    <None Include="appsettings.json">
+    <None Include="appsettings*.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
