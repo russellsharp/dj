@@ -12,7 +12,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.VisualStudio.TestPlatform.ObjectModel.Engine.ClientProtocol;
 using shared;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace dj.test.system;
 
@@ -63,7 +62,8 @@ public class Wireup : IDisposable, ISystemFixture
                 .AddSecurity()
                 .AddRateLimiter();
 
-        builder.Services.AddSingleton(cts);
+        var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken, cts.Token);
+        builder.Services.AddSingleton(linkedCts);
 
         builder.WebHost.UseTestServer();
         builder.WebHost.UseSetting("https_port", "443");
