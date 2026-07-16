@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using api.models;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Xunit;
@@ -27,7 +28,7 @@ public class SearchTests : BaseTest
             ["query"] = "training,day"
         };
 
-        var response = await _fixture.Get($"/api/media/query", searchTerms);
+        var response = await _fixture.Get($"/api/media/search", searchTerms);
 
         response.Should().NotBeNull();
 
@@ -36,6 +37,10 @@ public class SearchTests : BaseTest
         var content = await response.Content.ReadAsStringAsync();
 
         content.Should().NotBeNullOrEmpty();
+
+        var matches = System.Text.Json.JsonSerializer.Deserialize<QueryResults>(content);
+
+        Log(content);
     }
 
     [Fact]
@@ -46,7 +51,26 @@ public class SearchTests : BaseTest
             ["query"] = "training,day"
         };
 
-        var response = await _fixture.Get($"/api/media/query", searchTerms, "unauth");
+        var response = await _fixture.Get($"/api/media/search", searchTerms, "unauth");
+
+        response.Should().NotBeNull();
+
+        response.StatusCode.Should().Be(System.Net.HttpStatusCode.Unauthorized);
+
+        var content = await response.Content.ReadAsStringAsync();
+
+        content.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Forbidden403()
+    {
+        Dictionary<string, string> searchTerms = new()
+        {
+            ["query"] = "training,day"
+        };
+
+        var response = await _fixture.Get($"/api/media/search", searchTerms, "unauth");
 
         response.Should().NotBeNull();
 

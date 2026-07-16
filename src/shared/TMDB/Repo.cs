@@ -48,14 +48,6 @@ public class Repo : IDisposable, IRepo
 
     private string Language = "en-US";
 
-    //var options = new RestClientOptions("https://api.themoviedb.org/3/discover/movie?
-    // include_adult=false&
-    // include_video=false&
-    // language=en-US&
-    // page=1&
-    // sort_by=popularity.desc&
-    // with_keywords=ant-man");
-
     public async Task<string> DiscoverMovie(string query, int page = 1, CancellationToken? token = null)
     {
         token ??= _tokenSource.Token;

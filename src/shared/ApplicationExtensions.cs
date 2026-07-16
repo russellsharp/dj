@@ -60,6 +60,16 @@ public static class ApplicationExtensions
 
         builder.Services
             .AddScoped<ITokenGenerator, AnonymousTokenGenerator>()
+            .AddAuthorization(options =>
+            {
+                options.AddPolicy("ReadScope", policy =>
+                    policy.RequireAssertion(context =>
+                        context.User.HasClaim(c =>
+                            c.Type == "scope" &&
+                            c.Value.Split(' ').Contains("read:items") // Splits and searches
+                        )
+                    ));
+            })
             .AddAuthentication(options =>
             {
                 options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -78,6 +88,7 @@ public static class ApplicationExtensions
                     IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(host.Jwt.Key)),
                 };
             });
+
         return builder;
     }
 

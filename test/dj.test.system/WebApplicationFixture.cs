@@ -2,11 +2,16 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using api.models;
 using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Testing.Platform.Services;
+using shared.TMDB;
 using Xunit;
 
 namespace dj.test.system;
@@ -14,40 +19,21 @@ namespace dj.test.system;
 [CollectionDefinition("WebAppBase")]
 public class WebAppFixture : ICollectionFixture<WebApplication> { }
 
-public class WebApplication : ISystemFixture
+
+public class WebApplication : BaseFixture
 {
     public WebApplicationFactory<Program> Application;
-    public HttpClient Client { get; private set; }
-    public string _securityEndpoint = "/api/token/anonymous";
-    public string? _securityToken;
 
-    public async Task<HttpResponseMessage?> Get(string endpoint, Dictionary<string, string>? parameters = null, string? token = null)
+    public override async Task Initialize()
     {
-        var uri = new Uri(Client.BaseAddress, endpoint);
+        Application = new TestWebApplicationFactory<Program>();
 
-        var uriWithParameters = parameters != null ? new Uri(QueryHelpers.AddQueryString(uri.ToString(), parameters)) : uri;
-
-        Client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token != null ? token : _securityToken);
-
-        return await Client.GetAsync(uriWithParameters);
-    }
-
-    public async Task Initialize()
-    {
-        Application = new WebApplicationFactory<Program>();
-
-        Client = Application.CreateClient();
+        Client = Application.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = true
+        });
 
         await RequestSecurityToken();
-    }
-
-    public async Task RequestSecurityToken()
-    {
-        var tokenResponse = await Client.GetAsync(_securityEndpoint);
-
-        tokenResponse.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
-
-        _securityToken = await tokenResponse.Content.ReadAsStringAsync();
     }
 }
 
@@ -63,7 +49,99 @@ public class TestWebApplicationFactory<TProgram> : WebApplicationFactory<TProgra
 
         builder.ConfigureTestServices(services =>
         {
+            var originalCtsEntry = services.Single(x => x.ServiceType == typeof(CancellationTokenSource));
+            services.Remove(originalCtsEntry);
 
+            var cts = new CancellationTokenSource();
+            var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cts.Token, TestContext.Current.CancellationToken);
+
+            services.AddSingleton(linkedCts);
+
+            services.AddSingleton<IDataManagement, DataManagement>();
         });
     }
+
+    protected override void ConfigureClient(HttpClient client)
+    {
+        base.ConfigureClient(client);
+    }
+}
+
+public interface IDataManagement
+{
+    Task RestoreDefaults();
+    Task SetMedia(string newMediaDatabasePath);
+    Task SetTmdb(string tmdbDatabasePath);
+}
+
+public class DataManagement(shared.data.DatabaseConfiguration _dbConfig) : IDataManagement
+{
+    private string DatabasePath
+    {
+        get
+        {
+            var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
+            var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
+            return Path.GetFullPath(Path.Combine(rootDir, _dbConfig.DataFile));
+        }
+    }
+
+    private string ReferencePath
+    {
+        get
+        {
+            var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
+            var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
+            return Path.GetFullPath(Path.Combine(rootDir, "backup;_data/"));
+        }
+    }
+
+    public async Task RestoreDefaults()
+    {
+        var dirInfo = new DirectoryInfo(ReferencePath);
+
+        foreach (var file in dirInfo.EnumerateFiles())
+        {
+            file.CopyTo(DatabasePath, true);
+        }
+    }
+
+    public async Task SetMedia(string newMediaDatabasePath)
+    {
+        if (!File.Exists(newMediaDatabasePath))
+        {
+            Console.WriteLine($"Could not find database source: {newMediaDatabasePath}");
+            return;
+        }
+
+        try
+        {
+            File.Copy(newMediaDatabasePath, DatabasePath, true);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error while settings {newMediaDatabasePath} to media database:  {ex}");
+        }
+    }
+
+    public async Task SetTmdb(string tmdbDatabasePath)
+    {
+        if (!File.Exists(tmdbDatabasePath))
+        {
+            Console.WriteLine($"Could not find database source: {tmdbDatabasePath}");
+            return;
+        }
+
+        try
+        {
+            File.Copy(tmdbDatabasePath, DatabasePath, true);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error while settings {tmdbDatabasePath} to tmdb database:  {ex}");
+        }
+
+    }
+
+
 }

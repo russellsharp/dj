@@ -35,6 +35,10 @@
     <None Include="../../reference/**">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
+    <None Include="../../reference/data/**">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <DestinationFolder>data_reference/</DestinationFolder>
+    </None>
     <None Include="appsettings*.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

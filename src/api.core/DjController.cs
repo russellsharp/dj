@@ -32,6 +32,7 @@ public class DjController(
     }
 
     [HttpGet("search")]
+    [Authorize(Policy = "ReadScope")]
     [ProducesResponseType(typeof(Matches), StatusCodes.Status200OK)]
     public async Task<Ok<QueryResults>> Search([FromQuery, StringLength(100)] string query)
     {
