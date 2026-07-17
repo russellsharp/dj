@@ -33,7 +33,7 @@ public class WebApplication : BaseFixture
             AllowAutoRedirect = true
         });
 
-        await RequestSecurityToken();
+        await RequestAnonymousToken();
     }
 }
 

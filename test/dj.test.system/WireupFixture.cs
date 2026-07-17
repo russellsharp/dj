@@ -46,14 +46,15 @@ public class Wireup : BaseFixture, IDisposable
         builder.WebHost.UseSetting("https_port", "443");
 
         var app = builder.Build();
-        app.SetupSecurity(); //must come before MapControllers
+        app.UseRouting();
+        await app.SetupSecurity(); //must come before MapControllers
         app.MapControllers();
 
         await app.StartAsync();
 
         Client = app.GetTestClient();
 
-        await RequestSecurityToken();
+        await RequestAnonymousToken();
 
         //initialize the media service to preload the files from database
         var media = app.Services.GetRequiredService<IMediaCollection>();

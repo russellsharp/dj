@@ -14,11 +14,16 @@
     <PackageReference Include="Dapper.Logging" Version="0.4.3" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.9" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.9" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.10" />
+    <PackageReference Include="OpenIddict" Version="7.6.0" />
+    <PackageReference Include="OpenIddict.AspNetCore" Version="7.6.0" />
+    <PackageReference Include="OpenIddict.EntityFrameworkCore" Version="7.6.0" />
+    <PackageReference Include="OpenIddict.Server.AspNetCore" Version="7.6.0" />
   <!-- Force the background dependency to use the latest safe version -->
   <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
   
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.9" />
-    <PackageReference Include="Microsoft.Extensions.Http.Polly" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Extensions.Http.Polly" Version="10.0.10" />
     <PackageReference Include="RestSharp" Version="114.0.0" />
     <PackageReference Include="Syn.WordNet" Version="1.0.5" />
     <PackageReference Include="System.Threading.RateLimiting" Version="10.0.9" />

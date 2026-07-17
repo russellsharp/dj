@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.AspNetCore.WebUtilities;
 
+using System.Net.Http.Json;
 namespace dj.test.system;
 
 public class BaseFixture : ISystemFixture
@@ -31,7 +32,7 @@ public class BaseFixture : ISystemFixture
 
     }
 
-    protected async Task RequestSecurityToken()
+    protected async Task RequestAnonymousToken()
     {
         var tokenResponse = await Client.GetAsync(_securityEndpoint);
 
@@ -39,4 +40,28 @@ public class BaseFixture : ISystemFixture
 
         _securityToken = await tokenResponse.Content.ReadAsStringAsync();
     }
+
+    protected async Task RequestScopedToken()
+    {
+        // Define the OAuth 2.0 payload parameters
+        var requestBody = new Dictionary<string, string>
+        {
+            { "grant_type", "client_credentials" },
+            { "client_id", "console-app-client" },
+            { "client_secret", "super-secret-password-123" },
+            { "scope", "read:items" } // Requesting our specific scope privilege
+        };
+
+        // Send as application/x-www-form-urlencoded
+        var response = await Client.PostAsync("api/token/scoped", new FormUrlEncodedContent(requestBody));
+
+        if (response.IsSuccessStatusCode)
+        {
+            var tokenData = await response.Content.ReadFromJsonAsync<TokenResponse>();
+            Console.WriteLine($"Access Token: {tokenData?.AccessToken}");
+        }
+    }
 }
+
+
+public record TokenResponse(string AccessToken, string TokenType, int ExpiresIn);

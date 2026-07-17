@@ -7,10 +7,16 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using shared.http;
 using shared.thesaurus;
 using shared.TMDB;
+using Microsoft.EntityFrameworkCore;
+using OpenIddict.Abstractions;
+using OpenIddict.Validation.AspNetCore;
+using shared.http.security;
+
 namespace shared;
 
 public static class ApplicationExtensions
@@ -50,7 +56,6 @@ public static class ApplicationExtensions
 
     public static IHostApplicationBuilder AddSecurity(this IHostApplicationBuilder builder)
     {
-        var host = builder.Configuration.GetSection($"{HostConfiguration.SectionName}").Get<HostConfiguration>();
 
         // builder.Services.AddHttpsRedirection(options =>
         //     {
@@ -58,18 +63,19 @@ public static class ApplicationExtensions
         //         options.HttpsPort = 7123;
         //     });
 
-        builder.Services
-            .AddScoped<ITokenGenerator, AnonymousTokenGenerator>()
-            .AddAuthorization(options =>
-            {
-                options.AddPolicy("ReadScope", policy =>
-                    policy.RequireAssertion(context =>
-                        context.User.HasClaim(c =>
-                            c.Type == "scope" &&
-                            c.Value.Split(' ').Contains("read:items") // Splits and searches
-                        )
-                    ));
-            })
+        builder.AddOpenIddict();
+
+        builder.Services.AddSingleton<ITokenGenerator, AnonymousTokenGenerator>();
+        // builder.AddJwtBearer();
+
+        return builder;
+    }
+
+    private static IHostApplicationBuilder AddJwtBearer(this IHostApplicationBuilder builder)
+    {
+        var host = builder.Configuration.GetSection($"{HostConfiguration.SectionName}").Get<HostConfiguration>();
+
+        builder.Services.AddScoped<ITokenGenerator, AnonymousTokenGenerator>()
             .AddAuthentication(options =>
             {
                 options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -88,7 +94,6 @@ public static class ApplicationExtensions
                     IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(host.Jwt.Key)),
                 };
             });
-
         return builder;
     }
 
@@ -135,13 +140,18 @@ public static class ApplicationExtensions
         return builder;
     }
 
-    public static WebApplication SetupSecurity(this WebApplication app)
+    public static async Task<WebApplication> SetupSecurity(this WebApplication app)
     {
-        app/*.UseHttpsRedirection()*/
+        app
+            /*.UseHttpsRedirection()*/
+            .UseCors(policy => policy.WithOrigins("https://127.0.0.1").AllowAnyMethod().AllowAnyHeader())
             .UseRateLimiter()
             .UseAuthentication()
-            .UseAuthorization()
-            .UseCors(policy => policy.WithOrigins("https://127.0.0.1").AllowAnyMethod().AllowAnyHeader());
+            .UseAuthorization();
+
+
+        await app.SetupTestClient();
+
         return app;
     }
 }

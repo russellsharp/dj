@@ -35,7 +35,9 @@ builder.AddConfiguration()
 builder.Services.AddSingleton(cts);
 
 var app = builder.Build();
-app.SetupSecurity(); //must come before MapControllers
+
+app.UseRouting(); // must be called before SetupSecurity
+await app.SetupSecurity(); //must come before MapControllers
 app.MapControllers();
 
 // Configure the HTTP request pipeline.

@@ -1,9 +1,14 @@
+# @withCredentials false
+# @no-cookie
+# @no-log
+# @no-reject-unauthorized // <--- ADD THIS LINE TO THE TOP OF YOUR FILE
+
 # Disable SSL certificate strictness for local dev certificates
 @settings = {"request.certificates.strictSSL": false}
 
 # Corrected port variables based on your console logs
 @api_HostAddressSecure = https://localhost:7123/api
-@api_HostAddress = http://localhost:5282/api
+@api_HostAddress = http://127.0.0.1:5282/api
 
 GET {{api_HostAddress}}/health
 Accept: application/json
@@ -23,6 +28,20 @@ Accept: application/json
 GET {{api_HostAddress}}/media/search?query=training,day
 Content-Type: application/json
 Authorization: Bearer {{tokenAnon.response.body.$}}
+
+###
+
+### 1. Request Scoped Client Credentials Token
+# @name scopedToken
+POST {{api_HostAddressSecure}}/token/scoped
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=client_credentials&client_id=console-app-client-read&client_secret=super-secret-password-123&scope=items:read
+
+### 2. Access a Protected Resource (Example)
+# @name authenticatedRequest
+GET {{api_HostAddressSecure}}/media/search?query=training,day
+Authorization: Bearer {{scopedToken.response.body.access_token}}
 
 ###
 
