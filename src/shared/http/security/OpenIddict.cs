@@ -130,6 +130,7 @@ public static partial class ApplicationExtensions
         using (var scope = app.Services.CreateScope())
         {
             var userContext = scope.ServiceProvider.GetRequiredService<UserDbContext>();
+
             userContext.Database.EnsureCreated();
 
             app.SetupTestData();
@@ -141,7 +142,7 @@ public static partial class ApplicationExtensions
                 // Check if our test client already exists
                 var application = await manager.FindByClientIdAsync(user.ClientId);
 
-                if (application == null)
+                if (application is null)
                 {
                     var applicationDescriptor = new OpenIddictApplicationDescriptor
                     {
@@ -155,13 +156,11 @@ public static partial class ApplicationExtensions
                                         OpenIddictConstants.Permissions.GrantTypes.ClientCredentials
                                     }
                     };
+
                     var result = await manager.CreateAsync(applicationDescriptor);
 
-                    application = await manager.FindByClientIdAsync(user.ClientId);
-                    if (application is null)
-                    {
-                        throw new Exception("Application not found.");
-                    }
+                    application = await manager.FindByClientIdAsync(user.ClientId) ?? throw new Exception("Application not found.");
+
                     await manager.PopulateAsync(applicationDescriptor, application);
 
                     foreach (var grantingScope in user.GrantedScopes)

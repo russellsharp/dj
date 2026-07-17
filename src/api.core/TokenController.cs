@@ -34,10 +34,11 @@ namespace api
             var request = HttpContext.GetOpenIddictServerRequest()
                 ?? throw new InvalidOperationException("The OAuth request cannot be retrieved.");
 
+            var registeredClients = _userDb.UserInfo.Select(x => x.ClientId).ToList();
+
             if (request.IsClientCredentialsGrantType())
             {
-                // 1. Validate client identity
-                if (request.ClientId != "console-app-client-read")
+                if (request.ClientId != null && !registeredClients.Contains(request.ClientId))
                 {
                     return TypedResults.Forbid(authenticationSchemes: [OpenIddictServerAspNetCoreDefaults.AuthenticationScheme]);
                 }

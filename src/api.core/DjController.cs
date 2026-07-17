@@ -52,6 +52,7 @@ public class DjController(
     }
 
     [HttpGet("query")]
+    [Authorize(Policy = "ReadScope")]
     [ProducesResponseType(typeof(TMDBResults), StatusCodes.Status200OK)]
     public async Task<Ok<TMDBResults>> Query([FromQuery] string query, [FromQuery] MediaType type)
     {
@@ -73,6 +74,7 @@ public class DjController(
     }
 
     [HttpGet("details")]
+    [Authorize(Policy = "ReadScope")]
     [ProducesResponseType(typeof(TMDBDetailResults), StatusCodes.Status200OK)]
     public async Task<Ok<TMDBDetailResults>> Details([FromQuery] string query, [FromQuery] MediaType type, [FromQuery] bool updateRepo = false)
     {
@@ -106,6 +108,7 @@ public class DjController(
 
 
     [HttpGet("media")]
+    [Authorize(Policy = "ReadScope")]
     [ProducesResponseType(typeof(MediaFiles), StatusCodes.Status200OK)]
     public async Task<Ok<MediaFiles>> Media([FromQuery] MediaType type, [FromQuery] bool updateRepo = false)
     {
@@ -125,6 +128,7 @@ public class DjController(
     }
 
     [HttpGet("match/queries")]
+    [Authorize(Policy = "ReadScope")]
     [ProducesResponseType(typeof(MatchQueries), StatusCodes.Status200OK)]
     public async Task<Ok<MatchQueries>> MatchQueries([FromQuery] string query, [FromQuery] MediaType type, [FromQuery] int minimumHits)
     {
@@ -177,6 +181,7 @@ public class DjController(
     }
 
     [HttpGet("match/local")]
+    [Authorize(Policy = "ReadScope")]
     [ProducesResponseType(typeof(Matches), StatusCodes.Status200OK)]
     public async Task<Ok<Matches>> MatchLocal([FromQuery] string query, [FromQuery] MediaType type, [FromQuery] int minimumHits)
     {
@@ -231,6 +236,7 @@ public class DjController(
     });
 
     [HttpGet("match/local/synonyms")]
+    [Authorize(Policy = "ReadScope")]
     [ProducesResponseType(typeof(Matches), StatusCodes.Status200OK)]
     public async Task<Ok<Matches>> MatchLocalSynonyms([FromQuery] string query, [FromQuery] MediaType type, [FromQuery] int minimumHIts)
     {
@@ -300,6 +306,7 @@ public class DjController(
     private static Guid TmdbUpdateJobId = new Guid("04abfbfd-287a-4d2e-acc4-b54e54136ae0");
 
     [HttpPost("update")]
+    [Authorize(Policy = "WriteScope")]
     [ProducesResponseType(typeof(MediaUpdateStatus), StatusCodes.Status200OK)]
     public async Task<Ok<MediaUpdateStatus>> Update([FromQuery] bool fromScratch = false, [FromQuery] string? baseDirectory = null)
     {
@@ -325,6 +332,7 @@ public class DjController(
     }
 
     [HttpGet("update/status")]
+    [Authorize(Policy = "ReadScope")]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(MediaUpdateStatus), StatusCodes.Status200OK)]
     public async Task<Results<Ok<MediaUpdateStatus>, NotFound<ProblemDetails>>> UpdateStatus([FromQuery] int taskId)
@@ -341,6 +349,7 @@ public class DjController(
     }
 
     [HttpPost("update/cancel")]
+    [Authorize(Policy = "WriteScope")]
     [ProducesResponseType(typeof(MediaUpdateStatus), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<Results<Ok<MediaUpdateStatus>, NotFound<ProblemDetails>>> UpdateCancel()
@@ -370,6 +379,7 @@ public class DjController(
     }
 
     [HttpPost("tmdb/update")]
+    [Authorize(Policy = "WriteScope")]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(MediaUpdateStatus), StatusCodes.Status200OK)]
@@ -414,6 +424,7 @@ public class DjController(
     }
 
     [HttpPost("tmdb/update/cancel")]
+    [Authorize(Policy = "WriteScope")]
     [ProducesResponseType(typeof(Matches), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<Results<Ok<MediaUpdateStatus>, NotFound<ProblemDetails>>> TmdbUpdateCancel()
@@ -438,6 +449,7 @@ public class DjController(
     }
 
     [HttpGet("tmdb/update/status")]
+    [Authorize(Policy = "ReadScope")]
     [ProducesResponseType(typeof(MediaUpdateStatus), StatusCodes.Status200OK)]
     public async Task<Ok<MediaUpdateStatus>> TmdbUpdateStatus()
     {

@@ -57,15 +57,16 @@ public static class ApplicationExtensions
     public static IHostApplicationBuilder AddSecurity(this IHostApplicationBuilder builder)
     {
 
-        // builder.Services.AddHttpsRedirection(options =>
-        //     {
-        //         options.RedirectStatusCode = StatusCodes.Status307TemporaryRedirect;
-        //         options.HttpsPort = 7123;
-        //     });
+        builder.Services.AddHttpsRedirection(options =>
+            {
+                options.RedirectStatusCode = StatusCodes.Status307TemporaryRedirect;
+                options.HttpsPort = 7123;
+            });
 
         builder.AddOpenIddict();
 
         builder.Services.AddSingleton<ITokenGenerator, AnonymousTokenGenerator>();
+
         // builder.AddJwtBearer();
 
         return builder;
@@ -143,7 +144,7 @@ public static class ApplicationExtensions
     public static async Task<WebApplication> SetupSecurity(this WebApplication app)
     {
         app
-            /*.UseHttpsRedirection()*/
+            .UseHttpsRedirection()
             .UseCors(policy => policy.WithOrigins("https://127.0.0.1").AllowAnyMethod().AllowAnyHeader())
             .UseRateLimiter()
             .UseAuthentication()

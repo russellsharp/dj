@@ -18,85 +18,90 @@ Get https://localhost:7123/openapi/v1.json
 Accept: application/json
 ###
 
-# @name tokenAnon
+# @name readToken
 GET {{api_HostAddress}}/token/anonymous
 Accept: application/json
 ###
 
-@token = {{tokenAnon.response.body.$}}
-
-GET {{api_HostAddress}}/media/search?query=training,day
-Content-Type: application/json
-Authorization: Bearer {{tokenAnon.response.body.$}}
+@token = {{readToken.response.body.access_token}}
 
 ###
 
-### 1. Request Scoped Client Credentials Token
-# @name scopedToken
+# @name readToken
 POST {{api_HostAddressSecure}}/token/scoped
 Content-Type: application/x-www-form-urlencoded
 
 grant_type=client_credentials&client_id=console-app-client-read&client_secret=super-secret-password-123&scope=media:read
 
-### 2. Access a Protected Resource (Example)
-# @name authenticatedRequest
+###
+# @name writeToken
+POST {{api_HostAddressSecure}}/token/scoped
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=client_credentials&client_id=console-app-client-rw&client_secret=super-secret-password-123&scope=media:write media:read
+
+###
 GET {{api_HostAddressSecure}}/media/search?query=training,day
-Authorization: Bearer {{scopedToken.response.body.access_token}}
+Authorization: Bearer {{readToken.response.body.access_token}}
 
 ###
 
 GET {{api_HostAddressSecure}}/media/query?query=training,day
-Accept: application/json
-Authorization: Bearer {{tokenAnon.response.body.$}}
+Authorization: Bearer {{readToken.response.body.access_token}}
 
 ###
 
 GET {{api_HostAddressSecure}}/media/details?query=training,day
 Accept: application/json
-Authorization: Bearer {{tokenAnon.response.body.$}}
+Authorization: Bearer {{readToken.response.body.access_token}}
+
 ###
 
 GET {{api_HostAddressSecure}}/media/media?type=Video&updateRepo=true
 Accept: application/json
-Authorization: Bearer {{tokenAnon.response.body.$}}
+Authorization: Bearer {{readToken.response.body.access_token}}
+
 ###
 
 GET {{api_HostAddressSecure}}/media/match/local?query=dirty,cop&type=Video&minimumHits=1
 Accept: application/json
-Authorization: Bearer {{tokenAnon.response.body.$}}
+Authorization: Bearer {{readToken.response.body.access_token}}
+
 ###
 
 GET {{api_HostAddressSecure}}/media/match/local/synonyms?query=dirty,cop&type=Video&minimumHits=1
 Accept: application/json
-Authorization: Bearer {{tokenAnon.response.body.$}}
+Authorization: Bearer {{readToken.response.body.access_token}}
+
 ###
 
 POST {{api_HostAddressSecure}}/media/update/?fromScratch=true&baseDirectory=//fatty/existing
 Accept: application/json
-Authorization: Bearer {{tokenAnon.response.body.$}}
+Authorization: Bearer {{writeToken.response.body.access_token}}
+
 ###
 
 GET {{api_HostAddressSecure}}/media/update/status/
 Accept: application/json
-Authorization: Bearer {{tokenAnon.response.body.$}}
+Authorization: Bearer {{readToken.response.body.access_token}}
 ###
 
 POST {{api_HostAddressSecure}}/media/update/cancel
 Accept: application/json
-Authorization: Bearer {{tokenAnon.response.body.$}}
+Authorization: Bearer {{writeToken.response.body.access_token}}
 ###
 
 POST {{api_HostAddressSecure}}/media/tmdb/update
 Accept: application/json
-Authorization: Bearer {{tokenAnon.response.body.$}}
+Authorization: Bearer {{writeToken.response.body.access_token}}
 ###
 
 POST {{api_HostAddressSecure}}/media/tmdb/update/cancel
 Accept: application/json
-Authorization: Bearer {{tokenAnon.response.body.$}}
+Authorization: Bearer {{writeToken.response.body.access_token}}
 ###
 
 GET {{api_HostAddressSecure}}/media/tmdb/update/status
 Accept: application/json
-Authorization: Bearer {{tokenAnon.response.body.$}}
+Authorization: Bearer {{readToken.response.body.access_token}}
 ###
