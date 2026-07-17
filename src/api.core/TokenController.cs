@@ -9,17 +9,18 @@ using OpenIddict.Abstractions;
 using OpenIddict.Server.AspNetCore;
 using OpenIdConnectRequest = Microsoft.IdentityModel.Protocols.OpenIdConnect.OpenIdConnectMessage;
 using shared.http;
+using shared.util;
 using static OpenIddict.Abstractions.OpenIddictConstants;
+using shared.http.security;
+using Microsoft.OpenApi;
 
 namespace api
 {
     [ApiController]
     [AllowAnonymous]
     [Route("api/token")]
-    public class TokenController(ITokenGenerator _tokenGen) : Controller
+    public class TokenController(ITokenGenerator _tokenGen, UserDbContext _userDb) : Controller
     {
-        private List<string> _RegisteredScopes = ["items:read", "items:write"];
-
         [HttpGet("anonymous"), AllowAnonymous]
         public async Task<string> RequestAnonymousToken()
         {
@@ -45,10 +46,12 @@ namespace api
                 var identity = new ClaimsIdentity(TokenValidationParameters.DefaultAuthenticationType);
                 identity.AddClaim(Claims.Subject, request.ClientId);
 
+                var applicationScopes = _userDb.ApplicationScopes.ToList().Select(s => s.Value.ToOidc());
+
                 // 3. Grant only the requested and permitted scopes
                 var grantedScopes = request.Scope?
                     .Split(' ', StringSplitOptions.RemoveEmptyEntries)
-                    .Where(_RegisteredScopes.Contains)
+                    .Where(applicationScopes.Contains)
                     .ToList() ?? new List<string>();
 
                 if (grantedScopes.Count == 0)

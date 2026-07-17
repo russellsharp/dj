@@ -1,53 +1,35 @@
 using System;
 using System.Collections.Frozen;
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using OpenIddict.Abstractions;
 using OpenIddict.Validation.AspNetCore;
 using Polly;
+using shared.util;
 
 namespace shared.http.security;
 
-public class UserDbContext : DbContext
+public enum Scopes
 {
-    public class UserInformation
+    [Description("media:read")]
+    MediaRead,
+    [Description("media:write")]
+    MediaWrite
+}
+
+public static class ScopesExtensions
+{
+    public static string ToOidc(this Scopes value)
     {
-        [Key]
-        public string ClientId { get; set; } = "";
-        public List<string> Scopes { get; set; } = new();
-        public string Password { get; set; } = "";
-        public string DisplayName { get; set; } = "";
-    };
-
-    public UserDbContext(DbContextOptions<UserDbContext> options) : base(options) { }
-
-    public DbSet<UserInformation> UserInfo { get; set; }
-
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
-    {
-        base.OnModelCreating(modelBuilder);
-
-        // Define the Primary Key
-        modelBuilder.Entity<UserInformation>()
-            .HasKey(u => u.ClientId);
-
-        // Tell InMemory how to store the List<string> as a JSON string internally
-        modelBuilder.Entity<UserInformation>()
-            .Property(u => u.Scopes)
-            .HasConversion(
-                v => JsonSerializer.Serialize(v, (JsonSerializerOptions)null),
-                v => JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions)null) ?? new List<string>()
-            );
-
+        return value.ToDescription();
     }
 }
 
@@ -55,6 +37,18 @@ public static partial class ApplicationExtensions
 {
     public static IHostApplicationBuilder AddOpenIddict(this IHostApplicationBuilder builder)
     {
+        builder.Services.ConfigureHttpJsonOptions(options =>
+        {
+            options.SerializerOptions.Converters.Add(new ScopeListConverter());
+        });
+        builder.Services.Configure<Microsoft.AspNetCore.Mvc.JsonOptions>(options =>
+        {
+            options.JsonSerializerOptions.Converters.Add(new ScopeListConverter());
+        });
+        builder.Services.Configure<JsonSerializerOptions>(options =>
+        {
+            options.Converters.Add(new ScopeListConverter());
+        });
 
         builder.Services.AddAuthentication(options =>
         {
@@ -68,7 +62,7 @@ public static partial class ApplicationExtensions
                 policy.RequireAssertion(context =>
                     context.User.HasClaim(c =>
                         c.Type == "scope" &&
-                        c.Value.Split(' ').Contains("items:read")
+                        c.Value.Split(' ').Contains(Scopes.MediaRead.ToOidc())
                     )
                 ));
 
@@ -76,7 +70,7 @@ public static partial class ApplicationExtensions
                 policy.RequireAssertion(context =>
                     context.User.HasClaim(c =>
                         c.Type == "scope" &&
-                        c.Value.Split(' ').Contains("items:write")
+                        c.Value.Split(' ').Contains(Scopes.MediaWrite.ToOidc())
                     )
                 ));
         });
@@ -104,7 +98,7 @@ public static partial class ApplicationExtensions
                 .AddServer(options =>
                 {
                     // Register the custom scopes so OpenIddict accepts them in token requests.
-                    options.RegisterScopes(["items:read", "items:write"]);
+                    options.RegisterScopes(["media:read", "media:write"]);
 
                     // Disable builtin scope validation so our controller can accept and validate custom scopes.
                     options.DisableScopeValidation();
@@ -138,36 +132,17 @@ public static partial class ApplicationExtensions
             var userContext = scope.ServiceProvider.GetRequiredService<UserDbContext>();
             userContext.Database.EnsureCreated();
 
-            //seed userContext with test users
-            if (!userContext.UserInfo.Any())
-            {
-                userContext.UserInfo.Add(new UserDbContext.UserInformation
-                {
-                    ClientId = "console-app-client-read",
-                    Scopes = ["items:read"],
-                    DisplayName = "console-app-client-read",
-                    Password = "super-secret-password-123"
-                });
-
-                userContext.SaveChanges();
-            }
+            app.SetupTestData();
 
             var manager = scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>();
 
-            Console.WriteLine("wooooo");
-            Debug.WriteLine("ahhhh");
-
             foreach (var user in userContext.UserInfo)
             {
-                Console.WriteLine("asdf;asldkfj;asdlkfja;sdlkfj " + user.ClientId);
-                Debug.WriteLine("asdf;asldkfj;asdlkfja;sdlkfj " + user.ClientId);
                 // Check if our test client already exists
                 var application = await manager.FindByClientIdAsync(user.ClientId);
 
                 if (application == null)
                 {
-                    var permissions = user.Scopes.ToHashSet();
-
                     var applicationDescriptor = new OpenIddictApplicationDescriptor
                     {
                         ClientId = user.ClientId,
@@ -177,8 +152,7 @@ public static partial class ApplicationExtensions
                                     {                                        
                                         // Must explicitly permit the flow and endpoint
                                         OpenIddictConstants.Permissions.Endpoints.Token,
-                                        OpenIddictConstants.Permissions.GrantTypes.ClientCredentials,
-                                        "items:read"
+                                        OpenIddictConstants.Permissions.GrantTypes.ClientCredentials
                                     }
                     };
                     var result = await manager.CreateAsync(applicationDescriptor);
@@ -190,9 +164,9 @@ public static partial class ApplicationExtensions
                     }
                     await manager.PopulateAsync(applicationDescriptor, application);
 
-                    foreach (var grantingScope in user.Scopes)
+                    foreach (var grantingScope in user.GrantedScopes)
                     {
-                        var permission = $"scp:{grantingScope}";
+                        var permission = $"scp:{grantingScope.ToOidc()}";
                         applicationDescriptor.Permissions.Add(permission);
                     }
 

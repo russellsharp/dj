@@ -36,7 +36,7 @@ Authorization: Bearer {{tokenAnon.response.body.$}}
 POST {{api_HostAddressSecure}}/token/scoped
 Content-Type: application/x-www-form-urlencoded
 
-grant_type=client_credentials&client_id=console-app-client-read&client_secret=super-secret-password-123&scope=items:read
+grant_type=client_credentials&client_id=console-app-client-read&client_secret=super-secret-password-123&scope=media:read
 
 ### 2. Access a Protected Resource (Example)
 # @name authenticatedRequest
