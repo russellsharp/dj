@@ -18,12 +18,12 @@ Get https://localhost:7123/openapi/v1.json
 Accept: application/json
 ###
 
-# @name readToken
+# @name anonToken
 GET {{api_HostAddress}}/token/anonymous
 Accept: application/json
 ###
 
-@token = {{readToken.response.body.access_token}}
+@readToken = {{readToken.response.body.access_token}}
 
 ###
 
@@ -57,7 +57,7 @@ Authorization: Bearer {{readToken.response.body.access_token}}
 
 ###
 
-GET {{api_HostAddressSecure}}/media/media?type=Video&updateRepo=true
+GET {{api_HostAddressSecure}}/media/media?type=Video
 Accept: application/json
 Authorization: Bearer {{readToken.response.body.access_token}}
 

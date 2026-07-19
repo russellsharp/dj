@@ -3,13 +3,20 @@ using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Diagnostics.Eventing.Reader;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
 using OpenIddict.Abstractions;
 using OpenIddict.Validation.AspNetCore;
 using Polly;
@@ -31,11 +38,8 @@ public static class ScopesExtensions
     {
         return value.ToDescription();
     }
-}
 
-public static partial class ApplicationExtensions
-{
-    public static IHostApplicationBuilder AddOpenIddict(this IHostApplicationBuilder builder)
+    public static IHostApplicationBuilder AddScopeJsonConverters(this IHostApplicationBuilder builder)
     {
         builder.Services.ConfigureHttpJsonOptions(options =>
         {
@@ -49,6 +53,17 @@ public static partial class ApplicationExtensions
         {
             options.Converters.Add(new ScopeListConverter());
         });
+
+        return builder;
+    }
+}
+
+public static partial class ApplicationExtensions
+{
+    public static IHostApplicationBuilder AddOpenIddict(this IHostApplicationBuilder builder)
+    {
+
+        builder.AddScopeJsonConverters();
 
         builder.Services.AddAuthentication(options =>
         {
@@ -75,22 +90,22 @@ public static partial class ApplicationExtensions
                 ));
         });
 
-        builder.Services.AddOpenIddictService();
+        builder.AddOpenIddictService();
 
         return builder;
     }
 
-    private static IServiceCollection AddOpenIddictService(this IServiceCollection services)
+    private static IHostApplicationBuilder AddOpenIddictService(this IHostApplicationBuilder builder)
     {
-        services.AddDbContext<ApplicationDbContext>(options =>
+        builder.Services.AddDbContext<ApplicationDbContext>(options =>
         {
             options.UseInMemoryDatabase("OAuthDatabase");
             options.UseOpenIddict();
         });
 
-        services.AddDbContext<UserDbContext>(options => options.UseInMemoryDatabase("UserDatabase"));
+        builder.Services.AddDbContext<UserDbContext>(options => options.UseInMemoryDatabase("UserDatabase"));
 
-        services.AddOpenIddict()
+        builder.Services.AddOpenIddict()
                 .AddCore(options =>
                 {
                     options.UseEntityFrameworkCore().UseDbContext<ApplicationDbContext>();
@@ -108,21 +123,41 @@ public static partial class ApplicationExtensions
                     options.AllowClientCredentialsFlow(); // Machine-to-machine exchange
 
                     // ADD THIS LINE to downgrade encryption to visible JWT format
-                    options.DisableAccessTokenEncryption();
+                    // options.DisableAccessTokenEncryption();
+
+                    SecurityConfiguration? securityConfig = new();
+                    // builder.Configuration.GetSection("SecurityConfiguration").Bind(securityConfig);
+
+                    using (var temporaryServiceProvider = builder.Services.BuildServiceProvider())
+                    {
+                        securityConfig = temporaryServiceProvider.GetRequiredService<IOptions<SecurityConfiguration>>()?.Value;
+                    }
 
                     // Register the cryptographic signing keys
-                    options.AddDevelopmentEncryptionCertificate()
-                        .AddDevelopmentSigningCertificate();
+                    if (securityConfig != null && !string.IsNullOrEmpty(securityConfig.SecurityKey))
+                    {
+                        var symmetricKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(securityConfig.SecurityKey));
+                        options.AddSigningKey(symmetricKey);
+                        options.AddEncryptionKey(symmetricKey);
+                    }
+                    else if (builder.Environment.IsDevelopment())
+                    {
+                        options.AddDevelopmentEncryptionCertificate()
+                            .AddDevelopmentSigningCertificate();
+                    }
+
+                    options.AddEphemeralSigningKey();
 
                     // Register the ASP.NET Core host
                     options.UseAspNetCore().EnableTokenEndpointPassthrough();
+
                 })
                 .AddValidation(options =>
                 {
                     options.UseLocalServer();
                     options.UseAspNetCore();
                 });
-        return services;
+        return builder;
     }
 
     public static async Task<WebApplication> SetupTestClient(this WebApplication app)
@@ -163,11 +198,7 @@ public static partial class ApplicationExtensions
 
                     await manager.PopulateAsync(applicationDescriptor, application);
 
-                    foreach (var grantingScope in user.GrantedScopes)
-                    {
-                        var permission = $"scp:{grantingScope.ToOidc()}";
-                        applicationDescriptor.Permissions.Add(permission);
-                    }
+                    applicationDescriptor.AddScopePermissions([.. user.GrantedScopes.Select(x => x.ToOidc())]);
 
                     await manager.UpdateAsync(application, applicationDescriptor);
                 }

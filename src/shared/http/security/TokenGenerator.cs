@@ -5,7 +5,7 @@ using System.Text;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
-namespace shared.http;
+namespace shared.http.security;
 
 public interface ITokenGenerator
 {

@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 using Microsoft.EntityFrameworkCore;
 
-namespace shared;
+namespace shared.http.security;
 
 public class ApplicationDbContext : DbContext
 {

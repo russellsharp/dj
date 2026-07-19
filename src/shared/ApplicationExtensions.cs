@@ -7,14 +7,9 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
-using shared.http;
 using shared.thesaurus;
 using shared.TMDB;
-using Microsoft.EntityFrameworkCore;
-using OpenIddict.Abstractions;
-using OpenIddict.Validation.AspNetCore;
 using shared.http.security;
 
 namespace shared;
@@ -35,7 +30,7 @@ public static class ApplicationExtensions
     }
 
 
-    private static string GetKeyFromStore()
+    private static string GetKeyFromFile()
     {
         var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
         var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
@@ -57,22 +52,27 @@ public static class ApplicationExtensions
     public static IHostApplicationBuilder AddSecurity(this IHostApplicationBuilder builder)
     {
 
+        //TODO: correlation ID for http context
+
         builder.Services.AddHttpsRedirection(options =>
             {
                 options.RedirectStatusCode = StatusCodes.Status307TemporaryRedirect;
                 options.HttpsPort = 7123;
             });
 
+        //must be called before security services are added
+        builder.AddSecurityConfiguration();
+
         builder.AddOpenIddict();
 
         builder.Services.AddSingleton<ITokenGenerator, AnonymousTokenGenerator>();
 
-        // builder.AddJwtBearer();
+        // builder.AddAnonymousTokenService();
 
         return builder;
     }
 
-    private static IHostApplicationBuilder AddJwtBearer(this IHostApplicationBuilder builder)
+    private static IHostApplicationBuilder AddAnonymousTokenService(this IHostApplicationBuilder builder)
     {
         var host = builder.Configuration.GetSection($"{HostConfiguration.SectionName}").Get<HostConfiguration>();
 
@@ -167,6 +167,7 @@ public class HostConfiguration
 
 public class JwtConfiguration
 {
+    public static string SectionName = "Jwt";
     public string Issuer { get; init; } = "";
     public string Audience { get; init; } = "";
     public string Key { get; init; } = "";

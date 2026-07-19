@@ -49,7 +49,7 @@ public class RateLimiter : IRateLimiter
                 },
                 onRetryAsync: async (exception, timeSpan, retryCount, context) =>
                 {
-                    Console.WriteLine("onretry");
+                    Console.WriteLine($"onretry Exception: {exception}\r\nTime: {timeSpan.ToString("d")}\r\nRetryCount: {retryCount}\r\nCorrelationId: {context.CorrelationId}");
                 }
         );
 

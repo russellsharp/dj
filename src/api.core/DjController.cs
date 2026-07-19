@@ -110,19 +110,9 @@ public class DjController(
     [HttpGet("media")]
     [Authorize(Policy = "ReadScope")]
     [ProducesResponseType(typeof(MediaFiles), StatusCodes.Status200OK)]
-    public async Task<Ok<MediaFiles>> Media([FromQuery] MediaType type, [FromQuery] bool updateRepo = false)
+    public async Task<Ok<MediaFiles>> Media([FromQuery] MediaType type)
     {
-        if (updateRepo)
-        {
-            log("Updating repo...");
-
-            await _media.UpdateRepos(null, false, _cts.Token);
-
-            log("Update complete.");
-        }
         var files = await _media.Files(type);
-
-        files.ToList().ForEach(x => Console.WriteLine(x.path));
 
         return TypedResults.Ok(new MediaFiles { Files = files.ToList() });
     }
