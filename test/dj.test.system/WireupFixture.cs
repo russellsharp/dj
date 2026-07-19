@@ -3,14 +3,15 @@ using api.controllers;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using shared;
 
 namespace dj.test.system;
 
-[CollectionDefinition("WireupBase")]
-public class WireupFixture : ICollectionFixture<Wireup> { }
+[CollectionDefinition("WireupFixture")]
+public class WireupCollection : ICollectionFixture<WireupFixture> { }
 
-public class Wireup : BaseFixture, IDisposable
+public class WireupFixture : BaseFixture, IDisposable
 {
     public override async Task Initialize()
     {
@@ -37,8 +38,8 @@ public class Wireup : BaseFixture, IDisposable
                 .AddSecurity()
                 .AddRateLimiter();
 
-        var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken, cts.Token);
-        builder.Services.AddSingleton(linkedCts);
+        _cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken, cts.Token);
+        builder.Services.AddSingleton(_cts);
 
         builder.Services.AddSingleton<IDataManagement, DataManagement>();
 
@@ -52,13 +53,17 @@ public class Wireup : BaseFixture, IDisposable
 
         await app.StartAsync();
 
-        Client = app.GetTestClient();
-
-        await RequestAnonymousToken();
-
         //initialize the media service to preload the files from database
         var media = app.Services.GetRequiredService<IMediaCollection>();
-        await media.Initialize(cts.Token);
+        await media.Initialize(_cts.Token);
+
+        // Test widgets from here
+        Client = app.GetTestClient();
+
+        Client.BaseAddress = new Uri("https://localhost");
+
+        //run this before using the api to grab auth tokens
+        await base.Initialize();
     }
 
     #region IDisposable
@@ -84,7 +89,7 @@ public class Wireup : BaseFixture, IDisposable
         GC.SuppressFinalize(this);
     }
 
-    ~Wireup()
+    ~WireupFixture()
     {
         Dispose(false);
     }

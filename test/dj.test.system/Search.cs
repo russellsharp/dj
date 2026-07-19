@@ -9,11 +9,12 @@ using Xunit;
 
 namespace dj.test.system;
 
-[Collection("WebAppBase")]
+[Collection("WireupFixture")]
 public class SearchTests : BaseTest
 {
     private ISystemFixture _fixture;
-    public SearchTests(WebApplication fixture, ITestOutputHelper logger) : base(logger)
+
+    public SearchTests(WireupFixture fixture, ITestOutputHelper logger) : base(logger)
     {
         _fixture = fixture;
 

@@ -16,11 +16,11 @@ using Xunit;
 
 namespace dj.test.system;
 
-[CollectionDefinition("WebAppBase")]
-public class WebAppFixture : ICollectionFixture<WebApplication> { }
+[CollectionDefinition("WebAppCollection")]
+public class WebAppCollection : ICollectionFixture<WebAppFixture> { }
 
 
-public class WebApplication : BaseFixture
+public class WebAppFixture : BaseFixture
 {
     public WebApplicationFactory<Program> Application;
 
@@ -30,10 +30,11 @@ public class WebApplication : BaseFixture
 
         Client = Application.CreateClient(new WebApplicationFactoryClientOptions
         {
-            AllowAutoRedirect = true
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
         });
 
-        await RequestAnonymousToken();
+        await base.Initialize();
     }
 }
 
