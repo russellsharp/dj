@@ -12,3 +12,4 @@ BenchmarkDotNet.Artifacts/**
 *.suo
 .vs/**
 backup/**
+**secret_key_file**
