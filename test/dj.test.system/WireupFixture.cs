@@ -38,8 +38,8 @@ public class WireupFixture : BaseFixture, IDisposable
                 .AddSecurity()
                 .AddRateLimiter();
 
-        _cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken, cts.Token);
-        builder.Services.AddSingleton(_cts);
+        Cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken, cts.Token);
+        builder.Services.AddSingleton(Cts);
 
         builder.Services.AddSingleton<IDataManagement, DataManagement>();
 
@@ -55,12 +55,14 @@ public class WireupFixture : BaseFixture, IDisposable
 
         //initialize the media service to preload the files from database
         var media = app.Services.GetRequiredService<IMediaCollection>();
-        await media.Initialize(_cts.Token);
+        await media.Initialize(Cts.Token);
 
         // Test widgets from here
         Client = app.GetTestClient();
 
         Client.BaseAddress = new Uri("https://localhost");
+
+        Cts = app.Services.GetRequiredService<CancellationTokenSource>();
 
         //run this before using the api to grab auth tokens
         await base.Initialize();

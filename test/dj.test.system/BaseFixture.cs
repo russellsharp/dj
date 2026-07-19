@@ -6,18 +6,16 @@ using FluentAssertions;
 using Microsoft.AspNetCore.WebUtilities;
 
 using System.Net.Http.Json;
+using Microsoft.Net.Http.Headers;
 namespace dj.test.system;
 
 public class BaseFixture : ISystemFixture
 {
     public string _securityEndpoint = "/api/token/anonymous";
     public string? _tokenAnon;
-
-    protected CancellationTokenSource _cts = new();
+    public CancellationTokenSource Cts { get; protected set; } = new();
     private string _tokenRead;
-
     private string _tokenReadWrite;
-
     public HttpClient Client { get; protected set; }
 
     public async Task<HttpResponseMessage?> Get(string endpoint, Dictionary<string, string>? parameters = null, string? token = null)
@@ -30,7 +28,7 @@ public class BaseFixture : ISystemFixture
 
         Client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
-        return await Client.GetAsync(uriWithParameters, _cts.Token);
+        return await Client.GetAsync(uriWithParameters, Cts.Token);
     }
 
     public virtual async Task Initialize()
@@ -45,7 +43,7 @@ public class BaseFixture : ISystemFixture
 
         tokenResponse.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
 
-        _tokenAnon = await tokenResponse.Content.ReadAsStringAsync(_cts.Token);
+        _tokenAnon = await tokenResponse.Content.ReadAsStringAsync(Cts.Token);
     }
 
     protected async Task RequestReadScopedToken()
@@ -65,7 +63,7 @@ public class BaseFixture : ISystemFixture
         if (response.IsSuccessStatusCode)
         {
             var tokenString = await response.Content.ReadAsStringAsync();
-            var tokenData = await response.Content.ReadFromJsonAsync<TokenResponse>(_cts.Token);
+            var tokenData = await response.Content.ReadFromJsonAsync<TokenResponse>(Cts.Token);
             Console.WriteLine($"Access Token: {tokenData?.access_token}");
             _tokenRead = tokenData.access_token;
         }
@@ -87,7 +85,7 @@ public class BaseFixture : ISystemFixture
 
         if (response.IsSuccessStatusCode)
         {
-            var tokenData = await response.Content.ReadFromJsonAsync<TokenResponse>(_cts.Token);
+            var tokenData = await response.Content.ReadFromJsonAsync<TokenResponse>(Cts.Token);
             Console.WriteLine($"Access Token: {tokenData?.access_token}");
             _tokenReadWrite = tokenData.access_token;
         }

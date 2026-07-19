@@ -58,7 +58,7 @@ public class SearchTests : BaseTest
 
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.Unauthorized);
 
-        var content = await response.Content.ReadAsStringAsync();
+        var content = await response.Content.ReadAsStringAsync(_fixture.Cts.Token);
 
         content.Should().BeEmpty();
     }

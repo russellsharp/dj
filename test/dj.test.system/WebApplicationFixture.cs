@@ -1,19 +1,7 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using api.models;
-using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
-using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Testing.Platform.Services;
-using shared.TMDB;
-using Xunit;
-
 namespace dj.test.system;
 
 [CollectionDefinition("WebAppCollection")]
@@ -33,6 +21,8 @@ public class WebAppFixture : BaseFixture
             AllowAutoRedirect = false,
             BaseAddress = new Uri("https://localhost")
         });
+
+        Cts = Application.Services.GetRequiredService<CancellationTokenSource>();
 
         await base.Initialize();
     }

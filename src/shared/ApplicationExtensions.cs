@@ -144,8 +144,8 @@ public static class ApplicationExtensions
     public static async Task<WebApplication> SetupSecurity(this WebApplication app)
     {
         app
+            .UseCors(policy => policy.WithOrigins(["https://127.0.0.1"]).AllowAnyMethod().AllowAnyHeader())
             .UseHttpsRedirection()
-            .UseCors(policy => policy.WithOrigins("https://127.0.0.1").AllowAnyMethod().AllowAnyHeader())
             .UseRateLimiter()
             .UseAuthentication()
             .UseAuthorization();
