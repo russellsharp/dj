@@ -283,7 +283,6 @@ public class MediaCollection : IMediaCollection
 
         var filtered = new List<string>();
 
-        // _mediaRepo.Keys.ToList().ForEach(x => Debug.WriteLine(x));
         foreach (var pattern in patterns)
         {
             filtered.AddRange(_mediaRepo.Keys

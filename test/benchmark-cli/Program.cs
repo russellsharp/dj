@@ -6,6 +6,7 @@ using BenchmarkDotNet.Exporters;
 using System.Diagnostics;
 using BenchmarkDotNet.Loggers;
 
+var cts = new CancellationTokenSource();
 var summary = BenchmarkRunner.Run<ThesaurusBenchmarks>();
-MarkdownExporter.Default.ExportToLog(summary, ConsoleLogger.Default);
+await MarkdownExporter.Default.ExportAsync(summary, ConsoleLogger.Default, cts.Token);
 summary.Reports.ToList().ForEach(x => Debug.WriteLine(x.ResultStatistics.ToString()));
