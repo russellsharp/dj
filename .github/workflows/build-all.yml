@@ -15,9 +15,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - name: Setup .NET
-      uses: actions/setup-dotnet@v7
+      uses: actions/setup-dotnet@v6
       with:
         dotnet-version: '11.0.x' # Forces the runner to use the .NET 11 SDK
     - name: Restore dependencies
