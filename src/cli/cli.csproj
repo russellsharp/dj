@@ -14,7 +14,12 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>net11.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
+    <Nullable>enable</Nullable>  
+  <IsTestProject>false</IsTestProject>
+  
+  <!-- Disables modern Microsoft.Testing.Platform execution loop -->
+  <IsTestingPlatformApplication>false</IsTestingPlatformApplication>
+  <TestingPlatformDotnetTestSupport>false</TestingPlatformDotnetTestSupport>
   </PropertyGroup>
 
   <ItemGroup>

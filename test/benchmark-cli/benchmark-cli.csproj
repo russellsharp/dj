@@ -1,18 +1,5 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Place this at the very top of your .csproj or in Directory.Build.props -->
-  <PropertyGroup Condition="'$(BuildThisProject)' != 'true'">
-    <Configuration>None</Configuration>
-    <IsPrimaryProject>false</IsPrimaryProject>
-    <SkipCopyBuildProduct>true</SkipCopyBuildProduct>
-  </PropertyGroup>
-
-  <!-- This strips the core source file array out before MSBuild hits the compiler -->
-  <ItemGroup Condition="'$(BuildThisProject)' != 'true'">
-    <Compile Remove="**\*.cs" />
-    <EmbeddedResource Remove="**\*" />
-  </ItemGroup>
-
   <ItemGroup>
     <ProjectReference Include="..\dj.test\dj.test.csproj" />
     <ProjectReference Include="../../src/shared/shared.csproj" />
@@ -28,6 +15,11 @@
     <RootNamespace>benchmark_cli</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <IsTestProject>false</IsTestProject>  
+    <!-- Disables modern Microsoft.Testing.Platform execution loop -->
+    <IsTestingPlatformApplication>false</IsTestingPlatformApplication>
+    <TestingPlatformDotnetTestSupport>false</TestingPlatformDotnetTestSupport>
+    <TestingPlatformCommandLineArguments>$(TestingPlatformCommandLineArguments) --ignore-exit-code 8</TestingPlatformCommandLineArguments>
   </PropertyGroup>
 
   <ItemGroup>

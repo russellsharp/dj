@@ -4,7 +4,9 @@
     <TargetFramework>net11.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <UserSecretsId>021f742e-d3d2-4845-bd80-df4808e1bf83</UserSecretsId>
+    <UserSecretsId>021f742e-d3d2-4845-bd80-df4808e1bf83</UserSecretsId>  
+    <IsTestProject>false</IsTestProject>
+    <IsTestingPlatformApplication>false</IsTestingPlatformApplication>
   </PropertyGroup>
 
   <ItemGroup>
