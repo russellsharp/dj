@@ -28,4 +28,6 @@ jobs:
     - name: Build
       run: dotnet build --no-restore
     - name: Test
+      env: 
+        DJ_SECRET_KEY: ${{ secrets.DJ_SECURITY_KEY }}
       run: dotnet test --no-build --verbosity normal
