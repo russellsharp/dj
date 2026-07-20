@@ -6,8 +6,10 @@ name: .NET
 on:
   push:
     branches: [ "main" ]
-  pull_request:
+  pull_request_target:
     branches: [ "main" ]
+    types: [ opened, synchronize, reopened ]
+
 
 jobs:
   build:
