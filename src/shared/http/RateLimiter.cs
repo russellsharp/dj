@@ -2,6 +2,7 @@
 
 using System;
 using System.Buffers.Text;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Net.Http;
 using Microsoft.Extensions.Options;
@@ -23,7 +24,7 @@ public class RateLimiter : IRateLimiter
 {
     private readonly RestClient _client;
     private readonly EndpointConfig _config;
-    private Polly.Wrap.AsyncPolicyWrap _pipeline;
+    private Polly.ResiliencePipeline<RestResponse> _pipeline;
 
     public RateLimiter(IOptions<EndpointConfig> options)
     {
@@ -32,52 +33,52 @@ public class RateLimiter : IRateLimiter
 
         _client = new RestClient(_config.BaseUrl);
 
-        var rateLimitPolicy = Policy.RateLimitAsync(_config.RequestLimit, TimeSpan.FromSeconds(_config.RequestWindowSeconds), _config.RequestBurstMax);
-
-        var retryPolicy = Policy
-            .Handle<RateLimitRejectedException>()
-            .WaitAndRetryAsync(
-                retryCount: _config.AttemptCountMax,
-                sleepDurationProvider: (retryCount, exception, context) =>
+        _pipeline = new ResiliencePipelineBuilder<RestResponse>()
+                .AddRetry(new RetryStrategyOptions<RestResponse>
                 {
-                    // If rejected, wait exactly what the rate limiter says is left in the window
-                    if (exception is RateLimitRejectedException rateLimitEx)
+                    ShouldHandle = new PredicateBuilder<RestResponse>()
+                        .HandleResult(response => response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+                        .HandleResult(response => !response.IsSuccessful && response.ErrorException != null),
+
+                    MaxRetryAttempts = _config.AttemptCountMax,
+
+                    DelayGenerator = static args =>
                     {
-                        return rateLimitEx.RetryAfter;
+                        var response = args.Outcome.Result;
+
+                        var retryHeader = response?.Headers?.FirstOrDefault(h => h.Name?.Equals("Retry-After", StringComparison.OrdinalIgnoreCase) == true);
+                        if (retryHeader?.Value is string headerValue && double.TryParse(headerValue, out var retryInSeconds))
+                        {
+                            return ValueTask.FromResult<TimeSpan?>(TimeSpan.FromSeconds(retryInSeconds));
+                        }
+                        return ValueTask.FromResult<TimeSpan?>(null);
+                    },
+                    BackoffType = DelayBackoffType.Exponential,
+
+                    OnRetry = static args =>
+                    {
+                        Console.WriteLine($"Retry attempt: {args.AttemptNumber + 1}\r\nException: {args.Outcome.Exception?.Message}\r\nWaiting: {args.RetryDelay.TotalSeconds}");
+                        return ValueTask.CompletedTask;
                     }
-                    return TimeSpan.FromSeconds(10); // Fallback
-                },
-                onRetryAsync: async (exception, timeSpan, retryCount, context) =>
-                {
-                    Console.WriteLine($"onretry Exception: {exception}\r\nTime: {timeSpan.ToString("d")}\r\nRetryCount: {retryCount}\r\nCorrelationId: {context.CorrelationId}");
-                }
-        );
-
-        _pipeline = Policy.WrapAsync(retryPolicy, rateLimitPolicy);
-
+                })
+                .Build();
     }
 
     public async Task<RestResponse> Get(RestRequest request, CancellationToken token)
     {
-        int attemptCount = 0;
-        int retryBackoffGrowth = 1000;
-        while (attemptCount < _config.AttemptCountMax && !token.IsCancellationRequested)
+        try
         {
-            // await Task.Delay(5000, token);
-            attemptCount++;
-            try
-            {
-                return await _pipeline.ExecuteAsync(async () =>
+            return await _pipeline.ExecuteAsync(
+                async cancellationToken =>
                 {
-                    // await Task.Delay(2000, token);
-                    return await _client.GetAsync(request);
-                });
-            }
-            catch (Polly.RateLimit.RateLimitRejectedException ex)
-            {
-                Debug.WriteLine($"Retry after: {_config.BackOffTimeMs + (retryBackoffGrowth * attemptCount)}: \n{ex}");
-                await Task.Delay(_config.BackOffTimeMs + (retryBackoffGrowth * attemptCount), token);
-            }
+                    return await _client.GetAsync(request, cancellationToken);
+                },
+                token
+            );
+        }
+        catch (Polly.RateLimit.RateLimitRejectedException ex)
+        {
+            Console.WriteLine($"Retry after: {ex.RetryAfter}\r\n{ex.InnerException}");
         }
 
         return new RestResponse() { ResponseStatus = ResponseStatus.Error, StatusCode = System.Net.HttpStatusCode.TooManyRequests };
