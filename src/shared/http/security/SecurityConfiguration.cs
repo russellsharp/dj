@@ -21,6 +21,8 @@ public static class SecurityExtensions
     {
         string securityKey = Environment.GetEnvironmentVariable(SecurityKeyKey) ?? "";
 
+        ArgumentException.ThrowIfNullOrEmpty(securityKey);
+
         var config = new SecurityConfiguration { SecurityKey = securityKey };
 
         builder.Services.Configure<SecurityConfiguration>(options => { options.SecurityKey = securityKey; });

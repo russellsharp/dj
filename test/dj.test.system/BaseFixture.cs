@@ -21,6 +21,8 @@ public class BaseFixture : ISystemFixture
     public async Task<HttpResponseMessage?> Get(string endpoint, Dictionary<string, string>? parameters = null, string? token = null)
     {
         token ??= _tokenRead;
+        
+        Console.WriteLine($"Token {string.IsNullOrEmpty(token)} tokenRead {string.IsNullOrEmpty(_tokenRead)}");
 
         var uri = new Uri(Client.BaseAddress, endpoint);
 
