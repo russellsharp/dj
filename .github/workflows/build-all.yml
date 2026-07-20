@@ -16,9 +16,6 @@ jobs:
 
     runs-on: ubuntu-latest
 
-    env:
-      DJ_SECRET_KEY: ${{ secrets.DJ_SECURITY_KEY }}
-
     steps:
     - uses: actions/checkout@v7
     - name: Setup .NET
@@ -31,5 +28,5 @@ jobs:
       run: dotnet build --no-restore
     - name: Test
       env: 
-        DJ_SECRET_KEY: ${{ secrets.DJ_SECURITY_KEY }}
+        DJ_SECURITY_KEY: ${{ secrets.DJ_SECURITY_KEY }}
       run: dotnet test --no-build --verbosity normal
