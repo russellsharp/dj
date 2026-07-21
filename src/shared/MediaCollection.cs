@@ -311,6 +311,8 @@ public class MediaCollection : IMediaCollection
 
         var scoredMatches = new Dictionary<string, MatchScore<ContainedType>>();
 
+        Console.WriteLine($"Repo size: {_mediaRepo.Count()}");
+
         foreach (var file in _mediaRepo.Values)
         {
             foreach (var keyword in keywords.Select(x => x.ToLower()))
