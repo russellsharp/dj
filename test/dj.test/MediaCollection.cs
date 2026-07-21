@@ -55,8 +55,6 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
 
         matches.Should().BeEmpty();
 
-        matches.ForEach(x => Debug.WriteLine(x.path ?? string.Empty));
-
         keywords = SearchHelpers.SanitizeForSearch("Inglourious Basterds", _cts.Token, true);
 
         Console.WriteLine($"{MethodBase.GetCurrentMethod()?.Name} Keywords:");

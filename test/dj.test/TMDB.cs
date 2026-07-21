@@ -131,8 +131,6 @@ public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
         }
 
         movies.Should().NotBeEmpty();
-
-        movies.ToList().ForEach(x => Debug.WriteLine(x.title));
     }
 
     [Fact]
@@ -267,17 +265,11 @@ public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
 
         var synonyms = await Task.WhenAll(synonymTasks);
 
-        synonyms.ForEach(x => x.ForEach(y => Debug.WriteLine(y)));
-
-        searchTerms.ForEach(x => Debug.WriteLine(x));
-
         minimumHitCount = (int)(synonyms.Count() * 0.50);
 
         queryMatches = await tmdb.QueryWithGroupedTerms(synonyms.ToList(), minimumHitCount);
 
         queryMatches.Should().NotBeNullOrEmpty();
-
-        queryMatches.ForEach(x => Debug.WriteLine(x.Details.title));
     }
 
     [Fact]
@@ -318,7 +310,5 @@ public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
         queryMatches.AddRange(await tmdb.QueryWithGroupedTerms(synonyms.ToList(), minimumHitCount));
 
         queryMatches.Should().NotBeNullOrEmpty();
-
-        queryMatches.ForEach(x => Debug.WriteLine(x.Details.title));
     }
 }

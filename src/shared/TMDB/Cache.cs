@@ -424,8 +424,6 @@ public class Cache : IDisposable, ICache
 
         string? query = null;
 
-        // assembly.GetManifestResourceNames().ToList().ForEach(x => Debug.WriteLine(x));
-
         using (var stream = assembly.GetManifestResourceStream(resourceName))
         {
             if (stream is null) throw new ArgumentNullException(resourceName);
