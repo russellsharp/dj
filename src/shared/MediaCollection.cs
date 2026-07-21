@@ -305,7 +305,7 @@ public class MediaCollection : IMediaCollection
 
         if (_mediaRepo is null || !_mediaRepo.Any())
         {
-            Console.WriteLine($"repo is null {_mediaRepo is null}, repo is empty {!_mediaRepo?.Any()}")
+            Console.WriteLine($"repo is null {_mediaRepo is null}, repo is empty {!_mediaRepo?.Any()}");
             return Enumerable.Empty<MatchScore<ContainedType>>();
         }
 
