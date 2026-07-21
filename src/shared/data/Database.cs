@@ -98,12 +98,10 @@ public class Database : IDisposable, IDatabase
             {
                 Console.WriteLine("Database file does not exist and will be created.");
 
-
-
                 var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
                 var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
 
-                Directory.EnumerateFiles(rootDir).ToList().ForEach(Console.WriteLine);
+                Directory.EnumerateFiles(rootDir, "*", new EnumerationOptions { RecurseSubdirectories = true }).ToList().ForEach(Console.WriteLine);
             }
 
             var lockObject = s_databaseLocks.GetOrAdd(DatabasePath, _ => new object());
