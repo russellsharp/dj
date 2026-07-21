@@ -56,7 +56,7 @@ public class MediaCollection : BaseTest, IDisposable
         }
         catch (Exception ex)
         {
-            _output.WriteLine(ex.ToString());
+            log(ex.ToString());
         }
     }
 
@@ -81,7 +81,7 @@ public class MediaCollection : BaseTest, IDisposable
         keywords = SearchHelpers.SanitizeForSearch("Inglourious Basterds", _cts.Token, true);
 
         log($"BaseDirectory: {BasicMediaOptions.Value.BaseDirectory}");
-        log($"{MethodBase.GetCurrentMethod()?.Name} Keywords:");
+        log("Keywords:");
         keywords.ForEach(x => log(x));
 
         var matcheScores = (await media.FindInPath<shared.data.File>(keywords, null, _cts.Token)).ToList();
@@ -152,9 +152,6 @@ public class MediaCollection : BaseTest, IDisposable
         var bestMatches = await tmdb.PathToTmdb(matchedLocalMovie.path ?? string.Empty, context, true, _cts.Token);
 
         bestMatches.Should().NotBeNull();
-
-        log($"Best matches found for: {matchedLocalMovie.path ?? string.Empty}");
-        bestMatches.ForEach(x => log($"Best match found: {x?.id} - {x?.title ?? string.Empty}"));
     }
 
     [Fact]
@@ -184,11 +181,7 @@ public class MediaCollection : BaseTest, IDisposable
 
             var bestMatches = await tmdb.PathToTmdb(localMovie.path ?? string.Empty, context, true, _cts.Token);
 
-            if (bestMatches is not null)
-            {
-                log($"Best matches for {localMovie.path ?? string.Empty}");
-                bestMatches.ForEach(x => log($"{x?.id} - {x?.title ?? string.Empty}"));
-            }
+            bestMatches.Should().NotBeNull();
         }
     }
 
