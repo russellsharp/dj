@@ -59,7 +59,22 @@ public class Database : IDisposable, IDatabase
         }
     }
 
-    private string ConnectionString
+    private string ConnectionStringReadOnly
+    {
+        get
+        {
+            var builder = new SqliteConnectionStringBuilder
+            {
+                DataSource = DatabasePath,
+                Mode = SqliteOpenMode.ReadOnly,
+                Cache = SqliteCacheMode.Shared
+            };
+            return builder.ConnectionString;
+        }
+    }
+
+
+    private string ConnectionStringReadWrite
     {
         get
         {
@@ -70,6 +85,22 @@ public class Database : IDisposable, IDatabase
                 Cache = SqliteCacheMode.Shared
             };
             return builder.ConnectionString;
+        }
+    }
+
+    private SqliteConnection ReadingConnection
+    {
+        get
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(DatabasePath) ?? throw new InvalidOperationException("Unable to determine database directory"));
+
+            var connection = new SqliteConnection(ConnectionStringReadOnly);
+
+            connection.Open();
+
+            Create();
+
+            return connection;
         }
     }
 
@@ -92,7 +123,7 @@ public class Database : IDisposable, IDatabase
         var lockObject = s_databaseLocks.GetOrAdd(DatabasePath, _ => new object());
         lock (lockObject)
         {
-            using var connection = new SqliteConnection(ConnectionString);
+            using var connection = new SqliteConnection(ConnectionStringReadWrite);
 
             connection.Open();
 
@@ -102,9 +133,10 @@ public class Database : IDisposable, IDatabase
 
     public void Create(CancellationToken? token = null)
     {
+        Console.WriteLine("Creating");
         token ??= _cts.Token;
 
-        using var connection = new SqliteConnection(ConnectionString);
+        using var connection = new SqliteConnection(ConnectionStringReadWrite);
 
         connection.Open();
 
@@ -132,7 +164,7 @@ public class Database : IDisposable, IDatabase
 
         try
         {
-            using var connection = new SqliteConnection(ConnectionString);
+            using var connection = new SqliteConnection(ConnectionStringReadWrite);
 
             await connection.OpenAsync(token.Value);
 
@@ -188,7 +220,7 @@ public class Database : IDisposable, IDatabase
         {
             token.Value.ThrowIfCancellationRequested();
 
-            using var connection = new SqliteConnection(ConnectionString);
+            using var connection = new SqliteConnection(ConnectionStringReadWrite);
 
             await connection.OpenAsync(token.Value);
 
@@ -255,7 +287,7 @@ public class Database : IDisposable, IDatabase
 
         try
         {
-            using (var connection = new SqliteConnection(ConnectionString))
+            using (var connection = ReadingConnection)
             {
                 await connection.OpenAsync(token.Value);
                 const string sql = @"SELECT EXISTS (SELECT 1 FROM file WHERE path_hash = @path_hash)";
@@ -276,7 +308,7 @@ public class Database : IDisposable, IDatabase
     {
         token ??= _cts.Token;
 
-        using var connection = new SqliteConnection(ConnectionString);
+        using var connection = new SqliteConnection(ConnectionStringReadWrite);
 
         await connection.OpenAsync(token.Value);
 
@@ -302,7 +334,7 @@ public class Database : IDisposable, IDatabase
     {
         token ??= _cts.Token;
 
-        using var connection = new SqliteConnection(ConnectionString);
+        using var connection = new SqliteConnection(ConnectionStringReadWrite);
 
         await connection.OpenAsync(token.Value);
 
@@ -324,7 +356,7 @@ public class Database : IDisposable, IDatabase
     {
         token ??= _cts.Token;
 
-        using var connection = new SqliteConnection(ConnectionString);
+        using var connection = new SqliteConnection(ConnectionStringReadWrite);
 
         await connection.OpenAsync(token.Value);
 
@@ -350,7 +382,7 @@ public class Database : IDisposable, IDatabase
     {
         token ??= _cts.Token;
 
-        using var connection = new SqliteConnection(ConnectionString);
+        using var connection = new SqliteConnection(ConnectionStringReadWrite);
 
         await connection.OpenAsync(token.Value);
 
@@ -376,7 +408,7 @@ public class Database : IDisposable, IDatabase
     {
         token ??= _cts.Token;
 
-        using var connection = new SqliteConnection(ConnectionString);
+        using var connection = new SqliteConnection(ConnectionStringReadWrite);
 
         await connection.OpenAsync(token.Value);
 
@@ -418,7 +450,7 @@ public class Database : IDisposable, IDatabase
 
         token ??= _cts.Token;
 
-        using var connection = new SqliteConnection(ConnectionString);
+        using var connection = new SqliteConnection(ConnectionStringReadWrite);
 
         await connection.OpenAsync(token.Value);
 
