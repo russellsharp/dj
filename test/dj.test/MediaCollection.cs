@@ -55,7 +55,7 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
         IDatabase db = new shared.data.Database(BasicDatabaseConfig, _cts);
         IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _cts);
 
-        await SetDataFiles(ReferenceDatabasePath, Path.GetDirectoryName(DatabasePath));
+        System.IO.File.Copy(ReferenceDatabasePath, DatabasePath, true);
 
         await media.Initialize(_cts.Token);
 
