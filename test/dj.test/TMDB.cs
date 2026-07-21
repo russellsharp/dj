@@ -42,8 +42,6 @@ public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
 
         movies.results.Count().Should().BeGreaterThan(0);
 
-        movies.results.ForEach(x => log(x.title));
-
         var firstMovie = movies.results[0];
 
         firstMovie.title.Should().NotBeNullOrEmpty();
@@ -57,8 +55,6 @@ public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
         var genres = await client.MovieGenres();
 
         genres.Should().NotBeNull();
-
-        genres.Genres.ForEach(x => log(x.Name));
 
         genres.Genres.Should().NotBeNullOrEmpty();
 
