@@ -83,7 +83,7 @@ public class DataManagement(shared.data.DatabaseConfiguration _dbConfig) : IData
         {
             var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
             var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
-            return Path.GetFullPath(Path.Combine(rootDir, "backup;_data/"));
+            return Path.GetFullPath(Path.Combine(rootDir, "backup_data/"));
         }
     }
 

@@ -96,7 +96,7 @@ public class Database : IDisposable, IDatabase
 
             if (!System.IO.File.Exists(DatabasePath))
             {
-                Console.WriteLine("Database file does not exist and will be created.");
+                Console.WriteLine($"Database file does not exist and will be created: {DatabasePath}");
 
                 var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
                 var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");

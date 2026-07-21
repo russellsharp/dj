@@ -10,7 +10,17 @@ public class BaseTest : IDisposable
 {
     public ITestOutputHelper _output;
     private List<string> _filesToDelete = new();
-    public CancellationTokenSource _cts = new();
+    private string ReferenceDataDirectory = "data";
+    protected CancellationTokenSource _cts = new();
+    public string ReferenceDatabasePath
+    {
+        get
+        {
+            var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
+            var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
+            return Path.GetFullPath(Path.Combine(rootDir, ReferenceDataDirectory));
+        }
+    }
 
     public BaseTest(ITestOutputHelper output)
     {
@@ -23,6 +33,16 @@ public class BaseTest : IDisposable
         Debug.WriteLine(msg);
         Console.WriteLine(msg);
         _output.WriteLine(msg);
+    }
+
+    public async Task SetDataFiles(string referenceDataDirectory, string targetDataDirectory)
+    {
+        foreach (var file in System.IO.Directory.EnumerateFiles(referenceDataDirectory, "*.db"))
+        {
+            var fileName = Path.GetFileName(file);
+            var fileDestination = Path.Combine(targetDataDirectory, fileName);
+            File.Copy(file, fileDestination, true);
+        }
     }
 
     protected async Task CreateTestFile(string parentDirectory, int count, long sizeKb = 250, byte filler = (byte)'w', string extension = "avi", string? fileName = null)

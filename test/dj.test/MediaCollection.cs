@@ -37,6 +37,16 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
         OverviewWeight = 1
     });
 
+    private string DatabasePath
+    {
+        get
+        {
+            var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
+            var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
+            return Path.GetFullPath(Path.Combine(rootDir, BasicDatabaseConfig.Value.DataFile));
+        }
+    }
+
     [Fact]
     public async Task MatchLocalFiles()
     {
@@ -44,6 +54,8 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
         ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
         IDatabase db = new shared.data.Database(BasicDatabaseConfig, _cts);
         IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _cts);
+
+        await SetDataFiles(ReferenceDatabasePath, Path.GetDirectoryName(DatabasePath));
 
         await media.Initialize(_cts.Token);
 
@@ -58,7 +70,7 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
         keywords = SearchHelpers.SanitizeForSearch("Inglourious Basterds", _cts.Token, true);
 
         log($"BaseDirectory: {BasicMediaOptions.Value.BaseDirectory}");
-        log($"Keywords:");
+        log($"{MethodBase.GetCurrentMethod()?.Name} Keywords:");
         keywords.ForEach(x => log(x));
 
         var matcheScores = (await media.FindInPath<shared.data.File>(keywords, null, _cts.Token)).ToList();
