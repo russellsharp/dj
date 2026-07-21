@@ -58,6 +58,7 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
         keywords = SearchHelpers.SanitizeForSearch("Inglourious Basterds", _cts.Token, true);
 
         log($"{MethodBase.GetCurrentMethod()?.Name} Keywords:");
+        log($"{MethodBase.GetCurrentMethod()?.Name} BaseDirectory: {BasicMediaOptions.Value.BaseDirectory}");
         keywords.ForEach(x => log(x));
 
         var matcheScores = (await media.FindInPath<shared.data.File>(keywords, null, _cts.Token)).ToList();
