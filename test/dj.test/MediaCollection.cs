@@ -84,8 +84,6 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
         var matcheScores = (await media.FindInPath<shared.data.File>(keywords, null, _cts.Token)).ToList();
 
         matcheScores.Should().NotBeEmpty();
-
-        matcheScores.Select(x => x.Details).ForEach(x => log(x?.path ?? string.Empty));
     }
 
     [Fact]

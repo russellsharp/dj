@@ -142,7 +142,7 @@ public class Repo : IDisposable, IRepo
             }
             else
             {
-                Debug.WriteLine($"Failed requesting from TMDB with response code: {apiResponse.StatusCode}");
+                log($"Failed requesting from TMDB with response code: {apiResponse.StatusCode}");
                 return default;
             }
         }
