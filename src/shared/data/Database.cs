@@ -88,13 +88,29 @@ public class Database : IDisposable, IDatabase
         }
     }
 
-    private SqliteConnection ReadingConnection
+    private SqliteConnection ConnectionRead
     {
         get
         {
             Directory.CreateDirectory(Path.GetDirectoryName(DatabasePath) ?? throw new InvalidOperationException("Unable to determine database directory"));
 
             var connection = new SqliteConnection(ConnectionStringReadOnly);
+
+            connection.Open();
+
+            Create();
+
+            return connection;
+        }
+    }
+
+    private SqliteConnection ConnectionWrite
+    {
+        get
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(DatabasePath) ?? throw new InvalidOperationException("Unable to determine database directory"));
+
+            var connection = new SqliteConnection(ConnectionStringReadWrite);
 
             connection.Open();
 
@@ -125,9 +141,10 @@ public class Database : IDisposable, IDatabase
         {
             using var connection = new SqliteConnection(ConnectionStringReadWrite);
 
-            connection.Open();
-
+            //uses its own connection with write permissions
             Create();
+
+            connection.Open();
         }
     }
 
@@ -287,7 +304,7 @@ public class Database : IDisposable, IDatabase
 
         try
         {
-            using (var connection = ReadingConnection)
+            using (var connection = ConnectionRead)
             {
                 await connection.OpenAsync(token.Value);
                 const string sql = @"SELECT EXISTS (SELECT 1 FROM file WHERE path_hash = @path_hash)";
