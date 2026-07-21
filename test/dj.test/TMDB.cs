@@ -186,10 +186,6 @@ public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
                 matchedMovies.Add(movie.id, new MatchScore<MovieDetailsResponse> { Hits = matchCount, Details = movie });
             }
         }
-
-        int minimumHitCount = keywords.Count();
-        Debug.WriteLine("----------------------------");
-        matchedMovies.Where(x => x.Value.Hits >= minimumHitCount).ForEach(x => Debug.WriteLine($"{x.Value.Hits} - {x.Value.Details.title}"));
     }
 
     [Fact]
@@ -202,9 +198,6 @@ public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
         var searchTerm = "Training Day";
 
         var queryMatches = await repo.QueryMatches(searchTerm, minimumHitCount);
-
-        Debug.WriteLine("----------------------------");
-        queryMatches.Where(x => x.Hits >= minimumHitCount).ToList().ForEach(x => Debug.WriteLine($"{x.Hits} - {x.Details.id} - {x.Details.title} - {x.Details.vote_count} - {x.Details.budget} - {x.Details.overview.Substring(0, 20)}"));
     }
 
     [Fact(Skip = "Endpoint is broken.")]
@@ -240,9 +233,6 @@ public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
         var queryMatches = await tmdb.QueryOverviews(searchTerm, minimumHitCount);
 
         queryMatches.Should().NotBeNullOrEmpty();
-
-        Debug.WriteLine("----------------------------");
-        queryMatches.ForEach(x => Debug.WriteLine($"Hits: {x.Hits} - TMDB ID: {x.Details.id} - {x.Details.title} - {x.Details.vote_count} - {new string(x.Details.overview.Take(20).ToArray())}..."));
     }
 
     [Fact]
@@ -268,9 +258,6 @@ public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
         var queryMatches = await tmdb.QueryOverviews(searchTerm, minimumHitCount);
 
         queryMatches.Should().BeEmpty();
-
-        Debug.WriteLine("----------------------------");
-        queryMatches.ForEach(x => Debug.WriteLine($"Hits: {x.Hits} - TMDB ID: {x.Details.id} - {x.Details.title} - {x.Details.vote_count} - {new string(x.Details.overview.Take(20).ToArray())}..."));
 
         var thesus = new Thesaurus(thesaurusOptionsDefaults);
 

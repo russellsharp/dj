@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Reflection;
 using FluentAssertions;
 using Microsoft.Extensions.Options;
 using shared;
@@ -50,7 +51,6 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
 
         var keywords = SearchHelpers.SanitizeForSearch("Trainingwah wahDay wee", _cts.Token, false);
 
-
         var matches = (await media.FindInPath<shared.data.File>(keywords, null, _cts.Token)).Select(x => x.Details);
 
         matches.Should().BeEmpty();
@@ -58,6 +58,9 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
         matches.ForEach(x => Debug.WriteLine(x.path ?? string.Empty));
 
         keywords = SearchHelpers.SanitizeForSearch("Inglourious Basterds", _cts.Token, true);
+
+        Console.WriteLine($"{MethodBase.GetCurrentMethod()?.Name} Keywords:");
+        keywords.ForEach(Console.WriteLine);
 
         var matcheScores = (await media.FindInPath<shared.data.File>(keywords, null, _cts.Token)).ToList();
 

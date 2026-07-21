@@ -132,7 +132,6 @@ public static partial class ApplicationExtensions
                         securityConfig = temporaryServiceProvider.GetRequiredService<IOptions<SecurityConfiguration>>()?.Value;
                     }
 
-                    Console.WriteLine($"Security Token is empty or null: {string.IsNullOrEmpty(securityConfig.SecurityKey)}");
                     // Register the cryptographic signing keys
                     if (securityConfig != null && !string.IsNullOrEmpty(securityConfig.SecurityKey))
                     {
