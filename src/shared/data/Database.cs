@@ -160,7 +160,6 @@ public class Database : IDisposable, IDatabase
 
     public void Create(CancellationToken? token = null)
     {
-        Console.WriteLine("Creating");
         token ??= _cts.Token;
 
         using var connection = new SqliteConnection(ConnectionStringReadWrite);
@@ -173,8 +172,8 @@ public class Database : IDisposable, IDatabase
         {
             try
             {
-                using var command = new SqliteCommand(query, connection, transaction);
-                command.ExecuteNonQuery();
+                var command = new CommandDefinition(query, null, transaction, _commandTimeoutSeconds, CommandType.Text, CommandFlags.None, token.Value);
+                connection.Execute(command);
                 transaction.Commit();
             }
             catch
