@@ -199,15 +199,11 @@ public class ApplicationServices : BaseTest
 
         matches.results.Count().Should().BeGreaterThan(0);
 
-        matches.results.ForEach(x => log(x.id.ToString()));
-
         matches.results[0].id.Should().NotBeNull();
 
         var movie = client.GetMovie((int)matches.results[0]!.id!);
 
         movie.Should().NotBeNull();
-
-        log(JsonConvert.SerializeObject(movie));
     }
 
     [Fact]
@@ -231,17 +227,11 @@ public class ApplicationServices : BaseTest
 
         remoteMatches.results.Count().Should().BeGreaterThan(0);
 
-        remoteMatches.results.ForEach(x => log(x.id.ToString()));
-
         remoteMatches.results[0].id.Should().NotBeNull();
 
         var movie = client.GetMovie((int)remoteMatches.results[0]!.id!);
 
         movie.Should().NotBeNull();
-
-        log("Remote movie details");
-
-        log(JsonConvert.SerializeObject(movie));
 
         var media = _host.Services.GetRequiredService<IMediaCollection>();
 

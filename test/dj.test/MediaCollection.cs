@@ -57,15 +57,15 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
 
         keywords = SearchHelpers.SanitizeForSearch("Inglourious Basterds", _cts.Token, true);
 
-        Console.WriteLine($"{MethodBase.GetCurrentMethod()?.Name} Keywords:");
-        keywords.ForEach(Console.WriteLine);
+        log($"{MethodBase.GetCurrentMethod()?.Name} Keywords:");
+        keywords.ForEach(log);
 
         var matcheScores = (await media.FindInPath<shared.data.File>(keywords, null, _cts.Token)).ToList();
 
         matcheScores.Should().NotBeEmpty();
 
-        Debug.WriteLine("Matches made:");
-        matcheScores.ForEach(x => Debug.WriteLine(x.Details?.path ?? string.Empty));
+        log("Matches made:");
+        matcheScores.ForEach(x => log(x.Details?.path ?? string.Empty));
     }
 
     [Fact]
@@ -84,7 +84,7 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
 
         matcheScores.Should().NotBeEmpty();
 
-        matcheScores.Select(x => x.Details).ForEach(x => Debug.WriteLine(x?.path ?? string.Empty));
+        matcheScores.Select(x => x.Details).ForEach(x => log(x?.path ?? string.Empty));
     }
 
     [Fact]
@@ -103,18 +103,17 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
 
         localMovies.Should().NotBeNullOrEmpty();
 
-        int a = 0;
-        var movieTitle = a == 0 ? "Training Day" : "Inglourious Basterds";
+        var movieTitle = "Training Day";
 
         //sanitize the path to find simple titles
         var movieKeywords = SearchHelpers.SanitizeString(movieTitle);
         var localMovie = localMovies.FirstOrDefault(x => SearchHelpers.SanitizeString(x.path).Contains(movieKeywords));
-        Debug.WriteLine($"'{movieKeywords}'");
+        log($"'{movieKeywords}'");
 
         if (localMovie is null)
         {
             movieKeywords = SearchHelpers.SanitizeString(movieTitle);
-            Debug.WriteLine(movieKeywords.ToString());
+            log(movieKeywords.ToString());
             localMovie = localMovies.FirstOrDefault(x => SearchHelpers.SanitizeString(x.path).Contains(movieKeywords));
         }
 
@@ -132,8 +131,8 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
 
         bestMatches.Should().NotBeNull();
 
-        Debug.WriteLine($"Best matches found for: {matchedLocalMovie.path ?? string.Empty}");
-        bestMatches.ForEach(x => Debug.WriteLine($"Best match found: {x?.id} - {x?.title ?? string.Empty}"));
+        log($"Best matches found for: {matchedLocalMovie.path ?? string.Empty}");
+        bestMatches.ForEach(x => log($"Best match found: {x?.id} - {x?.title ?? string.Empty}"));
     }
 
     [Fact]
@@ -165,8 +164,8 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
 
             if (bestMatches is not null)
             {
-                Debug.WriteLine($"Best matches for {localMovie.path ?? string.Empty}");
-                bestMatches.ForEach(x => Debug.WriteLine($"{x?.id} - {x?.title ?? string.Empty}"));
+                log($"Best matches for {localMovie.path ?? string.Empty}");
+                bestMatches.ForEach(x => log($"{x?.id} - {x?.title ?? string.Empty}"));
             }
         }
     }
