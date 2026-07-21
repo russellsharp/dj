@@ -94,13 +94,18 @@ public class Database : IDisposable, IDatabase
         {
             Directory.CreateDirectory(Path.GetDirectoryName(DatabasePath) ?? throw new InvalidOperationException("Unable to determine database directory"));
 
-            var connection = new SqliteConnection(ConnectionStringReadOnly);
+            var lockObject = s_databaseLocks.GetOrAdd(DatabasePath, _ => new object());
+            lock (lockObject)
+            {
+                var connection = new SqliteConnection(ConnectionStringReadWrite);
 
-            connection.Open();
+                //uses its own connection with write permissions
+                Create();
 
-            Create();
+                connection.Open();
 
-            return connection;
+                return connection;
+            }
         }
     }
 
@@ -110,13 +115,18 @@ public class Database : IDisposable, IDatabase
         {
             Directory.CreateDirectory(Path.GetDirectoryName(DatabasePath) ?? throw new InvalidOperationException("Unable to determine database directory"));
 
-            var connection = new SqliteConnection(ConnectionStringReadWrite);
+            var lockObject = s_databaseLocks.GetOrAdd(DatabasePath, _ => new object());
+            lock (lockObject)
+            {
+                var connection = new SqliteConnection(ConnectionStringReadWrite);
 
-            connection.Open();
+                //uses its own connection with write permissions
+                Create();
 
-            Create();
+                connection.Open();
 
-            return connection;
+                return connection;
+            }
         }
     }
 
