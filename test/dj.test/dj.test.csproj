@@ -26,6 +26,7 @@
 
   <ItemGroup>
     <None Include="../../reference/**">
+      <Link>%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>

@@ -94,6 +94,11 @@ public class Database : IDisposable, IDatabase
         {
             Directory.CreateDirectory(Path.GetDirectoryName(DatabasePath) ?? throw new InvalidOperationException("Unable to determine database directory"));
 
+            if (!System.IO.File.Exists(DatabasePath))
+            {
+                Console.WriteLine("Database file does not exist and will be created.");
+            }
+
             var lockObject = s_databaseLocks.GetOrAdd(DatabasePath, _ => new object());
             lock (lockObject)
             {
