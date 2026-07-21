@@ -240,6 +240,8 @@ public class MediaCollection : IMediaCollection
 
         mediaDirectory = Path.GetFullPath(mediaDirectory);
 
+        Console.WriteLine($"BuildRepoList: Media directory: {mediaDirectory}");
+
         EnumerationOptions options = new()
         {
             RecurseSubdirectories = true,

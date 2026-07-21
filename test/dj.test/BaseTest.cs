@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using shared;
 
 namespace dj.test;
@@ -14,9 +15,9 @@ public class BaseTest : IDisposable
         _output = output;
     }
 
-    protected void log(object? message)
+    protected void log(object? message, [CallerMemberName] string caller = "")
     {
-        var msg = Convert.ToString(message) ?? "Message was null!";
+        var msg = $"[{caller}] - {Convert.ToString(message) ?? "Message was null!"}";
         Debug.WriteLine(msg);
         Console.WriteLine(msg);
         _output.WriteLine(msg);

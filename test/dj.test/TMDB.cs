@@ -42,8 +42,6 @@ public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
 
         movies.results.Count().Should().BeGreaterThan(0);
 
-        movies.results.ForEach(x => log(x.title));
-
         var firstMovie = movies.results[0];
 
         firstMovie.title.Should().NotBeNullOrEmpty();
@@ -57,8 +55,6 @@ public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
         var genres = await client.MovieGenres();
 
         genres.Should().NotBeNull();
-
-        genres.Genres.ForEach(x => log(x.Name));
 
         genres.Genres.Should().NotBeNullOrEmpty();
 
@@ -131,8 +127,6 @@ public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
         }
 
         movies.Should().NotBeEmpty();
-
-        movies.ToList().ForEach(x => Debug.WriteLine(x.title));
     }
 
     [Fact]
@@ -267,17 +261,11 @@ public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
 
         var synonyms = await Task.WhenAll(synonymTasks);
 
-        synonyms.ForEach(x => x.ForEach(y => Debug.WriteLine(y)));
-
-        searchTerms.ForEach(x => Debug.WriteLine(x));
-
         minimumHitCount = (int)(synonyms.Count() * 0.50);
 
         queryMatches = await tmdb.QueryWithGroupedTerms(synonyms.ToList(), minimumHitCount);
 
         queryMatches.Should().NotBeNullOrEmpty();
-
-        queryMatches.ForEach(x => Debug.WriteLine(x.Details.title));
     }
 
     [Fact]
@@ -318,7 +306,5 @@ public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
         queryMatches.AddRange(await tmdb.QueryWithGroupedTerms(synonyms.ToList(), minimumHitCount));
 
         queryMatches.Should().NotBeNullOrEmpty();
-
-        queryMatches.ForEach(x => Debug.WriteLine(x.Details.title));
     }
 }
