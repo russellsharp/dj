@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Reflection;
 using FluentAssertions;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Options;
 using shared;
 using shared.data;
@@ -9,7 +10,7 @@ using Xunit.Internal;
 
 namespace dj.test;
 
-public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
+public class MediaCollection : BaseTest, IDisposable
 {
     private IOptions<MediaCollectionConfiguration> BasicMediaOptions = Options.Create(new MediaCollectionConfiguration
     {
@@ -47,6 +48,18 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
         }
     }
 
+    public MediaCollection(ITestOutputHelper output) : base(output)
+    {
+        try
+        {
+            RestoreDatabase();
+        }
+        catch (Exception ex)
+        {
+            _output.WriteLine(ex.ToString());
+        }
+    }
+
     [Fact]
     public async Task MatchLocalFiles()
     {
@@ -54,8 +67,6 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
         ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
         IDatabase db = new shared.data.Database(BasicDatabaseConfig, _cts);
         IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _cts);
-
-        System.IO.File.Copy(ReferenceDatabasePath, DatabasePath, true);
 
         await media.Initialize(_cts.Token);
 
@@ -238,4 +249,43 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
         // Assert: Expect an empty list of results
         matches.Should().BeEmpty();
     }
+
+    #region IDisposable
+    private int _disposed = 0;
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (Interlocked.CompareExchange(ref _disposed, 1, 0) == 0)
+        {
+            if (disposing)
+            {
+                base.Dispose(disposing);
+                RestoreDatabase();
+            }
+        }
+    }
+
+    private void RestoreDatabase()
+    {
+        var deletionTryMax = 10;
+        int tries = 0;
+        //Sqlite driver can be slow to release database file
+        while (tries < deletionTryMax)
+        {
+            try
+            {
+                //we request GC so that SQLite.Data frees the database file.
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                System.IO.File.Copy(ReferenceDatabasePath, DatabasePath, true);
+                break;
+            }
+            catch
+            {
+                Task.Delay(TimeSpan.FromSeconds(1).Milliseconds);
+                tries++;
+            }
+        }
+    }
+    #endregion IDisposable
 }

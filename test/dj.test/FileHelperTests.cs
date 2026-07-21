@@ -11,10 +11,8 @@ using Xunit.Internal;
 
 namespace dj.test;
 
-public class FileHelperTests(ITestOutputHelper _output)
+public class FileHelperTests(ITestOutputHelper output) : BaseTest(output)
 {
-
-    private static readonly CancellationTokenSource source = new();
 
     [Fact]
     public void Available()

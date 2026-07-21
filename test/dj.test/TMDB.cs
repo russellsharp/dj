@@ -12,7 +12,7 @@ using Microsoft.CodeAnalysis;
 
 namespace dj.test;
 
-public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
+public class TMDB(ITestOutputHelper output) : BaseTest(output)
 {
     private static IOptions<EndpointConfig> BasicOptions = Options.Create(new EndpointConfig
     {
