@@ -229,7 +229,6 @@ public class TMDB : BaseTest
     [Fact]
     public async Task MatchByOverview()
     {
-
         using Repo repo = new(BasicOptions, new Cache(BasicOptions, _cts), _cts);
         ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
 
@@ -254,7 +253,6 @@ public class TMDB : BaseTest
     [Fact]
     public async Task MatchKeywordsByAll()
     {
-
         using Repo repo = new(BasicOptions, new Cache(BasicOptions, _cts), _cts);
         using ITMDB tmdb = new shared.TMDB.TMDB(repo, base._cts);
 
@@ -278,7 +276,7 @@ public class TMDB : BaseTest
 
         var queryMatches = await tmdb.QueryOverviews(searchTerm, minimumHitCount);
 
-        queryMatches.Should().BeEmpty();
+        queryMatches.Should().BeEmpty("because no overviews should have 'police drama' as a matching phrase. Matches found: {0}", string.Join(" , ", queryMatches.Select(x => $"{x.Details.title} - {x.Details.overview}")));
 
         var thesus = new Thesaurus(thesaurusOptionsDefaults);
 
@@ -298,7 +296,6 @@ public class TMDB : BaseTest
     [Fact]
     public async Task MatchKeywordsCollection()
     {
-
         using Repo repo = new(BasicOptions, new Cache(BasicOptions, _cts), _cts);
         ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
 
