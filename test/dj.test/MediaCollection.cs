@@ -38,13 +38,23 @@ public class MediaCollection : BaseTest, IDisposable
         OverviewWeight = 1
     });
 
-    private string DatabasePath
+    private string MediaDatabasePath
     {
         get
         {
             var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
             var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
             return Path.GetFullPath(Path.Combine(rootDir, BasicDatabaseConfig.Value.DataFile));
+        }
+    }
+
+    private string TmdbDatabasePath
+    {
+        get
+        {
+            var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
+            var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
+            return Path.GetFullPath(Path.Combine(rootDir, BasicEndpointOptions.Value.DatabasePath));
         }
     }
 
@@ -56,7 +66,7 @@ public class MediaCollection : BaseTest, IDisposable
         }
         catch (Exception ex)
         {
-            log(ex.ToString());
+            log($"Exception not caught in MediaCollection Tests ctor: {ex}");
         }
     }
 
@@ -200,9 +210,10 @@ public class MediaCollection : BaseTest, IDisposable
 
         // Act: Call UpdateRepos with a path that doesn't exist
         // We expect it to handle this gracefully without throwing an exception related to file system access.
-        await media.UpdateRepos(nonExistentPath, false, _cts.Token);
+        var updateTask = () => media.UpdateRepos(nonExistentPath, false, _cts.Token);
 
         // Assert: No exceptions should be thrown, and the internal state should remain consistent (or at least not crash).
+        await updateTask.Should().NotThrowAsync();
     }
 
     [Fact]
@@ -266,17 +277,18 @@ public class MediaCollection : BaseTest, IDisposable
         {
             try
             {
-                var directoryCreated = Directory.CreateDirectory(Path.GetDirectoryName(DatabasePath)!);
+                var directoryCreated = Directory.CreateDirectory(Path.GetDirectoryName(MediaDatabasePath)!);
                 log($"Directory Created: {directoryCreated.FullName}");
                 //we request GC so that SQLite.Data frees the database file.
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
-                System.IO.File.Copy(ReferenceDatabasePath, DatabasePath, true);
+                System.IO.File.Copy(ReferenceDatabasePath, MediaDatabasePath, true);
+                System.IO.File.Copy(ReferenceTmdbDatabasePath, TmdbDatabasePath, true);
                 break;
             }
             catch (Exception ex)
             {
-                log($"Failed to overwrite: {DatabasePath}\r\nDirectory path: {Path.GetDirectoryName(DatabasePath)}\r\n{ex}");
+                log($"Failed to overwrite: {MediaDatabasePath}\r\nDirectory path: {Path.GetDirectoryName(MediaDatabasePath)}\r\n{ex}");
                 Task.Delay(TimeSpan.FromSeconds(1).Milliseconds);
                 attempt++;
             }
