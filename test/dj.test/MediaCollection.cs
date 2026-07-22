@@ -259,7 +259,6 @@ public class MediaCollection : BaseTest, IDisposable
 
     private void RestoreDatabase()
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(DatabasePath)!);
         var overwriteAttemptMax = 10;
         int attempt = 0;
         //Sqlite driver can be slow to release database file
@@ -267,6 +266,8 @@ public class MediaCollection : BaseTest, IDisposable
         {
             try
             {
+                var directoryCreated = Directory.CreateDirectory(Path.GetDirectoryName(DatabasePath)!);
+                log($"Directory Created: {directoryCreated.FullName}");
                 //we request GC so that SQLite.Data frees the database file.
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
@@ -275,7 +276,7 @@ public class MediaCollection : BaseTest, IDisposable
             }
             catch (Exception ex)
             {
-                log($"Failed to overwrite: {DatabasePath}\r\n{ex}");
+                log($"Failed to overwrite: {DatabasePath}\r\nDirectory path: {Path.GetDirectoryName(DatabasePath)}\r\n{ex}");
                 Task.Delay(TimeSpan.FromSeconds(1).Milliseconds);
                 attempt++;
             }
