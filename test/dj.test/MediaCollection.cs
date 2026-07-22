@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Reflection;
 using FluentAssertions;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Options;
 using shared;
 using shared.data;
@@ -9,7 +10,7 @@ using Xunit.Internal;
 
 namespace dj.test;
 
-public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
+public class MediaCollection : BaseTest, IDisposable
 {
     private IOptions<MediaCollectionConfiguration> BasicMediaOptions = Options.Create(new MediaCollectionConfiguration
     {
@@ -29,13 +30,44 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
     private static IOptions<EndpointConfig> BasicEndpointOptions = Options.Create(new EndpointConfig
     {
         BaseUrl = "https://api.themoviedb.org/3",
-        ApiKey = Repo.SUPER_SECRET_API_KEY,
         DatabasePath = "testdata/tmdb.db",
         RequestLimit = 40,
         RequestWindowSeconds = 10,
         TitleWeight = 100,
         OverviewWeight = 1
     });
+
+    private string MediaDatabasePath
+    {
+        get
+        {
+            var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
+            var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
+            return Path.GetFullPath(Path.Combine(rootDir, BasicDatabaseConfig.Value.DataFile));
+        }
+    }
+
+    private string TmdbDatabasePath
+    {
+        get
+        {
+            var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
+            var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
+            return Path.GetFullPath(Path.Combine(rootDir, BasicEndpointOptions.Value.DatabasePath));
+        }
+    }
+
+    public MediaCollection(ITestOutputHelper output) : base(output)
+    {
+        try
+        {
+            RestoreDatabase();
+        }
+        catch (Exception ex)
+        {
+            log($"Exception not caught in MediaCollection Tests ctor: {ex}");
+        }
+    }
 
     [Fact]
     public async Task MatchLocalFiles()
@@ -57,8 +89,7 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
 
         keywords = SearchHelpers.SanitizeForSearch("Inglourious Basterds", _cts.Token, true);
 
-        log($"{MethodBase.GetCurrentMethod()?.Name} Keywords:");
-        log($"{MethodBase.GetCurrentMethod()?.Name} BaseDirectory: {BasicMediaOptions.Value.BaseDirectory}");
+        log("Keywords:");
         keywords.ForEach(x => log(x));
 
         var matcheScores = (await media.FindInPath<shared.data.File>(keywords, null, _cts.Token)).ToList();
@@ -129,9 +160,6 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
         var bestMatches = await tmdb.PathToTmdb(matchedLocalMovie.path ?? string.Empty, context, true, _cts.Token);
 
         bestMatches.Should().NotBeNull();
-
-        log($"Best matches found for: {matchedLocalMovie.path ?? string.Empty}");
-        bestMatches.ForEach(x => log($"Best match found: {x?.id} - {x?.title ?? string.Empty}"));
     }
 
     [Fact]
@@ -161,11 +189,7 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
 
             var bestMatches = await tmdb.PathToTmdb(localMovie.path ?? string.Empty, context, true, _cts.Token);
 
-            if (bestMatches is not null)
-            {
-                log($"Best matches for {localMovie.path ?? string.Empty}");
-                bestMatches.ForEach(x => log($"{x?.id} - {x?.title ?? string.Empty}"));
-            }
+            bestMatches.Should().NotBeNull();
         }
     }
 
@@ -185,9 +209,10 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
 
         // Act: Call UpdateRepos with a path that doesn't exist
         // We expect it to handle this gracefully without throwing an exception related to file system access.
-        await media.UpdateRepos(nonExistentPath, false, _cts.Token);
+        var updateTask = () => media.UpdateRepos(nonExistentPath, false, _cts.Token);
 
         // Assert: No exceptions should be thrown, and the internal state should remain consistent (or at least not crash).
+        await updateTask.Should().NotThrowAsync();
     }
 
     [Fact]
@@ -226,4 +251,47 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
         // Assert: Expect an empty list of results
         matches.Should().BeEmpty();
     }
+
+    #region IDisposable
+    private int _disposed = 0;
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (Interlocked.CompareExchange(ref _disposed, 1, 0) == 0)
+        {
+            if (disposing)
+            {
+                base.Dispose(disposing);
+                RestoreDatabase();
+            }
+        }
+    }
+
+    private void RestoreDatabase()
+    {
+        var overwriteAttemptMax = 10;
+        int attempt = 0;
+        //Sqlite driver can be slow to release database file
+        while (attempt < overwriteAttemptMax)
+        {
+            try
+            {
+                var directoryCreated = Directory.CreateDirectory(Path.GetDirectoryName(MediaDatabasePath)!);
+                log($"Directory Created: {directoryCreated.FullName}");
+                //we request GC so that SQLite.Data frees the database file.
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                System.IO.File.Copy(ReferenceDatabasePath, MediaDatabasePath, true);
+                System.IO.File.Copy(ReferenceTmdbDatabasePath, TmdbDatabasePath, true);
+                break;
+            }
+            catch (Exception ex)
+            {
+                log($"Failed to overwrite: {MediaDatabasePath}\r\nDirectory path: {Path.GetDirectoryName(MediaDatabasePath)}\r\n{ex}");
+                Task.Delay(TimeSpan.FromSeconds(1).Milliseconds);
+                attempt++;
+            }
+        }
+    }
+    #endregion IDisposable
 }

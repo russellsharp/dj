@@ -1,6 +1,8 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using shared;
+using FluentAssertions;
 
 namespace dj.test;
 
@@ -8,7 +10,28 @@ public class BaseTest : IDisposable
 {
     public ITestOutputHelper _output;
     private List<string> _filesToDelete = new();
-    public CancellationTokenSource _cts = new();
+    private string ReferenceDataFile = "data/media.db";
+    private string ReferenceTmdbDataFile = "data/tmdb.db";
+    protected CancellationTokenSource _cts = new();
+    public string ReferenceDatabasePath
+    {
+        get
+        {
+            var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
+            var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
+            return Path.GetFullPath(Path.Combine(rootDir, ReferenceDataFile));
+        }
+    }
+
+    public string ReferenceTmdbDatabasePath
+    {
+        get
+        {
+            var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
+            var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
+            return Path.GetFullPath(Path.Combine(rootDir, ReferenceTmdbDataFile));
+        }
+    }
 
     public BaseTest(ITestOutputHelper output)
     {
@@ -37,7 +60,6 @@ public class BaseTest : IDisposable
             }
         }
     }
-
 
     #region IDisposable
     private int _disposed = 0;

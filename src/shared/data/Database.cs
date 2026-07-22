@@ -94,6 +94,11 @@ public class Database : IDisposable, IDatabase
         {
             Directory.CreateDirectory(Path.GetDirectoryName(DatabasePath) ?? throw new InvalidOperationException("Unable to determine database directory"));
 
+            if (!System.IO.File.Exists(DatabasePath))
+            {
+                Console.WriteLine($"Database file does not exist and will be created: {DatabasePath}");
+            }
+
             var lockObject = s_databaseLocks.GetOrAdd(DatabasePath, _ => new object());
             lock (lockObject)
             {
@@ -160,7 +165,6 @@ public class Database : IDisposable, IDatabase
 
     public void Create(CancellationToken? token = null)
     {
-        Console.WriteLine("Creating");
         token ??= _cts.Token;
 
         using var connection = new SqliteConnection(ConnectionStringReadWrite);
@@ -173,8 +177,8 @@ public class Database : IDisposable, IDatabase
         {
             try
             {
-                using var command = new SqliteCommand(query, connection, transaction);
-                command.ExecuteNonQuery();
+                var command = new CommandDefinition(query, null, transaction, _commandTimeoutSeconds, CommandType.Text, CommandFlags.None, token.Value);
+                connection.Execute(command);
                 transaction.Commit();
             }
             catch
