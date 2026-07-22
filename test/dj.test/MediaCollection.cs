@@ -80,7 +80,6 @@ public class MediaCollection : BaseTest, IDisposable
 
         keywords = SearchHelpers.SanitizeForSearch("Inglourious Basterds", _cts.Token, true);
 
-        log($"BaseDirectory: {BasicMediaOptions.Value.BaseDirectory}");
         log("Keywords:");
         keywords.ForEach(x => log(x));
 
@@ -273,8 +272,9 @@ public class MediaCollection : BaseTest, IDisposable
                 System.IO.File.Copy(ReferenceDatabasePath, DatabasePath, true);
                 break;
             }
-            catch
+            catch (Exception ex)
             {
+                log($"Failed to overwrite: {DatabasePath}\r\n{ex}");
                 Task.Delay(TimeSpan.FromSeconds(1).Milliseconds);
                 tries++;
             }
