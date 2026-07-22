@@ -259,10 +259,10 @@ public class MediaCollection : BaseTest, IDisposable
 
     private void RestoreDatabase()
     {
-        var deletionTryMax = 10;
-        int tries = 0;
+        var overwriteAttemptMax = 10;
+        int attempt = 0;
         //Sqlite driver can be slow to release database file
-        while (tries < deletionTryMax)
+        while (attempt < overwriteAttemptMax)
         {
             try
             {
@@ -276,7 +276,7 @@ public class MediaCollection : BaseTest, IDisposable
             {
                 log($"Failed to overwrite: {DatabasePath}\r\n{ex}");
                 Task.Delay(TimeSpan.FromSeconds(1).Milliseconds);
-                tries++;
+                attempt++;
             }
         }
     }
