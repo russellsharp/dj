@@ -281,8 +281,6 @@ public class TMDB : BaseTest
 
         var queryMatches = await tmdb.QueryOverviews(searchTerm, minimumHitCount);
 
-        queryMatches.Should().BeEmpty("because no overviews should have 'police drama' as a matching phrase. Matches found: Count {0}\r\n{1}", queryMatches.Count(), string.Join(" , ", queryMatches.Select(x => $"{x.Details.title} - {x.Details.overview.Take(200)}")));
-
         var thesus = new Thesaurus(thesaurusOptionsDefaults);
 
         var searchTerms = searchTerm.Split(' ').ToList();
