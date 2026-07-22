@@ -259,6 +259,7 @@ public class MediaCollection : BaseTest, IDisposable
 
     private void RestoreDatabase()
     {
+        Directory.CreateDirectory(Path.GetDirectoryName(DatabasePath)!);
         var overwriteAttemptMax = 10;
         int attempt = 0;
         //Sqlite driver can be slow to release database file
