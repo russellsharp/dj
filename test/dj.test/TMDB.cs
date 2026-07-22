@@ -265,9 +265,14 @@ public class TMDB : BaseTest
             foreach (var movie in movies.results)
             {
                 if (movie.id is not null)
+                {
+                    log($"Movie ID for query {movie.title} - {movie.id}");
                     _ = await tmdb.GetMovie(movie.id.Value);
+                }
             }
         }
+
+        log($"Movies found by title query {movies.results.Count()}");
 
         //search movie details in database by matching terms in their overview
         var searchTerm = "police drama".ToLower();
@@ -276,7 +281,7 @@ public class TMDB : BaseTest
 
         var queryMatches = await tmdb.QueryOverviews(searchTerm, minimumHitCount);
 
-        queryMatches.Should().BeEmpty("because no overviews should have 'police drama' as a matching phrase. Matches found: {0}", string.Join(" , ", queryMatches.Select(x => $"{x.Details.title} - {x.Details.overview}")));
+        queryMatches.Should().BeEmpty("because no overviews should have 'police drama' as a matching phrase. Matches found: Count {0}\r\n{1}", queryMatches.Count(), string.Join(" , ", queryMatches.Select(x => $"{x.Details.title} - {x.Details.overview.Take(200)}")));
 
         var thesus = new Thesaurus(thesaurusOptionsDefaults);
 
