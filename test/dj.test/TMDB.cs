@@ -9,6 +9,7 @@ using System.Text.Json;
 using System.Data.Common;
 using shared.thesaurus;
 using Microsoft.CodeAnalysis;
+using Microsoft.AspNetCore.Http;
 
 namespace dj.test;
 
@@ -17,7 +18,6 @@ public class TMDB : BaseTest
     private static IOptions<EndpointConfig> BasicOptions = Options.Create(new EndpointConfig
     {
         BaseUrl = "https://api.themoviedb.org/3",
-        ApiKey = Repo.SUPER_SECRET_API_KEY,
         DatabasePath = "testdata/tmdb.db",
         RequestLimit = 40,
         RequestWindowSeconds = 10,
@@ -46,6 +46,10 @@ public class TMDB : BaseTest
         try
         {
             DeleteDatabase();
+
+            BasicOptions.Value.ApiKey = EndpointConfig.GetApiKey();
+
+            log($"API KEY IS GOT: {!string.IsNullOrEmpty(BasicOptions.Value.ApiKey)}");
         }
         catch (Exception ex)
         {
@@ -266,13 +270,10 @@ public class TMDB : BaseTest
             {
                 if (movie.id is not null)
                 {
-                    log($"Movie ID for query {movie.title} - {movie.id}");
                     _ = await tmdb.GetMovie(movie.id.Value);
                 }
             }
         }
-
-        log($"Movies found by title query {movies.results.Count()}");
 
         //search movie details in database by matching terms in their overview
         var searchTerm = "police drama".ToLower();

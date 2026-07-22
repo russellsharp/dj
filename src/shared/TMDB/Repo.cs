@@ -22,12 +22,7 @@ public interface IRepo
 
 public class Repo : IDisposable, IRepo
 {
-    #region SUPER SECRET DO NOT LOOK
-    public const string SUPER_SECRET_API_KEY = "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI5M2M2YjdiMzI2MzkzYWJlNDA3NjkyMzM2M2YxOWU1NyIsIm5iZiI6MTc4MTQ3ODA2MS40NzIsInN1YiI6IjZhMmYzMmFkZGIyYWI4YjZiOTRhYzgwOCIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.80AGun0FCgltxbKNzw7dHbhZFJlZL_NT105aaOiQHwk";
-    #endregion SUPER SECRET IS OVER
-
     private EndpointConfig _config;
-
     private ICache _cache;
     private readonly IRateLimiter _limiter;
     private readonly CancellationTokenSource _tokenSource;
@@ -62,6 +57,8 @@ public class Repo : IDisposable, IRepo
         request.AddQueryParameter("with_keywords", query);
         request.AddHeader("accept", "application/json");
         request.AddHeader("Authorization", $"Bearer {_config.ApiKey}");
+
+        log($"TMDB API KEY IS NULL OR EMPTY: {string.IsNullOrEmpty(_config.ApiKey)}");
 
         var response = await Get<MovieQueryResponse>(request, token);
         return response?.ToString() ?? string.Empty;

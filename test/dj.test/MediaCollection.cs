@@ -30,7 +30,6 @@ public class MediaCollection : BaseTest, IDisposable
     private static IOptions<EndpointConfig> BasicEndpointOptions = Options.Create(new EndpointConfig
     {
         BaseUrl = "https://api.themoviedb.org/3",
-        ApiKey = Repo.SUPER_SECRET_API_KEY,
         DatabasePath = "testdata/tmdb.db",
         RequestLimit = 40,
         RequestWindowSeconds = 10,

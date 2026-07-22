@@ -46,9 +46,21 @@ public static class ApplicationExtensions
                                 .Configure<ThesaurusConfiguration>(builder.Configuration.GetSection("Thesaurus"))
                                 .Configure<HostConfiguration>(builder.Configuration.GetSection(HostConfiguration.SectionName))
                                 .Configure<JwtConfiguration>(builder.Configuration.GetSection(HostConfiguration.SectionName).GetSection("Jwt"));
+
+        builder.Services.AddTmdbApiKey();
+
         return builder;
     }
 
+    private static IServiceCollection AddTmdbApiKey(this IServiceCollection services)
+    {
+        var tmdbApiKey = new ConfigurationBuilder()
+                        .AddInMemoryCollection(new Dictionary<string, string?>
+                            {
+                                { "TMDB:ApiKey", EndpointConfig.GetApiKey() }
+                            }).Build();
+        return services.AddSingleton(tmdbApiKey);
+    }
     public static IHostApplicationBuilder AddSecurity(this IHostApplicationBuilder builder)
     {
 
