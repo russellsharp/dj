@@ -58,8 +58,6 @@ public class Repo : IDisposable, IRepo
         request.AddHeader("accept", "application/json");
         request.AddHeader("Authorization", $"Bearer {_config.ApiKey}");
 
-        log($"TMDB API KEY IS NULL OR EMPTY: {string.IsNullOrEmpty(_config.ApiKey)}");
-
         var response = await Get<MovieQueryResponse>(request, token);
         return response?.ToString() ?? string.Empty;
     }

@@ -69,7 +69,7 @@ public static class ApplicationExtensions
         builder.Services.AddHttpsRedirection(options =>
             {
                 options.RedirectStatusCode = StatusCodes.Status307TemporaryRedirect;
-                options.HttpsPort = 7123;
+                options.HttpsPort = 7132;
             });
 
         //must be called before security services are added
