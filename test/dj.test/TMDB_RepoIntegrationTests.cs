@@ -14,14 +14,14 @@ namespace dj.test
     {
         private readonly Mock<ICache> _mockCache;
         private readonly Mock<IRepo> _mockRepo;
-        private readonly IOptions<EndpointConfig> _endpointConfig;
+        private readonly IOptions<TMDBConfiguration> _endpointConfig;
 
         public RepoIntegrationTests()
         {
             _mockCache = new Mock<ICache>();
             _mockRepo = new Mock<IRepo>();
 
-            var config = new EndpointConfig
+            var config = new TMDBConfiguration
             {
                 BaseUrl = "https://api.themoviedb.org/undone"
             };

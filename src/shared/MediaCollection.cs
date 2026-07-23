@@ -42,7 +42,7 @@ public class MediaCollection : IMediaCollection
 
     private shared.data.IDatabase _db;
 
-    public MediaCollection(IOptions<MediaCollectionConfiguration> configuration, IDatabase db, ITMDB tmdb, CancellationTokenSource cts)
+    public MediaCollection(IOptions<MediaCollectionConfiguration> configuration, IDatabase db, CancellationTokenSource cts)
     {
         _configuration = configuration.Value;
 
