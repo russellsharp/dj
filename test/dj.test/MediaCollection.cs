@@ -28,7 +28,7 @@ public class MediaCollection : BaseTest, IDisposable
         DataFile = "testdata/mediacollection.db",
     });
 
-    private static IOptions<EndpointConfig> BasicEndpointOptions = Options.Create(new EndpointConfig
+    private static IOptions<TMDBConfiguration> BasicEndpointOptions = Options.Create(new TMDBConfiguration
     {
         BaseUrl = "https://api.themoviedb.org/3",
         DatabasePath = "testdata/tmdb.db",

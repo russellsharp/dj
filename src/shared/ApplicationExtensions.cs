@@ -104,18 +104,18 @@ public static partial class ApplicationExtensions
 
     public static IHostApplicationBuilder ConfigureTmdb(this IHostApplicationBuilder builder)
     {
-        builder.Services.Configure<shared.EndpointConfig>(builder.Configuration.GetSection("TMDB"));
+        builder.Services.Configure<shared.TMDBConfiguration>(builder.Configuration.GetSection(TMDBConfiguration.SectionName));
 
         var tmdbDict = new Dictionary<string, string?>();
 
-        var tmdbApiKey = EndpointConfig.GetApiKey();
+        var tmdbApiKey = TMDBConfiguration.GetApiKey();
 
         if (tmdbApiKey is not null)
         {
-            tmdbDict.Add("TMDB:ApiKey", EndpointConfig.GetApiKey());
+            tmdbDict.Add("TMDB:ApiKey", TMDBConfiguration.GetApiKey());
         }
 
-        var tmdbDatabasePath = Environment.GetEnvironmentVariable(EndpointConfig.TMDB_DATABASE_PATH);
+        var tmdbDatabasePath = Environment.GetEnvironmentVariable(TMDBConfiguration.TMDB_DATABASE_PATH);
 
         if (tmdbDatabasePath is not null)
         {

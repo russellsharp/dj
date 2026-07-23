@@ -23,10 +23,10 @@ public interface IRateLimiter
 public class RateLimiter : IRateLimiter
 {
     private readonly RestClient _client;
-    private readonly EndpointConfig _config;
+    private readonly TMDBConfiguration _config;
     private Polly.ResiliencePipeline<RestResponse> _pipeline;
 
-    public RateLimiter(IOptions<EndpointConfig> options)
+    public RateLimiter(IOptions<TMDBConfiguration> options)
     {
 
         _config = options.Value;

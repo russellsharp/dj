@@ -15,7 +15,7 @@ namespace dj.test;
 
 public class TMDB : BaseTest
 {
-    private static IOptions<EndpointConfig> BasicOptions = Options.Create(new EndpointConfig
+    private static IOptions<TMDBConfiguration> BasicOptions = Options.Create(new TMDBConfiguration
     {
         BaseUrl = "https://api.themoviedb.org/3",
         DatabasePath = "testdata/tmdb.db",
@@ -47,7 +47,7 @@ public class TMDB : BaseTest
         {
             DeleteDatabase();
 
-            BasicOptions.Value.ApiKey = EndpointConfig.GetApiKey();
+            BasicOptions.Value.ApiKey = TMDBConfiguration.GetApiKey();
 
             log($"API KEY IS GOT: {!string.IsNullOrEmpty(BasicOptions.Value.ApiKey)}");
         }
