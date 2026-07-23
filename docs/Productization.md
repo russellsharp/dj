@@ -17,13 +17,13 @@
   - Define container port mapping
   - Configure CPU / memory sizing
   - Configure health check path: `/api/health`
-- [ ] Use ECS-friendly environment variables
+- [x] Use ECS-friendly environment variables
   - `DJ_SECURITY_KEY`
   - `HostConfiguration:Jwt:Issuer`
   - `HostConfiguration:Jwt:Audience`
   - `MediaCollectionConfiguration:BaseDirectory`
   - `DatabaseConfiguration:DataFile`
-  - ~~`TMDB:ApiKey`~~
+  - `TMDB:ApiKey`
   - `TMDB:DatabasePath`
 - [ ] Avoid hardcoded local Windows paths in production config
   - Current `appsettings.json` uses `//fatty/Existing/`

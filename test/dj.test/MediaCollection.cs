@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Diagnostics;
 using System.Reflection;
 using FluentAssertions;
@@ -12,7 +13,7 @@ namespace dj.test;
 
 public class MediaCollection : BaseTest, IDisposable
 {
-    private IOptions<MediaCollectionConfiguration> BasicMediaOptions = Options.Create(new MediaCollectionConfiguration
+    private static IOptions<MediaCollectionConfiguration> BasicMediaOptions = Options.Create(new MediaCollectionConfiguration
     {
         Filter = "*.*",
         // BaseDirectory = "testdata/mediaReference/",
@@ -22,7 +23,7 @@ public class MediaCollection : BaseTest, IDisposable
         VideoExtensions = @"avi;mkv;mp4",
     });
 
-    private IOptions<DatabaseConfiguration> BasicDatabaseConfig = Options.Create(new DatabaseConfiguration
+    private static IOptions<DatabaseConfiguration> BasicDatabaseConfig = Options.Create(new DatabaseConfiguration
     {
         DataFile = "testdata/mediacollection.db",
     });
@@ -69,13 +70,20 @@ public class MediaCollection : BaseTest, IDisposable
         }
     }
 
+    private static (IRepo repo, ITMDB tmdb, IDatabase db, IMediaCollection medai) BuildServices(CancellationTokenSource cts)
+    {
+        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions, cts), cts);
+        ITMDB tmdb = new shared.TMDB.TMDB(repo, cts);
+        IDatabase db = new shared.data.Database(BasicDatabaseConfig, cts);
+        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, cts);
+
+        return (repo, tmdb, db, media);
+    }
+
     [Fact]
     public async Task MatchLocalFiles()
     {
-        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions, _cts), _cts);
-        ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
-        IDatabase db = new shared.data.Database(BasicDatabaseConfig, _cts);
-        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _cts);
+        var (repo, tmdb, db, media) = BuildServices(_cts);
 
         await media.Initialize(_cts.Token);
 
@@ -103,10 +111,7 @@ public class MediaCollection : BaseTest, IDisposable
     [Fact]
     public async Task MatchLocalFilesDictionaryAction()
     {
-        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions, _cts), _cts);
-        ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
-        IDatabase db = new shared.data.Database(BasicDatabaseConfig, _cts);
-        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _cts);
+        var (repo, tmdb, db, media) = BuildServices(_cts);
 
         await media.Initialize(_cts.Token);
 
@@ -120,10 +125,7 @@ public class MediaCollection : BaseTest, IDisposable
     [Fact]
     public async Task MatchLocalFilesToTmdb()
     {
-        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions, _cts), _cts);
-        ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
-        IDatabase db = new shared.data.Database(BasicDatabaseConfig, _cts);
-        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _cts);
+        var (repo, tmdb, db, media) = BuildServices(_cts);
 
         await media.UpdateRepos(BasicMediaOptions.Value.BaseDirectory, false, _cts.Token);
 
@@ -165,10 +167,7 @@ public class MediaCollection : BaseTest, IDisposable
     [Fact]
     public async Task Match100LocalFilesToTmdb()
     {
-        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions, _cts), _cts);
-        ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
-        IDatabase db = new shared.data.Database(BasicDatabaseConfig, _cts);
-        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _cts);
+        var (repo, tmdb, db, media) = BuildServices(_cts);
 
         await media.Initialize(_cts.Token);
 
@@ -199,10 +198,7 @@ public class MediaCollection : BaseTest, IDisposable
         // Arrange: Use a base directory that is guaranteed not to exist
         var nonExistentPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
 
-        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions, _cts), _cts);
-        ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
-        IDatabase db = new shared.data.Database(BasicDatabaseConfig, _cts);
-        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _cts);
+        var (repo, tmdb, db, media) = BuildServices(_cts);
 
         // Initialize first to ensure the DB is ready for updates/checks
         await media.Initialize(_cts.Token);
@@ -221,10 +217,7 @@ public class MediaCollection : BaseTest, IDisposable
         // Arrange: Use a path that is guaranteed not to be in the database.
         var nonExistentPath = "C:/media/definitely/not/in/db.mp4";
 
-        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions, _cts), _cts);
-        ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
-        IDatabase db = new shared.data.Database(BasicDatabaseConfig, _cts);
-        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _cts);
+        var (repo, tmdb, db, media) = BuildServices(_cts);
 
         await media.Initialize(_cts.Token);
 
@@ -238,10 +231,7 @@ public class MediaCollection : BaseTest, IDisposable
         // Arrange: Use a non-matching pattern
         var nonExistentPattern = "non_existent_pattern";
 
-        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions, _cts), _cts);
-        ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
-        IDatabase db = new shared.data.Database(BasicDatabaseConfig, _cts);
-        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _cts);
+        var (repo, tmdb, db, media) = BuildServices(_cts);
 
         await media.Initialize(_cts.Token);
 
