@@ -11,13 +11,16 @@ Add parameters to docker run command or set environment variables when building 
 
 ```
 docker run `
-    -e TMDB_API_KEY `
-    -e DJ_SECURITY_KEY `
-    -e ASPNETCORE_Kestrel__Kestrel__Certificates__Development__Password `
-    -e ASPNETCORE_Kestrel__Certificates__Default__Path=/https/aspnetapp.pfx `
+    -e "TMDB_API_KEY=$env:TMDB_API_KEY" `
+    -e "DJ_SECURITY_KEY=$env:DJ_SECURITY_KEY" `
+    -e "ASPNETCORE_ENVIRONMENT=Development" `
+    -e "APSNETCORE_URLS=https://+:7132;http://+:5282" `
+    -e "ASPNETCORE_Kestrel__Certificates__Default__Password=$env:ASPNETCORE_Kestrel__Certificates__Default__Password" `
+    -e "ASPNETCORE_Kestrel__Certificates__Default__Path=/root/https/aspnetapp.pfx" `
     -d `
     -p 7132:7132 `
-    -v %USERPROFILE%\.aspnet/https:/root/.aspnet/https:ro `
+    -p 5282:5282 `
+    -v "${env:USERPROFILE}\.aspnet\https:/root/https:ro" `
     --name dj-api-container `
     dj-api-image
 ```
