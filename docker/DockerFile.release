@@ -1,0 +1,27 @@
+# Stage 1: Build the application using the .NET 11 SDK
+FROM mcr.microsoft.com/dotnet/sdk:11.0-preview AS build-env
+WORKDIR /app
+
+# Copy the solution source and restore dependencies
+COPY . ./
+RUN dotnet restore
+
+# Build and publish the release
+RUN dotnet publish ./src/api/api.csproj  -c Release -o ./out
+
+# Run the application using the .NET 11 Ubuntu runtime for aspnetcore.  Should be a slimmed down image.
+FROM mcr.microsoft.com/dotnet/aspnet:11.0-preview AS runtime-env
+WORKDIR /app
+COPY --from=build-env /app/out .
+
+# Expose the ASP.NET Core ports for https and http as configured in src/api/appsettings.json
+EXPOSE 7132
+EXPOSE 5282
+
+ENV APSNETCORE_ENVIRONMENT=Development \
+    APSNETCORE_URLS=https://+;http://+
+
+RUN mkdir -p /app/cert && echo "init" > /app/cert/init.text
+
+# Run the api dll
+ENTRYPOINT ["dotnet", "api.dll"]

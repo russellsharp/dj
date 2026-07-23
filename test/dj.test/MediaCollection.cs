@@ -15,7 +15,7 @@ public class MediaCollection : BaseTest, IDisposable
     private IOptions<MediaCollectionConfiguration> BasicMediaOptions = Options.Create(new MediaCollectionConfiguration
     {
         Filter = "*.*",
-        // BaseDirectory = "C:/dev/mediaReference",
+        // BaseDirectory = "testdata/mediaReference/",
         BaseDirectory = @"//Fatty//existing",
         DirectoryRecursionDepth = 50,
         AudioExtensions = @"mp3",

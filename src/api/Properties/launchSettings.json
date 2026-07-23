@@ -5,7 +5,7 @@
       "commandName": "Project",
       "dotnetRunMessages": true,
       "launchBrowser": false,
-      "applicationUrl": "https://localhost:7123;http://localhost:5282",
+      "applicationUrl": "https://localhost:7132;http://localhost:5282",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       }
@@ -16,7 +16,13 @@
       "launchBrowser": false,
       "applicationUrl": "http://localhost:5282",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "DJ_SECURITY_KEY": "",
+        "HostConfiguration:Jwt:Issuer": "",
+        "HostConfiguration:Jwt:Audience": "",
+        "MediaCollectionConfiguration:BaseDirectory": "",
+        "DatabaseConfiguration:DataFile": "",
+        "TMDB:DatabasePath": ""
       }
     }
   }
