@@ -1,5 +1,9 @@
-docker container stop dj-api-container
-docker container rm dj-api-container
+New-Variable -Name "CONTAINER_NAME" -VALUE "dj-api-container" -Option Constant
+
+if ($id = docker ps -aq --filter "name=^$CONTAINER_NAME") { 
+    docker container stop $id
+    docker container rm $id
+}
  
 # powershell command
 
@@ -13,6 +17,6 @@ docker run `
     -d `
     -p 7132:7132 `
     -p 5282:5282 `
-    -v "${env:USERPROFILE}\.aspnet\https:/root/https:ro" `
+    -v "/mnt/c/Users/rufford/.aspnet/https:/root/https:ro" `
     --name dj-api-container `
     dj-api-image
