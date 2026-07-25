@@ -14,6 +14,7 @@ docker run `
     -e "APSNETCORE_URLS=https://+:7132;http://+:5282" `
     -e "ASPNETCORE_Kestrel__Certificates__Default__Password=$env:ASPNETCORE_Kestrel__Certificates__Default__Password" `
     -e "ASPNETCORE_Kestrel__Certificates__Default__Path=/root/https/aspnetapp.pfx" `
+    -e "DJ_HOST_ALLOWED_CORS_URL=127.0.0.1" `
     -d `
     -p 7132:7132 `
     -p 5282:5282 `

@@ -135,9 +135,16 @@ public static partial class ApplicationExtensions
                     // Register the cryptographic signing keys
                     if (securityConfig != null && !string.IsNullOrEmpty(securityConfig.SecurityKey))
                     {
-                        var symmetricKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(securityConfig.SecurityKey));
-                        options.AddSigningKey(symmetricKey);
-                        options.AddEncryptionKey(symmetricKey);
+                        try
+                        {
+                            var symmetricKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(securityConfig.SecurityKey));
+                            options.AddSigningKey(symmetricKey);
+                            options.AddEncryptionKey(symmetricKey);
+                        }
+                        catch (Exception ex)
+                        {
+                            throw new Exception($"================================\r\n{securityConfig.SecurityKey.Take(10)} - {securityConfig.SecurityKey.TakeLast(5)}. Original: {ex}");
+                        }
                     }
                     else if (builder.Environment.IsDevelopment())
                     {
