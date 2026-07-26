@@ -11,7 +11,7 @@ docker run `
     -e "DJ_TMDB_API_KEY=$env:DJ_TMDB_API_KEY" `
     -e "DJ_SECURITY_KEY=$env:DJ_SECURITY_KEY" `
     -e "ASPNETCORE_ENVIRONMENT=Development" `
-    -e "APSNETCORE_URLS=https://+:80" `
+    -e "APSNETCORE_URLS=https://+:7132;http://+:5282" `
     -e "ASPNETCORE_Kestrel__Certificates__Default__Password=$env:ASPNETCORE_Kestrel__Certificates__Default__Password" `
     -e "ASPNETCORE_Kestrel__Certificates__Default__Path=/root/https/aspnetapp.pfx" `
     -e "DJ_HOST_ALLOWED_CORS_URL=127.0.0.1" `

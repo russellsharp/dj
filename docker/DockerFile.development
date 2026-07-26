@@ -15,11 +15,12 @@ WORKDIR /app
 COPY --from=build-env /app/out .
 
 # Expose the ASP.NET Core ports for https and http as configured in src/api/appsettings.json
-EXPOSE 80
+EXPOSE 7132
+EXPOSE 5282
 
 #Environment variables are set by the docker run command
 
-ENV ASPNETCORE_ENVIRONMENT=Production
+RUN mkdir -p /app/cert && echo "init" > /app/cert/init.text
 
 # Run the api dll
 ENTRYPOINT ["dotnet", "api.dll"]

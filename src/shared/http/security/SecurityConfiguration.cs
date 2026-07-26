@@ -34,13 +34,6 @@ public static class SecurityExtensions
     {
         string securityKey = Environment.GetEnvironmentVariable(SecurityKeyKey) ?? "";
 
-        var fullbody = System.Text.Json.JsonSerializer.Deserialize<AwsSecret>(securityKey);
-
-        securityKey = fullbody.SecretString.value;
-
-        //System.Text.Json.JsonSerializer.Deserialize<SecretString>(securityKey).value;
-
-        //.SecretString
         ArgumentException.ThrowIfNullOrEmpty(securityKey, $"{securityKey.Take(5)} -- {securityKey.TakeLast(5)}");
 
         Console.WriteLine($"{securityKey.Take(5)} -- {securityKey.TakeLast(5)}");

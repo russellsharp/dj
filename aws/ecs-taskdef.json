@@ -11,7 +11,7 @@
         "cpuArchitecture": "X86_64"
     },
     "executionRoleArn": "arn:aws:iam::648807276746:role/ecsTaskExecutionRole",
-    "taskRoleArn": "arn:aws:iam::648807276746:role/ecsInfrastructureRoleForExpressServices",
+    "taskRoleArn": "arn:aws:iam::648807276746:role/ecsTaskRole",
     "containerDefinitions": [
         {
             "name": "dotnet11-api",
@@ -19,11 +19,21 @@
             "essential": true,
             "portMappings": [
                 {
-                    "containerPort": 7132,
-                    "hostPort": 7132,
+                    "containerPort": 80,
+                    "hostPort": 80,
                     "protocol": "tcp"
                 }
             ],
+            "healthCheck": {
+                "command": [
+                    "CMD-SHELL",
+                    "curl -f http://localhost:80/api/health || exit 1"
+                ],
+                "interval": 30,
+                "timeout": 5,
+                "retries": 3,
+                "startPeriod": 60
+            },
             "secrets": [
                 {
                     "name": "DJ_SECURITY_KEY",
@@ -31,25 +41,21 @@
                 },
                 {
                     "name": "DJ_TMDB_API_KEY",
-                    "valueFrom": "arn:aws:secretsmanager:us-east-1:648807276746:secret:dev/dj/tmdbApiKey-8d5jtQ:SecretString:DJ_TMDB_API_KEY::"
+                    "valueFrom": "arn:aws:secretsmanager:us-east-1:648807276746:secret:dev/dj/tmdbApiKey-8d5jtQ:DJ_TMDB_API_KEY::"
                 }
             ],
             "environment": [
                 {
                     "name": "ASPNETCORE_ENVIRONMENT",
-                    "value": "Development"
+                    "value": "Production"
                 },
                 {
                     "name": "ASPNETCORE_HTTP_PORTS",
-                    "value": "5282"
+                    "value": "80"
                 },
                 {
-                    "name": "DJ_JWT_ISSUER",
-                    "value": "https://localhost:7132"
-                },
-                {
-                    "name": "DJ_JWT_AUDIENCE",
-                    "value": "https://localhost:7132"
+                    "name": "ASPNETCORE_URLS",
+                    "value": "http://+:80"
                 },
                 {
                     "name": "DJ_MEDIA_BASE_DIRECTORY",
@@ -73,7 +79,8 @@
                 "options": {
                     "awslogs-group": "/ecs/aspnetcore-net11-app",
                     "awslogs-region": "us-east-1",
-                    "awslogs-stream-prefix": "web"
+                    "awslogs-stream-prefix": "web",
+                    "awslogs-create-group": "true"
                 }
             }
         }
