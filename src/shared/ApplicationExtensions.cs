@@ -11,10 +11,12 @@ using Microsoft.IdentityModel.Tokens;
 using shared.thesaurus;
 using shared.TMDB;
 using shared.http.security;
+using System.Runtime.CompilerServices;
+using shared.data;
 
 namespace shared;
 
-public static class ApplicationExtensions
+public static partial class ApplicationExtensions
 {
     public static IHostApplicationBuilder AddServices(this IHostApplicationBuilder builder)
     {
@@ -35,17 +37,96 @@ public static class ApplicationExtensions
         var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
         var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
         var filePath = Path.Combine(rootDir, "super_secret_key.secret");
-        return File.ReadAllText(filePath);
+        return System.IO.File.ReadAllText(filePath);
     }
 
     public static IHostApplicationBuilder AddConfiguration(this IHostApplicationBuilder builder)
     {
-        builder.Services.Configure<MediaCollectionConfiguration>(builder.Configuration.GetSection(MediaCollectionConfiguration.SectionName))
-                                .Configure<shared.data.DatabaseConfiguration>(builder.Configuration.GetSection(shared.data.DatabaseConfiguration.SectionName))
-                                .Configure<shared.EndpointConfig>(builder.Configuration.GetSection("TMDB"))
-                                .Configure<ThesaurusConfiguration>(builder.Configuration.GetSection("Thesaurus"))
-                                .Configure<HostConfiguration>(builder.Configuration.GetSection(HostConfiguration.SectionName))
-                                .Configure<JwtConfiguration>(builder.Configuration.GetSection(HostConfiguration.SectionName).GetSection("Jwt"));
+        builder.Services.Configure<ThesaurusConfiguration>(builder.Configuration.GetSection(ThesaurusConfiguration.SectionName))
+                        .Configure<HostConfiguration>(builder.Configuration.GetSection(HostConfiguration.SectionName));
+
+        builder
+                .ConfigureMediaCollection()
+                .ConfigureMediaDatabase()
+                .ConfigureJwt()
+                .ConfigureTmdb();
+
+        return builder;
+    }
+
+    public static IHostApplicationBuilder ConfigureMediaDatabase(this IHostApplicationBuilder builder)
+    {
+        builder.Services.Configure<shared.data.DatabaseConfiguration>(builder.Configuration.GetSection(shared.data.DatabaseConfiguration.SectionName));
+
+        var dbPath = Environment.GetEnvironmentVariable(DatabaseConfiguration.DJ_MEDIA_DATABASE_PATH);
+
+        if (dbPath is not null)
+        {
+            var mediaConfigDict = new Dictionary<string, string?> { { "MediaCollectionConfiguration:BaseDirectory", dbPath } };
+
+            builder.Configuration.AddInMemoryCollection(mediaConfigDict);
+        }
+
+        return builder;
+    }
+
+    public static IHostApplicationBuilder ConfigureMediaCollection(this IHostApplicationBuilder builder)
+    {
+        builder.Services.Configure<MediaCollectionConfiguration>(builder.Configuration.GetSection(MediaCollectionConfiguration.SectionName));
+
+        var mediaPath = Environment.GetEnvironmentVariable(MediaCollectionConfiguration.DJ_MEDIA_BASE_DIRECTORY_KEY);
+
+        if (mediaPath is not null)
+        {
+            var mediaConfigDict = new Dictionary<string, string?> { { "MediaCollectionConfiguration:BaseDirectory", mediaPath } };
+
+            builder.Configuration.AddInMemoryCollection(mediaConfigDict);
+        }
+
+        return builder;
+    }
+
+    public static IHostApplicationBuilder ConfigureJwt(this IHostApplicationBuilder builder)
+    {
+        builder.Services
+            .Configure<JwtConfiguration>(builder.Configuration.GetSection(HostConfiguration.SectionName).GetSection("Jwt"));
+
+        var envSettings = new Dictionary<string, string?>
+        {
+            { "HostConfiguration:Jwt:Issuer", Environment.GetEnvironmentVariable(JwtConfiguration.DJ_JWT_ISSUER) },
+            { "HostConfiguration:Jwt:Audience" , Environment.GetEnvironmentVariable(JwtConfiguration.DJ_JWT_AUDIENCE)},
+        };
+
+        builder.Configuration.AddInMemoryCollection(envSettings);
+
+        return builder;
+    }
+
+    public static IHostApplicationBuilder ConfigureTmdb(this IHostApplicationBuilder builder)
+    {
+        builder.Services.Configure<shared.TMDBConfiguration>(builder.Configuration.GetSection(TMDBConfiguration.SectionName));
+
+        var tmdbDict = new Dictionary<string, string?>();
+
+        var tmdbApiKey = TMDBConfiguration.GetApiKey();
+
+        if (tmdbApiKey is not null)
+        {
+            tmdbDict.Add("TMDB:ApiKey", TMDBConfiguration.GetApiKey());
+        }
+
+        var tmdbDatabasePath = Environment.GetEnvironmentVariable(TMDBConfiguration.TMDB_DATABASE_PATH);
+
+        if (tmdbDatabasePath is not null)
+        {
+            tmdbDict.Add("TMDB:DatabasePath", tmdbDatabasePath);
+        }
+
+        if (tmdbDict.Any())
+        {
+            builder.Configuration.AddInMemoryCollection(tmdbDict);
+        }
+
         return builder;
     }
 
@@ -57,7 +138,7 @@ public static class ApplicationExtensions
         builder.Services.AddHttpsRedirection(options =>
             {
                 options.RedirectStatusCode = StatusCodes.Status307TemporaryRedirect;
-                options.HttpsPort = 7123;
+                options.HttpsPort = 7132;
             });
 
         //must be called before security services are added
@@ -74,7 +155,7 @@ public static class ApplicationExtensions
 
     private static IHostApplicationBuilder AddAnonymousTokenService(this IHostApplicationBuilder builder)
     {
-        var host = builder.Configuration.GetSection($"{HostConfiguration.SectionName}").Get<HostConfiguration>();
+        var host = builder.Configuration.GetSection(HostConfiguration.SectionName).Get<HostConfiguration>();
 
         builder.Services.AddScoped<ITokenGenerator, AnonymousTokenGenerator>()
             .AddAuthentication(options =>
@@ -90,9 +171,9 @@ public static class ApplicationExtensions
                     ValidateAudience = true,
                     ValidateLifetime = true,
                     ValidateIssuerSigningKey = true,
-                    ValidIssuer = host.Jwt.Issuer,
-                    ValidAudience = host.Jwt.Audience,
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(host.Jwt.Key)),
+                    ValidIssuer = host?.Jwt.Issuer ?? "",
+                    ValidAudience = host?.Jwt.Audience ?? "",
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(host?.Jwt.Key ?? "")),
                 };
             });
         return builder;
@@ -171,6 +252,8 @@ public class JwtConfiguration
     public string Issuer { get; init; } = "";
     public string Audience { get; init; } = "";
     public string Key { get; init; } = "";
+    public static string DJ_JWT_ISSUER { get; } = "DJ_JWT_ISSUER";
+    public static string DJ_JWT_AUDIENCE { get; } = "DJ_JWT_AUDIENCE";
 }
 
 public class RateLimiterTypeConfiguration

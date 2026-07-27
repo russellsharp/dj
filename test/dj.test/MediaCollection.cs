@@ -1,5 +1,8 @@
+using System.Data.Common;
 using System.Diagnostics;
+using System.Reflection;
 using FluentAssertions;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Options;
 using shared;
 using shared.data;
@@ -8,27 +11,26 @@ using Xunit.Internal;
 
 namespace dj.test;
 
-public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
+public class MediaCollection : BaseTest, IDisposable
 {
-    private IOptions<MediaCollectionConfiguration> BasicMediaOptions = Options.Create(new MediaCollectionConfiguration
+    private static IOptions<MediaCollectionConfiguration> BasicMediaOptions = Options.Create(new MediaCollectionConfiguration
     {
         Filter = "*.*",
-        // BaseDirectory = "C:/dev/mediaReference",
+        // BaseDirectory = "testdata/mediaReference/",
         BaseDirectory = @"//Fatty//existing",
         DirectoryRecursionDepth = 50,
         AudioExtensions = @"mp3",
         VideoExtensions = @"avi;mkv;mp4",
     });
 
-    private IOptions<DatabaseConfiguration> BasicDatabaseConfig = Options.Create(new DatabaseConfiguration
+    private static IOptions<DatabaseConfiguration> BasicDatabaseConfig = Options.Create(new DatabaseConfiguration
     {
         DataFile = "testdata/mediacollection.db",
     });
 
-    private static IOptions<EndpointConfig> BasicEndpointOptions = Options.Create(new EndpointConfig
+    private static IOptions<TMDBConfiguration> BasicEndpointOptions = Options.Create(new TMDBConfiguration
     {
         BaseUrl = "https://api.themoviedb.org/3",
-        ApiKey = Repo.SUPER_SECRET_API_KEY,
         DatabasePath = "testdata/tmdb.db",
         RequestLimit = 40,
         RequestWindowSeconds = 10,
@@ -36,13 +38,52 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
         OverviewWeight = 1
     });
 
+    private string MediaDatabasePath
+    {
+        get
+        {
+            var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
+            var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
+            return Path.GetFullPath(Path.Combine(rootDir, BasicDatabaseConfig.Value.DataFile));
+        }
+    }
+
+    private string TmdbDatabasePath
+    {
+        get
+        {
+            var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
+            var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
+            return Path.GetFullPath(Path.Combine(rootDir, BasicEndpointOptions.Value.DatabasePath));
+        }
+    }
+
+    public MediaCollection(ITestOutputHelper output) : base(output)
+    {
+        try
+        {
+            RestoreDatabase();
+        }
+        catch (Exception ex)
+        {
+            log($"Exception not caught in MediaCollection Tests ctor: {ex}");
+        }
+    }
+
+    private static (IRepo repo, ITMDB tmdb, IDatabase db, IMediaCollection medai) BuildServices(CancellationTokenSource cts)
+    {
+        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions, cts), cts);
+        ITMDB tmdb = new shared.TMDB.TMDB(repo, cts);
+        IDatabase db = new shared.data.Database(BasicDatabaseConfig, cts);
+        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, cts);
+
+        return (repo, tmdb, db, media);
+    }
+
     [Fact]
     public async Task MatchLocalFiles()
     {
-        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions, _cts), _cts);
-        ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
-        IDatabase db = new shared.data.Database(BasicDatabaseConfig, _cts);
-        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _cts);
+        var (repo, tmdb, db, media) = BuildServices(_cts);
 
         await media.Initialize(_cts.Token);
 
@@ -50,30 +91,27 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
 
         var keywords = SearchHelpers.SanitizeForSearch("Trainingwah wahDay wee", _cts.Token, false);
 
-
         var matches = (await media.FindInPath<shared.data.File>(keywords, null, _cts.Token)).Select(x => x.Details);
 
         matches.Should().BeEmpty();
 
-        matches.ForEach(x => Debug.WriteLine(x.path ?? string.Empty));
-
         keywords = SearchHelpers.SanitizeForSearch("Inglourious Basterds", _cts.Token, true);
+
+        log("Keywords:");
+        keywords.ForEach(x => log(x));
 
         var matcheScores = (await media.FindInPath<shared.data.File>(keywords, null, _cts.Token)).ToList();
 
         matcheScores.Should().NotBeEmpty();
 
-        Debug.WriteLine("Matches made:");
-        matcheScores.ForEach(x => Debug.WriteLine(x.Details?.path ?? string.Empty));
+        log("Matches made:");
+        matcheScores.ForEach(x => log(x.Details?.path ?? string.Empty));
     }
 
     [Fact]
     public async Task MatchLocalFilesDictionaryAction()
     {
-        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions, _cts), _cts);
-        ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
-        IDatabase db = new shared.data.Database(BasicDatabaseConfig, _cts);
-        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _cts);
+        var (repo, tmdb, db, media) = BuildServices(_cts);
 
         await media.Initialize(_cts.Token);
 
@@ -82,17 +120,12 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
         var matcheScores = (await media.FindInPath<shared.data.File>(keywords, null, _cts.Token)).ToList();
 
         matcheScores.Should().NotBeEmpty();
-
-        matcheScores.Select(x => x.Details).ForEach(x => Debug.WriteLine(x?.path ?? string.Empty));
     }
 
     [Fact]
     public async Task MatchLocalFilesToTmdb()
     {
-        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions, _cts), _cts);
-        ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
-        IDatabase db = new shared.data.Database(BasicDatabaseConfig, _cts);
-        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _cts);
+        var (repo, tmdb, db, media) = BuildServices(_cts);
 
         await media.UpdateRepos(BasicMediaOptions.Value.BaseDirectory, false, _cts.Token);
 
@@ -102,18 +135,17 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
 
         localMovies.Should().NotBeNullOrEmpty();
 
-        int a = 0;
-        var movieTitle = a == 0 ? "Training Day" : "Inglourious Basterds";
+        var movieTitle = "Training Day";
 
         //sanitize the path to find simple titles
         var movieKeywords = SearchHelpers.SanitizeString(movieTitle);
         var localMovie = localMovies.FirstOrDefault(x => SearchHelpers.SanitizeString(x.path).Contains(movieKeywords));
-        Debug.WriteLine($"'{movieKeywords}'");
+        log($"'{movieKeywords}'");
 
         if (localMovie is null)
         {
             movieKeywords = SearchHelpers.SanitizeString(movieTitle);
-            Debug.WriteLine(movieKeywords.ToString());
+            log(movieKeywords.ToString());
             localMovie = localMovies.FirstOrDefault(x => SearchHelpers.SanitizeString(x.path).Contains(movieKeywords));
         }
 
@@ -130,18 +162,12 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
         var bestMatches = await tmdb.PathToTmdb(matchedLocalMovie.path ?? string.Empty, context, true, _cts.Token);
 
         bestMatches.Should().NotBeNull();
-
-        Debug.WriteLine($"Best matches found for: {matchedLocalMovie.path ?? string.Empty}");
-        bestMatches.ForEach(x => Debug.WriteLine($"Best match found: {x?.id} - {x?.title ?? string.Empty}"));
     }
 
     [Fact]
     public async Task Match100LocalFilesToTmdb()
     {
-        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions, _cts), _cts);
-        ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
-        IDatabase db = new shared.data.Database(BasicDatabaseConfig, _cts);
-        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _cts);
+        var (repo, tmdb, db, media) = BuildServices(_cts);
 
         await media.Initialize(_cts.Token);
 
@@ -162,11 +188,7 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
 
             var bestMatches = await tmdb.PathToTmdb(localMovie.path ?? string.Empty, context, true, _cts.Token);
 
-            if (bestMatches is not null)
-            {
-                Debug.WriteLine($"Best matches for {localMovie.path ?? string.Empty}");
-                bestMatches.ForEach(x => Debug.WriteLine($"{x?.id} - {x?.title ?? string.Empty}"));
-            }
+            bestMatches.Should().NotBeNull();
         }
     }
 
@@ -176,19 +198,17 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
         // Arrange: Use a base directory that is guaranteed not to exist
         var nonExistentPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
 
-        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions, _cts), _cts);
-        ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
-        IDatabase db = new shared.data.Database(BasicDatabaseConfig, _cts);
-        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _cts);
+        var (repo, tmdb, db, media) = BuildServices(_cts);
 
         // Initialize first to ensure the DB is ready for updates/checks
         await media.Initialize(_cts.Token);
 
         // Act: Call UpdateRepos with a path that doesn't exist
         // We expect it to handle this gracefully without throwing an exception related to file system access.
-        await media.UpdateRepos(nonExistentPath, false, _cts.Token);
+        var updateTask = () => media.UpdateRepos(nonExistentPath, false, _cts.Token);
 
         // Assert: No exceptions should be thrown, and the internal state should remain consistent (or at least not crash).
+        await updateTask.Should().NotThrowAsync();
     }
 
     [Fact]
@@ -197,10 +217,7 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
         // Arrange: Use a path that is guaranteed not to be in the database.
         var nonExistentPath = "C:/media/definitely/not/in/db.mp4";
 
-        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions, _cts), _cts);
-        ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
-        IDatabase db = new shared.data.Database(BasicDatabaseConfig, _cts);
-        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _cts);
+        var (repo, tmdb, db, media) = BuildServices(_cts);
 
         await media.Initialize(_cts.Token);
 
@@ -214,10 +231,7 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
         // Arrange: Use a non-matching pattern
         var nonExistentPattern = "non_existent_pattern";
 
-        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions, _cts), _cts);
-        ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
-        IDatabase db = new shared.data.Database(BasicDatabaseConfig, _cts);
-        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, tmdb, _cts);
+        var (repo, tmdb, db, media) = BuildServices(_cts);
 
         await media.Initialize(_cts.Token);
 
@@ -227,4 +241,47 @@ public class MediaCollection(ITestOutputHelper output) : BaseTest(output)
         // Assert: Expect an empty list of results
         matches.Should().BeEmpty();
     }
+
+    #region IDisposable
+    private int _disposed = 0;
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (Interlocked.CompareExchange(ref _disposed, 1, 0) == 0)
+        {
+            if (disposing)
+            {
+                base.Dispose(disposing);
+                RestoreDatabase();
+            }
+        }
+    }
+
+    private void RestoreDatabase()
+    {
+        var overwriteAttemptMax = 10;
+        int attempt = 0;
+        //Sqlite driver can be slow to release database file
+        while (attempt < overwriteAttemptMax)
+        {
+            try
+            {
+                var directoryCreated = Directory.CreateDirectory(Path.GetDirectoryName(MediaDatabasePath)!);
+                log($"Directory Created: {directoryCreated.FullName}");
+                //we request GC so that SQLite.Data frees the database file.
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                System.IO.File.Copy(ReferenceDatabasePath, MediaDatabasePath, true);
+                System.IO.File.Copy(ReferenceTmdbDatabasePath, TmdbDatabasePath, true);
+                break;
+            }
+            catch (Exception ex)
+            {
+                log($"Failed to overwrite: {MediaDatabasePath}\r\nDirectory path: {Path.GetDirectoryName(MediaDatabasePath)}\r\n{ex}");
+                Task.Delay(TimeSpan.FromSeconds(1).Milliseconds);
+                attempt++;
+            }
+        }
+    }
+    #endregion IDisposable
 }

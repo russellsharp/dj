@@ -126,7 +126,6 @@ public static partial class ApplicationExtensions
                     // options.DisableAccessTokenEncryption();
 
                     SecurityConfiguration? securityConfig = new();
-                    // builder.Configuration.GetSection("SecurityConfiguration").Bind(securityConfig);
 
                     using (var temporaryServiceProvider = builder.Services.BuildServiceProvider())
                     {

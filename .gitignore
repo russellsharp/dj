@@ -3,6 +3,7 @@
 zig-out/
 obj/
 **/bin
+out/**
 logs/
 *.lscache
 src/shared/reference/*

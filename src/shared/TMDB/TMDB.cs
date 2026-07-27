@@ -8,7 +8,7 @@ using Microsoft.Extensions.FileSystemGlobbing.Internal;
 
 namespace shared.TMDB;
 
-public interface ITMDB
+public interface ITMDB : IDisposable
 {
     Task<MovieDetailsResponse?> GetMovie(int id);
     Task<MovieQueryResponse?> QueryTitle(string query, int page = 1, CancellationToken? token = null);
@@ -36,7 +36,7 @@ public class MatchingContext
     }
 }
 
-public class TMDB : ITMDB
+public class TMDB : ITMDB, IDisposable
 {
     private IRepo _repo;
     private CancellationTokenSource _cts;
@@ -240,4 +240,37 @@ public class TMDB : ITMDB
             };
         }
     }
+
+
+
+    #region IDisposable
+    private int _disposed = 0;
+    public void Dispose(bool disposing)
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) == 1)
+        {
+            return;
+        }
+
+        try
+        {
+            _repo?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to dispose TMDB repository:\r\n{ex}");
+            throw;
+        }
+    }
+    void IDisposable.Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    ~TMDB()
+    {
+        Dispose(false);
+    }
+    #endregion IDisposable
 }

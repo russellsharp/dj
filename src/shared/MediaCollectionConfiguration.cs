@@ -3,8 +3,8 @@
 public class MediaCollectionConfiguration
 {
     public const string SectionName = nameof(MediaCollectionConfiguration);
-
     private string _baseDirectory = string.Empty;
+    public static string DJ_MEDIA_BASE_DIRECTORY_KEY { get; } = "DJ_MEDIA_BASE_DIRECTORY";
 
     public string BaseDirectory
     {

@@ -129,8 +129,6 @@ public class Database : BaseTest, IDisposable
         queriedFile.Should().NotBeNull();
 
         queriedFile.Should().BeEquivalentTo(randomFile);
-
-        _output.WriteLine(queriedFile.ToString());
     }
 
     [Fact]

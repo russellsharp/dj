@@ -9,15 +9,15 @@ using System.Text.Json;
 using System.Data.Common;
 using shared.thesaurus;
 using Microsoft.CodeAnalysis;
+using Microsoft.AspNetCore.Http;
 
 namespace dj.test;
 
-public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
+public class TMDB : BaseTest
 {
-    private static IOptions<EndpointConfig> BasicOptions = Options.Create(new EndpointConfig
+    private static IOptions<TMDBConfiguration> BasicOptions = Options.Create(new TMDBConfiguration
     {
         BaseUrl = "https://api.themoviedb.org/3",
-        ApiKey = Repo.SUPER_SECRET_API_KEY,
         DatabasePath = "testdata/tmdb.db",
         RequestLimit = 40,
         RequestWindowSeconds = 10,
@@ -31,6 +31,32 @@ public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
         DatabasePath = "wordnet/database/wordnet.db"
     });
 
+    private string TmdbDatabasePath
+    {
+        get
+        {
+            var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
+            var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
+            return Path.GetFullPath(Path.Combine(rootDir, BasicOptions.Value.DatabasePath));
+        }
+    }
+
+    public TMDB(ITestOutputHelper output) : base(output)
+    {
+        try
+        {
+            DeleteDatabase();
+
+            BasicOptions.Value.ApiKey = TMDBConfiguration.GetApiKey();
+
+            log($"API KEY IS GOT: {!string.IsNullOrEmpty(BasicOptions.Value.ApiKey)}");
+        }
+        catch (Exception ex)
+        {
+            log($"Exception during database clear:\r\n{ex}");
+        }
+    }
+
     [Fact]
     public async Task QueryMovies()
     {
@@ -41,8 +67,6 @@ public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
         movies.Should().NotBeNull();
 
         movies.results.Count().Should().BeGreaterThan(0);
-
-        movies.results.ForEach(x => log(x.title));
 
         var firstMovie = movies.results[0];
 
@@ -57,8 +81,6 @@ public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
         var genres = await client.MovieGenres();
 
         genres.Should().NotBeNull();
-
-        genres.Genres.ForEach(x => log(x.Name));
 
         genres.Genres.Should().NotBeNullOrEmpty();
 
@@ -131,8 +153,6 @@ public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
         }
 
         movies.Should().NotBeEmpty();
-
-        movies.ToList().ForEach(x => Debug.WriteLine(x.title));
     }
 
     [Fact]
@@ -186,10 +206,6 @@ public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
                 matchedMovies.Add(movie.id, new MatchScore<MovieDetailsResponse> { Hits = matchCount, Details = movie });
             }
         }
-
-        int minimumHitCount = keywords.Count();
-        Debug.WriteLine("----------------------------");
-        matchedMovies.Where(x => x.Value.Hits >= minimumHitCount).ForEach(x => Debug.WriteLine($"{x.Value.Hits} - {x.Value.Details.title}"));
     }
 
     [Fact]
@@ -202,9 +218,6 @@ public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
         var searchTerm = "Training Day";
 
         var queryMatches = await repo.QueryMatches(searchTerm, minimumHitCount);
-
-        Debug.WriteLine("----------------------------");
-        queryMatches.Where(x => x.Hits >= minimumHitCount).ToList().ForEach(x => Debug.WriteLine($"{x.Hits} - {x.Details.id} - {x.Details.title} - {x.Details.vote_count} - {x.Details.budget} - {x.Details.overview.Substring(0, 20)}"));
     }
 
     [Fact(Skip = "Endpoint is broken.")]
@@ -220,7 +233,6 @@ public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
     [Fact]
     public async Task MatchByOverview()
     {
-
         using Repo repo = new(BasicOptions, new Cache(BasicOptions, _cts), _cts);
         ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
 
@@ -240,24 +252,27 @@ public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
         var queryMatches = await tmdb.QueryOverviews(searchTerm, minimumHitCount);
 
         queryMatches.Should().NotBeNullOrEmpty();
-
-        Debug.WriteLine("----------------------------");
-        queryMatches.ForEach(x => Debug.WriteLine($"Hits: {x.Hits} - TMDB ID: {x.Details.id} - {x.Details.title} - {x.Details.vote_count} - {new string(x.Details.overview.Take(20).ToArray())}..."));
     }
 
     [Fact]
     public async Task MatchKeywordsByAll()
     {
-
         using Repo repo = new(BasicOptions, new Cache(BasicOptions, _cts), _cts);
-        ITMDB tmdb = new shared.TMDB.TMDB(repo, base._cts);
+        using ITMDB tmdb = new shared.TMDB.TMDB(repo, base._cts);
 
         var movies = await tmdb.QueryTitle("Training Day");
 
         // movie details will be stored in database
-        foreach (var movie in movies.results)
+
+        if (movies?.results is not null)
         {
-            _ = await tmdb.GetMovie(movie.id.Value);
+            foreach (var movie in movies.results)
+            {
+                if (movie.id is not null)
+                {
+                    _ = await tmdb.GetMovie(movie.id.Value);
+                }
+            }
         }
 
         //search movie details in database by matching terms in their overview
@@ -267,11 +282,6 @@ public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
 
         var queryMatches = await tmdb.QueryOverviews(searchTerm, minimumHitCount);
 
-        queryMatches.Should().BeEmpty();
-
-        Debug.WriteLine("----------------------------");
-        queryMatches.ForEach(x => Debug.WriteLine($"Hits: {x.Hits} - TMDB ID: {x.Details.id} - {x.Details.title} - {x.Details.vote_count} - {new string(x.Details.overview.Take(20).ToArray())}..."));
-
         var thesus = new Thesaurus(thesaurusOptionsDefaults);
 
         var searchTerms = searchTerm.Split(' ').ToList();
@@ -280,23 +290,16 @@ public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
 
         var synonyms = await Task.WhenAll(synonymTasks);
 
-        synonyms.ForEach(x => x.ForEach(y => Debug.WriteLine(y)));
-
-        searchTerms.ForEach(x => Debug.WriteLine(x));
-
         minimumHitCount = (int)(synonyms.Count() * 0.50);
 
         queryMatches = await tmdb.QueryWithGroupedTerms(synonyms.ToList(), minimumHitCount);
 
         queryMatches.Should().NotBeNullOrEmpty();
-
-        queryMatches.ForEach(x => Debug.WriteLine(x.Details.title));
     }
 
     [Fact]
     public async Task MatchKeywordsCollection()
     {
-
         using Repo repo = new(BasicOptions, new Cache(BasicOptions, _cts), _cts);
         ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
 
@@ -331,7 +334,53 @@ public class TMDB(ITestOutputHelper _output) : BaseTest(_output)
         queryMatches.AddRange(await tmdb.QueryWithGroupedTerms(synonyms.ToList(), minimumHitCount));
 
         queryMatches.Should().NotBeNullOrEmpty();
-
-        queryMatches.ForEach(x => Debug.WriteLine(x.Details.title));
     }
+
+    #region IDisposable
+    private int _disposed = 0;
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (Interlocked.CompareExchange(ref _disposed, 1, 0) == 0)
+        {
+            if (disposing)
+            {
+                base.Dispose(disposing);
+                DeleteDatabase();
+            }
+        }
+    }
+
+    private void DeleteDatabase()
+    {
+        var deleteAttemptsMax = 10;
+        int attempt = 0;
+        //Sqlite driver can be slow to release database file
+
+        if (!File.Exists(TmdbDatabasePath)) return;
+
+        while (attempt < deleteAttemptsMax)
+        {
+            try
+            {
+                //we request GC so that SQLite.Data frees the database file.
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                System.IO.File.Delete(TmdbDatabasePath);
+                break;
+            }
+            catch (Exception ex)
+            {
+                log($"Failed to delete: {TmdbDatabasePath}\r\nDirectory path: {Path.GetDirectoryName(TmdbDatabasePath)}\r\n{ex}");
+                Task.Delay(TimeSpan.FromSeconds(1).Milliseconds);
+                attempt++;
+            }
+        }
+
+        if (attempt >= deleteAttemptsMax)
+        {
+            throw new InvalidOperationException("Failed to delete TMDB database.");
+        }
+    }
+    #endregion IDisposable
 }

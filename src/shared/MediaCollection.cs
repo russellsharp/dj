@@ -42,7 +42,7 @@ public class MediaCollection : IMediaCollection
 
     private shared.data.IDatabase _db;
 
-    public MediaCollection(IOptions<MediaCollectionConfiguration> configuration, IDatabase db, ITMDB tmdb, CancellationTokenSource cts)
+    public MediaCollection(IOptions<MediaCollectionConfiguration> configuration, IDatabase db, CancellationTokenSource cts)
     {
         _configuration = configuration.Value;
 
@@ -240,6 +240,8 @@ public class MediaCollection : IMediaCollection
 
         mediaDirectory = Path.GetFullPath(mediaDirectory);
 
+        Console.WriteLine($"BuildRepoList: Media directory: {mediaDirectory}");
+
         EnumerationOptions options = new()
         {
             RecurseSubdirectories = true,
@@ -303,10 +305,13 @@ public class MediaCollection : IMediaCollection
 
         if (_mediaRepo is null || !_mediaRepo.Any())
         {
+            Console.WriteLine($"repo is null {_mediaRepo is null}, repo is empty {!_mediaRepo?.Any()}");
             return Enumerable.Empty<MatchScore<ContainedType>>();
         }
 
         var scoredMatches = new Dictionary<string, MatchScore<ContainedType>>();
+
+        Console.WriteLine($"Repo size: {_mediaRepo.Count()}");
 
         foreach (var file in _mediaRepo.Values)
         {
