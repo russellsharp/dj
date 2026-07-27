@@ -132,6 +132,7 @@ public static partial class ApplicationExtensions
                         securityConfig = temporaryServiceProvider.GetRequiredService<IOptions<SecurityConfiguration>>()?.Value;
                     }
 
+                    Console.WriteLine($"Security Token is empty or null: {string.IsNullOrEmpty(securityConfig.SecurityKey)}");
                     // Register the cryptographic signing keys
                     if (securityConfig != null && !string.IsNullOrEmpty(securityConfig.SecurityKey))
                     {
@@ -143,16 +144,19 @@ public static partial class ApplicationExtensions
                         }
                         catch (Exception ex)
                         {
-                            throw new Exception($"================================\r\n{securityConfig.SecurityKey.Take(10)} - {securityConfig.SecurityKey.TakeLast(5)}. Original: {ex}");
+                            throw new InvalidOperationException("Failed to initialize signing/encryption key.", ex);
                         }
                     }
                     else if (builder.Environment.IsDevelopment())
                     {
                         options.AddDevelopmentEncryptionCertificate()
                             .AddDevelopmentSigningCertificate();
-                    }
 
-                    options.AddEphemeralSigningKey();
+                        // No explicit key configured and not a Development environment — use ephemeral keys so
+                        // the server can still issue tokens (e.g. test environments without a provisioned secret).
+                        options.AddEphemeralEncryptionKey();
+                        options.AddEphemeralSigningKey();
+                    }
 
                     // Register the ASP.NET Core host
                     options.UseAspNetCore().EnableTokenEndpointPassthrough();
