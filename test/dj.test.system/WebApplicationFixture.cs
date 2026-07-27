@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 namespace dj.test.system;
 
 [CollectionDefinition("WebAppCollection")]
@@ -32,8 +33,6 @@ public class TestWebApplicationFactory<TProgram> : WebApplicationFactory<TProgra
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.UseEnvironment("Testing");
-
         builder.ConfigureAppConfiguration((context, config) =>
         {
         });
@@ -65,7 +64,7 @@ public interface IDataManagement
     Task SetTmdb(string tmdbDatabasePath);
 }
 
-public class DataManagement(shared.data.DatabaseConfiguration _dbConfig) : IDataManagement
+public class DataManagement(IOptions<shared.data.DatabaseConfiguration> _dbConfig) : IDataManagement
 {
     private string DatabasePath
     {
@@ -73,7 +72,7 @@ public class DataManagement(shared.data.DatabaseConfiguration _dbConfig) : IData
         {
             var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
             var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
-            return Path.GetFullPath(Path.Combine(rootDir, _dbConfig.DataFile));
+            return Path.GetFullPath(Path.Combine(rootDir, _dbConfig.Value.DataFile));
         }
     }
 

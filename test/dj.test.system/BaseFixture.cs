@@ -21,7 +21,7 @@ public class BaseFixture : ISystemFixture
     public async Task<HttpResponseMessage?> Get(string endpoint, Dictionary<string, string>? parameters = null, string? token = null)
     {
         token ??= _tokenRead;
-        
+
         Console.WriteLine($"Token {string.IsNullOrEmpty(token)} tokenRead {string.IsNullOrEmpty(_tokenRead)}");
 
         var uri = new Uri(Client.BaseAddress, endpoint);
@@ -66,7 +66,6 @@ public class BaseFixture : ISystemFixture
         {
             var tokenString = await response.Content.ReadAsStringAsync();
             var tokenData = await response.Content.ReadFromJsonAsync<TokenResponse>(Cts.Token);
-            Console.WriteLine($"Access Token: {tokenData?.access_token}");
             _tokenRead = tokenData.access_token;
         }
     }
@@ -88,7 +87,6 @@ public class BaseFixture : ISystemFixture
         if (response.IsSuccessStatusCode)
         {
             var tokenData = await response.Content.ReadFromJsonAsync<TokenResponse>(Cts.Token);
-            Console.WriteLine($"Access Token: {tokenData?.access_token}");
             _tokenReadWrite = tokenData.access_token;
         }
     }

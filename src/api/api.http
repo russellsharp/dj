@@ -10,7 +10,7 @@
 @api_HostAddressSecure = https://localhost:7132/api
 @api_HostAddress = http://127.0.0.1:5282/api
 
-GET {{api_HostAddress}}/health
+GET {{api_HostAddressSecure}}/health
 Accept: application/json
 ###
 
