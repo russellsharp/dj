@@ -32,5 +32,5 @@ jobs:
       env: 
         DJ_SECURITY_KEY: ${{ secrets.DJ_SECURITY_KEY }}
         DJ_TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
-        APSNETCORE_ENVIRONMENT: Development
+        ASPNETCORE_ENVIRONMENT: Development
       run: dotnet test --no-build --verbosity normal
