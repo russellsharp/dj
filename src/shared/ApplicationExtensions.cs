@@ -42,14 +42,41 @@ public static partial class ApplicationExtensions
 
     public static IHostApplicationBuilder AddConfiguration(this IHostApplicationBuilder builder)
     {
-        builder.Services.Configure<ThesaurusConfiguration>(builder.Configuration.GetSection(ThesaurusConfiguration.SectionName))
-                        .Configure<HostConfiguration>(builder.Configuration.GetSection(HostConfiguration.SectionName));
+        builder.Services.Configure<ThesaurusConfiguration>(builder.Configuration.GetSection(ThesaurusConfiguration.SectionName));
 
         builder
+                .ConfigureHost()
                 .ConfigureMediaCollection()
                 .ConfigureMediaDatabase()
                 .ConfigureJwt()
                 .ConfigureTmdb();
+
+        return builder;
+    }
+
+    public static IHostApplicationBuilder ConfigureHost(this IHostApplicationBuilder builder)
+    {
+        builder.Services.Configure<HostConfiguration>(builder.Configuration.GetSection(HostConfiguration.SectionName));
+
+        var hostConfig = builder.Configuration.GetSection(HostConfiguration.SectionName).Get<HostConfiguration>();
+
+        var combinedIp = new List<string>();
+
+        if (hostConfig?.CorsAllowedUrl != null)
+        {
+            combinedIp.AddRange(hostConfig.CorsAllowedUrl);
+        }
+
+        var allowedIp = Environment.GetEnvironmentVariable(HostConfiguration.DJ_HOST_ALLOWED_CORS_URL);
+
+        if (allowedIp is not null)
+        {
+            combinedIp = combinedIp.Union(allowedIp!.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)).Distinct().ToList();
+
+            var allowedIpConfigDict = new Dictionary<string, string?> { { $"{nameof(HostConfiguration)}:{nameof(HostConfiguration.CorsAllowedUrl)}", System.Text.Json.JsonSerializer.Serialize(combinedIp) } };
+
+            builder.Configuration.AddInMemoryCollection(allowedIpConfigDict);
+        }
 
         return builder;
     }
@@ -224,8 +251,12 @@ public static partial class ApplicationExtensions
 
     public static async Task<WebApplication> SetupSecurity(this WebApplication app)
     {
+        var hostConfig = app.Configuration.GetSection(HostConfiguration.SectionName).Get<HostConfiguration>();
+
+        var allowedUrl = hostConfig.CorsAllowedUrl.Distinct();
+
         app
-            .UseCors(policy => policy.WithOrigins(["https://127.0.0.1"]).AllowAnyMethod().AllowAnyHeader())
+            .UseCors(policy => policy.WithOrigins(allowedUrl.ToArray()).AllowAnyMethod().AllowAnyHeader())
             .UseHttpsRedirection()
             .UseRateLimiter()
             .UseAuthentication()
@@ -242,6 +273,8 @@ public static partial class ApplicationExtensions
 public class HostConfiguration
 {
     public static string SectionName = typeof(HostConfiguration).Name;
+    public static string DJ_HOST_ALLOWED_CORS_URL = "DJ_HOST_ALLOWED_CORS_URL";
+    public List<string> CorsAllowedUrl { get; init; } = ["127.0.0.1"];
     public Dictionary<string, RateLimiterTypeConfiguration> RateLimiters { get; init; } = new();
     public JwtConfiguration Jwt { get; init; } = new();
 }
