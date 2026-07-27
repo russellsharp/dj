@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Diagnostics.Tracing;
 using System.Net.NetworkInformation;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using shared.data;
 using shared.TMDB;
@@ -41,10 +42,13 @@ public class MediaCollection : IMediaCollection
     private CancellationTokenSource _cts;
 
     private shared.data.IDatabase _db;
+    private readonly ILogger<MediaCollection> _logger;
 
-    public MediaCollection(IOptions<MediaCollectionConfiguration> configuration, IDatabase db, CancellationTokenSource cts)
+    public MediaCollection(IOptions<MediaCollectionConfiguration> configuration, IDatabase db, ILogger<MediaCollection> logger, CancellationTokenSource cts)
     {
         _configuration = configuration.Value;
+
+        _logger = logger;
 
         _mediaRepo = [];
 
@@ -109,7 +113,7 @@ public class MediaCollection : IMediaCollection
         {
             if ((UpdateState)Interlocked.Read(ref _updateState) == UpdateState.Running)
             {
-                Console.WriteLine("Media repo update requested while update is already running.");
+                _logger.LogInformation("Media repo update requested while update is already running.");
                 return;
             }
 
@@ -118,22 +122,22 @@ public class MediaCollection : IMediaCollection
 
             var fileList = (await BuildRepoList(baseDirectory)).ToList();
 
-            Console.WriteLine($"Total files: {fileList.Count()}");
+            _logger.LogInformation($"Total files: {fileList.Count()}");
 
             Interlocked.Exchange(ref _numOfFilesTotal, fileList.Count);
 
             if (truncateDatabase)
             {
-                Console.WriteLine("Truncating database.");
+                _logger.LogInformation("Truncating database.");
                 await _db.Truncate();
             }
 
-            Console.WriteLine("Starting update tasks.");
+            _logger.LogInformation("Starting update tasks.");
             var paralllelOptions = new ParallelOptions { MaxDegreeOfParallelism = 10, CancellationToken = token.Value };
             await Parallel.ForEachAsync(fileList, paralllelOptions, async (file, ct) => { await ProcessFile(file, token.Value); });
-            Console.WriteLine("Finished update tasks.");
+            _logger.LogInformation("Finished update tasks.");
 
-            Console.WriteLine($"Remaining files to store: {_filesToStore.Count}");
+            _logger.LogInformation($"Remaining files to store: {_filesToStore.Count}");
 
             //files remaining to store
             await InsertOrUpdateFIles(token);
@@ -144,18 +148,18 @@ public class MediaCollection : IMediaCollection
         }
         catch (Exception ex) when (ex is TaskCanceledException || ex is OperationCanceledException)
         {
-            Console.WriteLine("Update process canceled.");
+            _logger.LogError("Update process canceled.");
             Interlocked.Exchange(ref _updateState, (int)UpdateState.Canceled);
             return;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Exception thrown during update: {ex}");
+            _logger.LogError($"Exception thrown during update: {ex}");
             Interlocked.Exchange(ref _updateState, (int)UpdateState.Errored);
         }
         finally
         {
-            Console.WriteLine("Update completed.");
+            _logger.LogInformation("Update completed.");
 
             Interlocked.Exchange(ref _numOfFilesProcessed, 0);
             Interlocked.Exchange(ref _numOfFilesTotal, 0);
@@ -163,7 +167,7 @@ public class MediaCollection : IMediaCollection
             _filesToStore.Clear();
 
             var elapsedTime = Stopwatch.GetElapsedTime(startTime);
-            Console.WriteLine($"Time for update: {Stopwatch.GetElapsedTime(startTime).ToString("c")}");
+            _logger.LogInformation($"Time for update: {Stopwatch.GetElapsedTime(startTime).ToString("c")}");
         }
     }
 
@@ -220,12 +224,12 @@ public class MediaCollection : IMediaCollection
         }
         catch (Exception ex) when (ex is OperationCanceledException || ex is TaskCanceledException)
         {
-            Console.WriteLine("Update process canceled.");
+            _logger.LogError("Update process canceled.");
             throw;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error while calling InsertOrUpdate: {ex}");
+            _logger.LogError($"Error while calling InsertOrUpdate: {ex}");
             throw;
         }
         finally
@@ -240,7 +244,7 @@ public class MediaCollection : IMediaCollection
 
         mediaDirectory = Path.GetFullPath(mediaDirectory);
 
-        Console.WriteLine($"BuildRepoList: Media directory: {mediaDirectory}");
+        _logger.LogInformation($"BuildRepoList: Media directory: {mediaDirectory}");
 
         EnumerationOptions options = new()
         {
@@ -305,13 +309,13 @@ public class MediaCollection : IMediaCollection
 
         if (_mediaRepo is null || !_mediaRepo.Any())
         {
-            Console.WriteLine($"repo is null {_mediaRepo is null}, repo is empty {!_mediaRepo?.Any()}");
+            _logger.LogInformation($"repo is null {_mediaRepo is null}, repo is empty {!_mediaRepo?.Any()}");
             return Enumerable.Empty<MatchScore<ContainedType>>();
         }
 
         var scoredMatches = new Dictionary<string, MatchScore<ContainedType>>();
 
-        Console.WriteLine($"Repo size: {_mediaRepo.Count()}");
+        _logger.LogInformation($"Repo size: {_mediaRepo.Count()}");
 
         foreach (var file in _mediaRepo.Values)
         {

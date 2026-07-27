@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Reflection;
 using FluentAssertions;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using shared;
 using shared.data;
@@ -72,10 +73,10 @@ public class MediaCollection : BaseTest, IDisposable
 
     private static (IRepo repo, ITMDB tmdb, IDatabase db, IMediaCollection medai) BuildServices(CancellationTokenSource cts)
     {
-        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions, cts), cts);
+        IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions, new LoggerFactory().CreateLogger<ICache>(), cts), new LoggerFactory().CreateLogger<IRepo>(), cts);
         ITMDB tmdb = new shared.TMDB.TMDB(repo, cts);
         IDatabase db = new shared.data.Database(BasicDatabaseConfig, cts);
-        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, cts);
+        IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, new LoggerFactory().CreateLogger<shared.MediaCollection>(), cts);
 
         return (repo, tmdb, db, media);
     }

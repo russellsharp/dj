@@ -13,13 +13,14 @@ using shared.util;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 using shared.http.security;
 using Microsoft.OpenApi;
+using Microsoft.Extensions.Logging;
 
 namespace api
 {
     [ApiController]
     [AllowAnonymous]
     [Route("api/token")]
-    public class TokenController(ITokenGenerator _tokenGen, UserDbContext _userDb) : Controller
+    public class TokenController(ITokenGenerator _tokenGen, UserDbContext _userDb, ILogger<TokenController> _logger) : Controller
     {
         [HttpGet("anonymous"), AllowAnonymous]
         public async Task<string> RequestAnonymousToken()

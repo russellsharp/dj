@@ -12,6 +12,7 @@ using shared.TMDB.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 
 namespace api.controllers;
 
@@ -23,14 +24,9 @@ public class DjController(
     IMediaCollection _media,
     ITMDB _tmdb,
     ITaskMonitor _monitor,
+    ILogger<DjController> _logger,
     CancellationTokenSource _cts) : ControllerBase
 {
-    private void log(string msg)
-    {
-        Debug.WriteLine(msg);
-        Console.WriteLine(msg);
-    }
-
     [HttpGet("search")]
     [Authorize(Policy = "ReadScope")]
     [ProducesResponseType(typeof(Matches), StatusCodes.Status200OK)]
@@ -44,7 +40,7 @@ public class DjController(
 
         sanitizedTerms.ToList().ForEach(x => Console.WriteLine(x));
 
-        log($"{searchMatches.Count()}");
+        _logger.LogInformation($"{searchMatches.Count()}");
 
         var results = searchMatches.OrderBy(x => x.Hits).Select(x => new Media { FilePath = x.Details.path, Title = x.Details.path, Type = MediaType.Video, Hits = Convert.ToInt32(x.Hits) });
 
@@ -64,7 +60,7 @@ public class DjController(
 
         sanitizedTerms.ToList().ForEach(x => Console.WriteLine(x));
 
-        log($"{searchMatches.results.Count()}");
+        _logger.LogInformation($"{searchMatches.results.Count()}");
 
         var results = searchMatches.results
                         .OrderByDescending(x => x.popularity)
@@ -80,11 +76,11 @@ public class DjController(
     {
         if (updateRepo)
         {
-            log("Updating repo...");
+            _logger.LogInformation("Updating repo...");
 
             await _media.UpdateRepos(null, false, _cts.Token);
 
-            log("Update complete.");
+            _logger.LogInformation("Update complete.");
         }
 
         var searchTerms = string.Join(' ', query.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
@@ -95,7 +91,7 @@ public class DjController(
 
         sanitizedTerms.ToList().ForEach(x => Console.WriteLine(x));
 
-        log($"{searchMatches.results.Count()}");
+        _logger.LogInformation($"{searchMatches.results.Count()}");
 
         var detailQueries = searchMatches.results.Select(async x => await _tmdb.GetMovie(x.id.Value));
 
@@ -240,7 +236,7 @@ public class DjController(
 
         List<MatchScore<MovieDetailsResponse>> queryMatches = (await _tmdb.QueryOverviews(query, minimumHIts)).ToList();
 
-        var thesus = new Thesaurus(thesaurusOptionsDefaults);
+        var thesus = new Thesaurus(thesaurusOptionsDefaults, new LoggerFactory().CreateLogger<Thesaurus>());
 
         var searchTerms = query.Split(' ').ToList();
 
@@ -272,7 +268,7 @@ public class DjController(
             if (titleMatches is not null)
             {
 
-                log($"{titleMatches.Count()}");
+                _logger.LogInformation($"{titleMatches.Count()}");
 
                 titleMatches = titleMatches.OrderBy(x => x.Hits);
 

@@ -10,6 +10,7 @@ using shared.TMDB.Models;
 using System.Net.Mime;
 using System.Text.Json;
 using System.Runtime.CompilerServices;
+using Microsoft.Extensions.Logging;
 namespace shared.TMDB;
 
 public interface ICache
@@ -36,6 +37,8 @@ public class Cache : IDisposable, ICache
     private SqliteConnection? _connection = null;
     private static readonly ConcurrentDictionary<string, object> s_databaseLocks = new();
     private const int _commandTimeoutMs = 2000;
+    private readonly ILogger<ICache> _logger;
+
     private string DatabasePath
     {
         get
@@ -46,8 +49,10 @@ public class Cache : IDisposable, ICache
         }
     }
 
-    public Cache(IOptions<TMDBConfiguration> config, CancellationTokenSource cts)
+    public Cache(IOptions<TMDBConfiguration> config, ILogger<ICache> logger, CancellationTokenSource cts)
     {
+        _logger = logger;
+
         ArgumentNullException.ThrowIfNull(config);
 
         _config = config.Value;
@@ -104,7 +109,7 @@ public class Cache : IDisposable, ICache
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Error while executing sql: {sql}, {ex}");
+            _logger.LogDebug($"Error while executing sql: {sql}, {ex}");
             response = default;
             throw;
         }
@@ -185,7 +190,7 @@ public class Cache : IDisposable, ICache
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Error while building hit list: {ex}");
+            _logger.LogDebug($"Error while building hit list: {ex}");
             throw;
         }
 
@@ -226,7 +231,7 @@ public class Cache : IDisposable, ICache
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Error while building hit list: {ex}");
+            _logger.LogDebug($"Error while building hit list: {ex}");
             throw;
         }
     }
@@ -265,7 +270,7 @@ public class Cache : IDisposable, ICache
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error while building hit list: {ex}");
+            _logger.LogError($"Error while building hit list: {ex}");
             throw;
         }
     }
@@ -473,5 +478,4 @@ public class Cache : IDisposable, ICache
     }
 
     #endregion IDisposable
-
 }
