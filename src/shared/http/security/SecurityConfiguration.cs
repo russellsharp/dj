@@ -32,21 +32,29 @@ public static class SecurityExtensions
 
     public static IHostApplicationBuilder AddSecurityConfiguration(this IHostApplicationBuilder builder)
     {
-        string securityKey = Environment.GetEnvironmentVariable(SecurityKeyKey) ?? "";
+        string securityKey = string.Empty;
+        var envValue = Environment.GetEnvironmentVariable(SecurityKeyKey) ?? string.Empty;
 
-        var fullbody = System.Text.Json.JsonSerializer.Deserialize<AwsSecret>(securityKey);
+        if (!string.IsNullOrEmpty(envValue))
+        {
+            try
+            {
+                // Try to parse as an AWS Secrets Manager JSON response first
+                var fullbody = System.Text.Json.JsonSerializer.Deserialize<AwsSecret>(envValue);
+                securityKey = fullbody?.SecretString?.value ?? envValue;
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                // Not an AWS Secret JSON format — use the raw value as the key
+                securityKey = envValue;
+            }
+        }
 
-        securityKey = fullbody.SecretString.value;
-
-        //System.Text.Json.JsonSerializer.Deserialize<SecretString>(securityKey).value;
-
-        //.SecretString
-        ArgumentException.ThrowIfNullOrEmpty(securityKey, $"{securityKey.Take(5)} -- {securityKey.TakeLast(5)}");
-
-        Console.WriteLine($"{securityKey.Take(5)} -- {securityKey.TakeLast(5)}");
-        Debug.WriteLine($"{securityKey.Take(5)} -- {securityKey.TakeLast(5)}");
-
-        var config = new SecurityConfiguration { SecurityKey = securityKey };
+        if (!string.IsNullOrEmpty(securityKey))
+        {
+            Console.WriteLine($"{securityKey.Take(5)} -- {securityKey.TakeLast(5)}");
+            Debug.WriteLine($"{securityKey.Take(5)} -- {securityKey.TakeLast(5)}");
+        }
 
         builder.Services.Configure<SecurityConfiguration>(options => { options.SecurityKey = securityKey; });
 

@@ -152,6 +152,12 @@ public static partial class ApplicationExtensions
                         options.AddDevelopmentEncryptionCertificate()
                             .AddDevelopmentSigningCertificate();
                     }
+                    else
+                    {
+                        // No explicit key configured and not a Development environment — use ephemeral keys so
+                        // the server can still issue tokens (e.g. test environments without a provisioned secret).
+                        options.AddEphemeralEncryptionKey();
+                    }
 
                     options.AddEphemeralSigningKey();
 
