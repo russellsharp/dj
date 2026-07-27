@@ -144,7 +144,7 @@ public static partial class ApplicationExtensions
                         }
                         catch (Exception ex)
                         {
-                            throw new Exception($"================================\r\n{securityConfig.SecurityKey.Take(10)} - {securityConfig.SecurityKey.TakeLast(5)}. Original: {ex}");
+                            throw new InvalidOperationException("Failed to initialize signing/encryption key.", ex);
                         }
                     }
                     else if (builder.Environment.IsDevelopment())
