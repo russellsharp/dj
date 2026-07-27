@@ -52,8 +52,7 @@ public static class SecurityExtensions
 
         if (!string.IsNullOrEmpty(securityKey))
         {
-            Console.WriteLine($"{securityKey.Take(5)} -- {securityKey.TakeLast(5)}");
-            Debug.WriteLine($"{securityKey.Take(5)} -- {securityKey.TakeLast(5)}");
+            Console.WriteLine("Security key loaded from environment variable.");
         }
 
         builder.Services.Configure<SecurityConfiguration>(options => { options.SecurityKey = securityKey; });
