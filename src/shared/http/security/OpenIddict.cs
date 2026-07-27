@@ -136,14 +136,27 @@ public static partial class ApplicationExtensions
                     // Register the cryptographic signing keys
                     if (securityConfig != null && !string.IsNullOrEmpty(securityConfig.SecurityKey))
                     {
-                        var symmetricKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(securityConfig.SecurityKey));
-                        options.AddSigningKey(symmetricKey);
-                        options.AddEncryptionKey(symmetricKey);
+                        try
+                        {
+                            var symmetricKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(securityConfig.SecurityKey));
+                            options.AddSigningKey(symmetricKey);
+                            options.AddEncryptionKey(symmetricKey);
+                        }
+                        catch (Exception ex)
+                        {
+                            throw new InvalidOperationException("Failed to initialize signing/encryption key.", ex);
+                        }
                     }
                     else if (builder.Environment.IsDevelopment())
                     {
                         options.AddDevelopmentEncryptionCertificate()
                             .AddDevelopmentSigningCertificate();
+                    }
+                    else
+                    {
+                        // No explicit key configured and not a Development environment — use ephemeral keys so
+                        // the server can still issue tokens (e.g. test environments without a provisioned secret).
+                        options.AddEphemeralEncryptionKey();
                     }
 
                     options.AddEphemeralSigningKey();

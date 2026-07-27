@@ -1,8 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -19,11 +15,12 @@ public static class SecurityExtensions
 
     public static IHostApplicationBuilder AddSecurityConfiguration(this IHostApplicationBuilder builder)
     {
-        string securityKey = Environment.GetEnvironmentVariable(SecurityKeyKey) ?? "";
-
-        ArgumentException.ThrowIfNullOrEmpty(securityKey);
-
-        var config = new SecurityConfiguration { SecurityKey = securityKey };
+        var securityKey = Environment.GetEnvironmentVariable(SecurityKeyKey);
+        if (string.IsNullOrWhiteSpace(securityKey))
+        {
+            throw new InvalidOperationException(
+                $"Required environment variable '{SecurityKeyKey}' was not set or was empty.");
+        }
 
         builder.Services.Configure<SecurityConfiguration>(options => { options.SecurityKey = securityKey; });
 

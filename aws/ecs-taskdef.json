@@ -1,0 +1,81 @@
+{
+    "family": "aspnetcore-net11-app",
+    "networkMode": "awsvpc",
+    "requiresCompatibilities": [
+        "FARGATE"
+    ],
+    "cpu": "256",
+    "memory": "512",
+    "runtimePlatform": {
+        "operatingSystemFamily": "LINUX",
+        "cpuArchitecture": "X86_64"
+    },
+    "executionRoleArn": "arn:aws:iam::648807276746:role/ecsTaskExecutionRole",
+    "taskRoleArn": "arn:aws:iam::648807276746:role/ecsInfrastructureRoleForExpressServices",
+    "containerDefinitions": [
+        {
+            "name": "dotnet11-api",
+            "image": "648807276746.dkr.ecr.us-east-1.amazonaws.com/dj/api-repo:latest",
+            "essential": true,
+            "portMappings": [
+                {
+                    "containerPort": 7132,
+                    "hostPort": 7132,
+                    "protocol": "tcp"
+                }
+            ],
+            "secrets": [
+                {
+                    "name": "DJ_SECURITY_KEY",
+                    "valueFrom": "arn:aws:secretsmanager:us-east-1:648807276746:secret:dev/dj/scopedSecret-nqJtd7:DJ_SECURITY_KEY::"
+                },
+                {
+                    "name": "DJ_TMDB_API_KEY",
+                    "valueFrom": "arn:aws:secretsmanager:us-east-1:648807276746:secret:dev/dj/tmdbApiKey-8d5jtQ:SecretString:DJ_TMDB_API_KEY::"
+                }
+            ],
+            "environment": [
+                {
+                    "name": "ASPNETCORE_ENVIRONMENT",
+                    "value": "Development"
+                },
+                {
+                    "name": "ASPNETCORE_HTTP_PORTS",
+                    "value": "5282"
+                },
+                {
+                    "name": "DJ_JWT_ISSUER",
+                    "value": "https://localhost:7132"
+                },
+                {
+                    "name": "DJ_JWT_AUDIENCE",
+                    "value": "https://localhost:7132"
+                },
+                {
+                    "name": "DJ_MEDIA_BASE_DIRECTORY",
+                    "value": "//fatty/Existing/"
+                },
+                {
+                    "name": "DJ_MEDIA_DATABASE_PATH",
+                    "value": "data/media.db"
+                },
+                {
+                    "name": "TMDB:DatabasePath",
+                    "value": "data/tmdb.db"
+                },
+                {
+                    "name": "DJ_HOST_ALLOWED_CORS_URL",
+                    "value": "127.0.0.1,127.0.0.1"
+                }
+            ],
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "/ecs/aspnetcore-net11-app",
+                    "awslogs-region": "us-east-1",
+                    "awslogs-stream-prefix": "web"
+                }
+            }
+        }
+    ]
+}

@@ -25,7 +25,7 @@
   - `DatabaseConfiguration:DataFile`
   - `TMDB:ApiKey`
   - `TMDB:DatabasePath`
-- [ ] Avoid hardcoded local Windows paths in production config
+- [x] Avoid hardcoded local Windows paths in production config
   - Current `appsettings.json` uses `//fatty/Existing/`
 - [ ] Ensure app supports running behind a load balancer / ingress
   - Validate `ASPNETCORE_URLS` or Kestrel binding
