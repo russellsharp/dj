@@ -14,3 +14,7 @@ BenchmarkDotNet.Artifacts/**
 .vs/**
 backup/**
 **secret_key_file**
+task_def_last.json
+update_service_last.json
+task_def_last.json
+update_service_last.json

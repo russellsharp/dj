@@ -4,13 +4,12 @@ param (
     [switch]$AwsDeploy
 )
 
-New-Variable -Name "IMAGE_NAME" -VALUE "dj-api-image" -Option Constant
-New-Variable -Name "TASK_FAMILY" -VALUE "aspnetcore-net11-app" -Option Constant
-New-Variable -Name "TASK_DEF_FILE" -VALUE "file://aws/ecs-taskdef.json" -Option Constant
-New-Variable -Name "AWS_REGION" -VALUE "us-east-1" -Option Constant
-New-Variable -Name "AWS_IMAGE_TAG" -VALUE "648807276746.dkr.ecr.us-east-1.amazonaws.com/dj/api-repo:latest" -Option Constant
-New-Variable -Name "AWS_ECR_REPO" -VALUE "648807276746.dkr.ecr.us-east-1.amazonaws.com" -Option Constant
-New-Variable -Name "SERVICE_NAME" -VALUE "dj-api-service-http" -Option Constant
+. ".\aws\aws_constants.ps1"
+
+Set-PSDebug -Trace 1
+
+docker ps
+
 dotnet clean
 
 docker build -f docker\DockerFile.release -t dj-api-image .
