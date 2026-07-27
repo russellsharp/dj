@@ -9,6 +9,7 @@ using BenchmarkDotNet.Loggers;
 using BenchmarkDotNet.Running;
 using BenchmarkDotNet.Validators;
 using dj.benchmarks;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using shared.thesaurus;
 using Xunit.Internal;
@@ -24,7 +25,7 @@ namespace dj.test
             DatabasePath = "wordnet/database/wordnet.db"
         };
 
-        private Thesaurus _thesaurus = new(Options.Create<ThesaurusConfiguration>(thesaurusConfigDefaults));
+        private Thesaurus _thesaurus = new(Options.Create<ThesaurusConfiguration>(thesaurusConfigDefaults), new LoggerFactory().CreateLogger<Thesaurus>());
 
         const string BaseWord = "Choose";
 

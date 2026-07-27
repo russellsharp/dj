@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Dapper;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Syn.WordNet;
 using File = System.IO.File;
@@ -49,6 +50,7 @@ public class Thesaurus : IThesaurus
     private ThesaurusConfiguration _config = new();
     private SqliteConnection? _connection;
     private bool _initialized = false;
+    public ILogger<Thesaurus> _logger { get; }
 
     private string DatabasePath
     {
@@ -60,13 +62,12 @@ public class Thesaurus : IThesaurus
         }
     }
 
-
-
-    public Thesaurus(IOptions<ThesaurusConfiguration> config)
+    public Thesaurus(IOptions<ThesaurusConfiguration> config, ILogger<Thesaurus> logger)
     {
         // Initialize the offline WordNet Engine
         _engine = new WordNetEngine();
         _config = config?.Value ?? new();
+        _logger = logger;
     }
 
     public void Initialize()
@@ -110,7 +111,7 @@ public class Thesaurus : IThesaurus
         }
         catch (Exception ex)
         {
-            Debug.WriteLine(ex);
+            _logger.LogError(ex.ToString());
             throw;
         }
         finally
@@ -169,7 +170,7 @@ public class Thesaurus : IThesaurus
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Error while inserting data.  Rolling back transaction. \n {ex}");
+            _logger.LogError($"Error while inserting data.  Rolling back transaction. \n {ex}");
             transaction.Rollback();
             throw;
         }
@@ -180,7 +181,7 @@ public class Thesaurus : IThesaurus
     {
         Directory.CreateDirectory(Path.GetDirectoryName(DatabasePath) ?? throw new InvalidOperationException("Unable to determine thesaurus database directory"));
 
-        Console.WriteLine(DatabasePath);
+        _logger.LogInformation(DatabasePath);
 
         var builder = new SqliteConnectionStringBuilder
         {

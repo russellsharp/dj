@@ -6,6 +6,7 @@ using shared.http;
 using Microsoft.Data.Sqlite;
 using System.Text.Json;
 using System.Security.Cryptography.X509Certificates;
+using Microsoft.Extensions.Logging;
 
 namespace shared.TMDB;
 
@@ -27,17 +28,14 @@ public class Repo : IDisposable, IRepo
     private readonly IRateLimiter _limiter;
     private readonly CancellationTokenSource _tokenSource;
 
-    private void log(string msg)
-    {
-        Debug.WriteLine(msg);
-        Console.WriteLine(msg);
-    }
+    private readonly ILogger<IRepo> _logger;
 
-    public Repo(IOptions<TMDBConfiguration> config, ICache cache, CancellationTokenSource tokenSource)
+    public Repo(IOptions<TMDBConfiguration> config, ICache cache, ILogger<IRepo> logger, CancellationTokenSource tokenSource)
     {
+        _logger = logger;
         _config = config.Value;
         _cache = cache;
-        _limiter = new RateLimiter(config);
+        _limiter = new RateLimiter(config, new LoggerFactory().CreateLogger<RateLimiter>());
         _tokenSource = tokenSource;
     }
 
@@ -137,7 +135,7 @@ public class Repo : IDisposable, IRepo
             }
             else
             {
-                log($"Failed requesting from TMDB with response code: {apiResponse.StatusCode}");
+                _logger.LogInformation($"Failed requesting from TMDB with response code: {apiResponse.StatusCode}");
                 return default;
             }
         }

@@ -5,6 +5,7 @@ using System.Buffers.Text;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Net.Http;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Polly;
 using Polly.RateLimit;
@@ -26,7 +27,7 @@ public class RateLimiter : IRateLimiter
     private readonly TMDBConfiguration _config;
     private Polly.ResiliencePipeline<RestResponse> _pipeline;
 
-    public RateLimiter(IOptions<TMDBConfiguration> options)
+    public RateLimiter(IOptions<TMDBConfiguration> options, ILogger<RateLimiter> _logger)
     {
 
         _config = options.Value;
@@ -56,7 +57,7 @@ public class RateLimiter : IRateLimiter
 
                     BackoffType = DelayBackoffType.Exponential,
 
-                    OnRetry = static args =>
+                    OnRetry = static (args) =>
                     {
                         Console.WriteLine($"Retry attempt: {args.AttemptNumber + 1}\r\nException: {args.Outcome.Exception?.Message}\r\nWaiting: {args.RetryDelay.TotalSeconds}");
                         return ValueTask.CompletedTask;

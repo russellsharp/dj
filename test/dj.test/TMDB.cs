@@ -10,6 +10,7 @@ using System.Data.Common;
 using shared.thesaurus;
 using Microsoft.CodeAnalysis;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 
 namespace dj.test;
 
@@ -60,7 +61,7 @@ public class TMDB : BaseTest
     [Fact]
     public async Task QueryMovies()
     {
-        using Repo client = new(BasicOptions, new Cache(BasicOptions, _cts), _cts);
+        using Repo client = new(BasicOptions, new Cache(BasicOptions, new LoggerFactory().CreateLogger<ICache>(), _cts), new LoggerFactory().CreateLogger<IRepo>(), _cts);
 
         var movies = await client.QueryTitle("Star Wars", 1);
 
@@ -76,7 +77,7 @@ public class TMDB : BaseTest
     [Fact]
     public async Task QueryMovieGenres()
     {
-        using Repo client = new(BasicOptions, new Cache(BasicOptions, _cts), _cts);
+        using Repo client = new(BasicOptions, new Cache(BasicOptions, new LoggerFactory().CreateLogger<ICache>(), _cts), new LoggerFactory().CreateLogger<IRepo>(), _cts);
 
         var genres = await client.MovieGenres();
 
@@ -90,7 +91,7 @@ public class TMDB : BaseTest
     [Fact]
     public async Task MovieDetails()
     {
-        using Repo client = new(BasicOptions, new Cache(BasicOptions, _cts), _cts);
+        using Repo client = new(BasicOptions, new Cache(BasicOptions, new LoggerFactory().CreateLogger<ICache>(), _cts), new LoggerFactory().CreateLogger<IRepo>(), _cts);
         var details = await client.Movie(11);
 
         details.Should().NotBeNull();
@@ -109,7 +110,7 @@ public class TMDB : BaseTest
     {
         const int StarWarsId = 11;
 
-        using Repo client = new(BasicOptions, new Cache(BasicOptions, _cts), _cts);
+        using Repo client = new(BasicOptions, new Cache(BasicOptions, new LoggerFactory().CreateLogger<ICache>(), _cts), new LoggerFactory().CreateLogger<IRepo>(), _cts);
         var details = await client.Movie(11);
 
         details.Should().NotBeNull();
@@ -127,7 +128,7 @@ public class TMDB : BaseTest
     [Fact]
     public async Task GetScore()
     {
-        using Repo repo = new(BasicOptions, new Cache(BasicOptions, _cts), _cts);
+        using Repo repo = new(BasicOptions, new Cache(BasicOptions, new LoggerFactory().CreateLogger<ICache>(), _cts), new LoggerFactory().CreateLogger<IRepo>(), _cts);
 
         var searchTerm = "Star Wars".ToLower();
 
@@ -158,7 +159,7 @@ public class TMDB : BaseTest
     [Fact]
     public async Task GetScoreAndMatchRemoteMovies()
     {
-        using Repo repo = new(BasicOptions, new Cache(BasicOptions, _cts), base._cts);
+        using Repo repo = new(BasicOptions, new Cache(BasicOptions, new LoggerFactory().CreateLogger<ICache>(), _cts), new LoggerFactory().CreateLogger<IRepo>(), _cts);
 
         var searchTerm = "Training Day";
 
@@ -213,7 +214,7 @@ public class TMDB : BaseTest
     {
         var minimumHitCount = 100;
 
-        using Repo repo = new(BasicOptions, new Cache(BasicOptions, _cts), _cts);
+        using Repo repo = new(BasicOptions, new Cache(BasicOptions, new LoggerFactory().CreateLogger<ICache>(), _cts), new LoggerFactory().CreateLogger<IRepo>(), _cts);
 
         var searchTerm = "Training Day";
 
@@ -223,7 +224,7 @@ public class TMDB : BaseTest
     [Fact(Skip = "Endpoint is broken.")]
     public async Task DiscoverMovie()
     {
-        using Repo repo = new(BasicOptions, new Cache(BasicOptions, _cts), _cts);
+        using Repo repo = new(BasicOptions, new Cache(BasicOptions, new LoggerFactory().CreateLogger<ICache>(), _cts), new LoggerFactory().CreateLogger<IRepo>(), _cts);
 
         var searchTerm = "First|day";
 
@@ -233,7 +234,7 @@ public class TMDB : BaseTest
     [Fact]
     public async Task MatchByOverview()
     {
-        using Repo repo = new(BasicOptions, new Cache(BasicOptions, _cts), _cts);
+        using Repo repo = new(BasicOptions, new Cache(BasicOptions, new LoggerFactory().CreateLogger<ICache>(), _cts), new LoggerFactory().CreateLogger<IRepo>(), _cts);
         ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
 
         var movies = await tmdb.QueryTitle("Training Day");
@@ -257,7 +258,7 @@ public class TMDB : BaseTest
     [Fact]
     public async Task MatchKeywordsByAll()
     {
-        using Repo repo = new(BasicOptions, new Cache(BasicOptions, _cts), _cts);
+        using Repo repo = new(BasicOptions, new Cache(BasicOptions, new LoggerFactory().CreateLogger<ICache>(), _cts), new LoggerFactory().CreateLogger<IRepo>(), _cts);
         using ITMDB tmdb = new shared.TMDB.TMDB(repo, base._cts);
 
         var movies = await tmdb.QueryTitle("Training Day");
@@ -282,7 +283,7 @@ public class TMDB : BaseTest
 
         var queryMatches = await tmdb.QueryOverviews(searchTerm, minimumHitCount);
 
-        var thesus = new Thesaurus(thesaurusOptionsDefaults);
+        var thesus = new Thesaurus(thesaurusOptionsDefaults, new LoggerFactory().CreateLogger<Thesaurus>());
 
         var searchTerms = searchTerm.Split(' ').ToList();
 
@@ -300,7 +301,7 @@ public class TMDB : BaseTest
     [Fact]
     public async Task MatchKeywordsCollection()
     {
-        using Repo repo = new(BasicOptions, new Cache(BasicOptions, _cts), _cts);
+        using Repo repo = new(BasicOptions, new Cache(BasicOptions, new LoggerFactory().CreateLogger<Cache>(), _cts), new LoggerFactory().CreateLogger<IRepo>(), _cts);
         ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
 
         var movies = await tmdb.QueryTitle("Inglourious Basterds");
@@ -318,7 +319,7 @@ public class TMDB : BaseTest
 
         List<MatchScore<MovieDetailsResponse>> queryMatches = (await tmdb.QueryOverviews(searchTerm, minimumHitCount)).ToList();
 
-        var thesus = new Thesaurus(thesaurusOptionsDefaults);
+        var thesus = new Thesaurus(thesaurusOptionsDefaults, new LoggerFactory().CreateLogger<Thesaurus>());
 
         var searchTerms = searchTerm.Split(' ').ToList();
 

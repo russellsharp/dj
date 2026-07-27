@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using shared.thesaurus;
 using Xunit.Internal;
@@ -23,7 +24,7 @@ namespace dj.test
         [Fact]
         public async Task GetSynonyms()
         {
-            var thesus = new Thesaurus(Options.Create(thesaurusConfigDefaults));
+            var thesus = new Thesaurus(Options.Create(thesaurusConfigDefaults), new LoggerFactory().CreateLogger<Thesaurus>());
             thesus.Initialize();
 
             var baseWord = "choose";
@@ -37,7 +38,7 @@ namespace dj.test
         [Fact(Skip = "Used to build the database.")]
         public async Task ImportJsonl()
         {
-            var thesus = new Thesaurus(Options.Create(thesaurusConfigDefaults));
+            var thesus = new Thesaurus(Options.Create(thesaurusConfigDefaults), new LoggerFactory().CreateLogger<Thesaurus>());
             thesus.Initialize();
 
             await thesus.ImportFromJsonl(@"wordnet/staticdata/en_thesaurus.jsonl");
@@ -46,7 +47,7 @@ namespace dj.test
         [Fact]
         public async Task SearchDatabase()
         {
-            var thesus = new Thesaurus(Options.Create(thesaurusConfigDefaults));
+            var thesus = new Thesaurus(Options.Create(thesaurusConfigDefaults), new LoggerFactory().CreateLogger<Thesaurus>());
             thesus.Initialize();
 
             var baseWord = "choose";
