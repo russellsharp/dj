@@ -15,6 +15,7 @@
     <TargetFramework>net11.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>  
+    <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
   <IsTestProject>false</IsTestProject>
   
   <!-- Disables modern Microsoft.Testing.Platform execution loop -->

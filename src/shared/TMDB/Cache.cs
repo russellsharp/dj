@@ -31,7 +31,7 @@ public interface ICache
 
 public class Cache : IDisposable, ICache
 {
-    private EndpointConfig _config;
+    private TMDBConfiguration _config;
     private readonly CancellationTokenSource _tokenSource;
     private SqliteConnection? _connection = null;
     private static readonly ConcurrentDictionary<string, object> s_databaseLocks = new();
@@ -46,7 +46,7 @@ public class Cache : IDisposable, ICache
         }
     }
 
-    public Cache(IOptions<EndpointConfig> config, CancellationTokenSource cts)
+    public Cache(IOptions<TMDBConfiguration> config, CancellationTokenSource cts)
     {
         ArgumentNullException.ThrowIfNull(config);
 
@@ -423,8 +423,6 @@ public class Cache : IDisposable, ICache
         var assembly = typeof(ModuleName).Assembly;
 
         string? query = null;
-
-        // assembly.GetManifestResourceNames().ToList().ForEach(x => Debug.WriteLine(x));
 
         using (var stream = assembly.GetManifestResourceStream(resourceName))
         {

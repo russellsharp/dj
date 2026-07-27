@@ -30,6 +30,7 @@ public record ThesaurusEntry
 
 public class ThesaurusConfiguration
 {
+    public static string SectionName { get; } = "Thesaurus";
     public string DictionaryPath { get; init; } = "wordnet/staticdata/";
     public string DatabasePath { get; init; } = "wordnet/database/wordnet.db";
 }

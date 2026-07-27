@@ -9,7 +9,7 @@ namespace dj.test.system;
 
 public class BaseTest(ITestOutputHelper _log)
 {
-    public const string BaseUrl = "https://localhost:7123/api";
+    public const string BaseUrl = "https://localhost:7132/api";
 
     public void Log(object msg)
     {

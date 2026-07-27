@@ -7,14 +7,14 @@
 @settings = {"request.certificates.strictSSL": false}
 
 # Corrected port variables based on your console logs
-@api_HostAddressSecure = https://localhost:7123/api
+@api_HostAddressSecure = https://localhost:7132/api
 @api_HostAddress = http://127.0.0.1:5282/api
 
 GET {{api_HostAddress}}/health
 Accept: application/json
 ###
 
-Get https://localhost:7123/openapi/v1.json
+Get https://localhost:7132/openapi/v1.json
 Accept: application/json
 ###
 
