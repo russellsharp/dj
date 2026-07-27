@@ -1,0 +1,40 @@
+# @withCredentials false
+# @no-cookie
+# @no-log
+# @no-reject-unauthorized // <--- ADD THIS LINE TO THE TOP OF YOUR FILE
+
+# Disable SSL certificate strictness for local dev certificates
+@settings = {"request.certificates.strictSSL": false}
+
+@service_address = dj-api-lb-409131152.us-east-1.elb.amazonaws.com
+# Corrected port variables based on your console logs
+@api_HostAddressSecure = https://localhost:7132/api
+@api_HostAddress = http://{{service_address}}:80/api
+
+GET {{api_HostAddress}}/health
+Accept: application/json
+###
+
+Get {{api_HostAddress}}/openapi/v1.json
+Accept: application/json
+###
+
+# @name anonToken
+GET {{api_HostAddress}}/token/anonymous
+Accept: application/json
+###
+
+@readToken = {{readToken.response.body.access_token}}
+
+###
+
+# @name readToken
+POST {{api_HostAddressSecure}}/token/scoped
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=client_credentials&client_id=console-app-client-read&client_secret=super-secret-password-123&scope=media:read
+
+###
+# @name writeToken
+POST {{api_HostAddressSecure}}/token/scoped
+Content-Type: application/x-www-form-urlencoded

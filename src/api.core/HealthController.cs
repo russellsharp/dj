@@ -6,19 +6,20 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 
-namespace api
+namespace api;
+
+[ApiController]
+[AllowAnonymous]
+[Route("api")]
+[ProducesResponseType(typeof(string), StatusCodes.Status200OK)]
+public class HealthController(ILogger<HealthController> _logger)
 {
-    [ApiController]
-    [AllowAnonymous]
-    [Route("api")]
-    [ProducesResponseType(typeof(string), StatusCodes.Status200OK)]
-    public class HealthController
+    [HttpGet("health"), AllowAnonymous]
+    public async Task<Ok<string>> Health()
     {
-        [HttpGet("health"), AllowAnonymous]
-        public async Task<Ok<string>> Health()
-        {
-            return TypedResults.Ok("Just good folks.");
-        }
+        _logger.LogInformation("health check made");
+        return TypedResults.Ok("Just good folks.");
     }
 }

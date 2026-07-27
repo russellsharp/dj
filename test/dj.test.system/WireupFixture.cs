@@ -3,12 +3,13 @@ using api.controllers;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using shared;
 
 namespace dj.test.system;
 
-[CollectionDefinition("WireupFixture")]
+[CollectionDefinition("WireupCollection")]
 public class WireupCollection : ICollectionFixture<WireupFixture> { }
 
 public class WireupFixture : BaseFixture, IDisposable
@@ -51,6 +52,8 @@ public class WireupFixture : BaseFixture, IDisposable
         await app.SetupSecurity(); //must come before MapControllers
         app.MapControllers();
 
+        var logger = app.Services.GetRequiredService<ILogger<WireupFixture>>();
+        logger.LogWarning($"Environment: {app.Environment.EnvironmentName}");
         await app.StartAsync();
 
         //initialize the media service to preload the files from database

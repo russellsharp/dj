@@ -5,11 +5,12 @@ using System.Threading.Tasks;
 using api.models;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Hosting;
 using Xunit;
 
 namespace dj.test.system;
 
-[Collection("WireupFixture")]
+[Collection("WireupCollection")]
 public class SearchTests : BaseTest
 {
     private ISystemFixture _fixture;
@@ -17,6 +18,8 @@ public class SearchTests : BaseTest
     public SearchTests(WireupFixture fixture, ITestOutputHelper logger) : base(logger)
     {
         _fixture = fixture;
+
+        Log($"Environment: {Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")}");
 
         _fixture.Initialize().GetAwaiter().GetResult();
     }

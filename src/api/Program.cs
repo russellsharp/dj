@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using Scalar.AspNetCore;
 using shared;
 using api.controllers;
+using System.Diagnostics;
 
 // var key = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
 // File.WriteAllText("./super_secret_key.secret", key);
@@ -28,16 +29,28 @@ builder.Services.AddControllers()
     });
 
 builder.AddConfiguration()
-        .AddServices()
-        .AddSecurity()
-        .AddRateLimiter();
+        .AddServices();
+
+if (builder.Environment.IsDevelopment())
+{
+    builder.AddSecurity();
+}
+
+builder.AddRateLimiter();
 
 builder.Services.AddSingleton(cts);
 
 var app = builder.Build();
 
+var logger = app.Services.GetRequiredService<ILogger<Program>>();
+logger.LogWarning($"Environment: {app.Environment.EnvironmentName}");
+
+
 app.UseRouting(); // must be called before SetupSecurity
-await app.SetupSecurity(); //must come before MapControllers
+if (builder.Environment.IsDevelopment())
+{
+    await app.SetupSecurity(); //must come before MapControllers
+}
 app.MapControllers();
 
 // Configure the HTTP request pipeline.

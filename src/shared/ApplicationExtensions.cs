@@ -253,19 +253,21 @@ public static partial class ApplicationExtensions
     {
         var hostConfig = app.Configuration.GetSection(HostConfiguration.SectionName).Get<HostConfiguration>();
 
+        ArgumentNullException.ThrowIfNull(hostConfig);
+
         var allowedUrl = hostConfig.CorsAllowedUrl.Distinct();
 
-        app
-            .UseCors(policy => policy.WithOrigins(allowedUrl.ToArray()).AllowAnyMethod().AllowAnyHeader())
-            .UseHttpsRedirection()
-            .UseRateLimiter()
-            .UseAuthentication()
-            .UseAuthorization();
+        if (app.Environment.IsDevelopment())
+        {
+            app.UseCors(policy => policy.WithOrigins(allowedUrl.ToArray()).AllowAnyMethod().AllowAnyHeader())
+                .UseHttpsRedirection()
+                .UseAuthentication()
+                .UseAuthorization();
+        }
 
+        app.UseRateLimiter();
 
-        await app.SetupTestClient();
-
-        return app;
+        return await app.SetupTestClient();
     }
 }
 

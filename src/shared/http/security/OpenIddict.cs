@@ -147,19 +147,18 @@ public static partial class ApplicationExtensions
                             throw new InvalidOperationException("Failed to initialize signing/encryption key.", ex);
                         }
                     }
-                    else if (builder.Environment.IsDevelopment())
+
+                    if (builder.Environment.IsDevelopment())
                     {
-                        options.AddDevelopmentEncryptionCertificate()
-                            .AddDevelopmentSigningCertificate();
-                    }
-                    else
-                    {
+                        // TODO: Find a use case for development keys
+                        // options.AddDevelopmentEncryptionCertificate()
+                        //     .AddDevelopmentSigningCertificate();
+
                         // No explicit key configured and not a Development environment — use ephemeral keys so
                         // the server can still issue tokens (e.g. test environments without a provisioned secret).
                         options.AddEphemeralEncryptionKey();
+                        options.AddEphemeralSigningKey();
                     }
-
-                    options.AddEphemeralSigningKey();
 
                     // Register the ASP.NET Core host
                     options.UseAspNetCore().EnableTokenEndpointPassthrough();
