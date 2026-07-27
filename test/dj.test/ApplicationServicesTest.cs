@@ -68,8 +68,9 @@ public class ApplicationServices : BaseTest
         };
 
         _builder.Services.AddSingleton(Options.Create(databaseConfig))
-                        .AddSingleton(Options.Create(thesaurusConfig))
-                        .Configure<shared.EndpointConfig>(_builder.Configuration.GetSection("TMDB"));
+                        .AddSingleton(Options.Create(thesaurusConfig));
+
+        _builder.ConfigureTmdb();
     }
 
     [Fact]

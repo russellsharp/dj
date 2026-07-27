@@ -4,7 +4,7 @@ docker container rm dj-api-container
 # powershell command
 
 docker run `
-    -e "TMDB_API_KEY=$env:TMDB_API_KEY" `
+    -e "DJ_TMDB_API_KEY=$env:DJ_TMDB_API_KEY" `
     -e "DJ_SECURITY_KEY=$env:DJ_SECURITY_KEY" `
     -e "ASPNETCORE_ENVIRONMENT=Development" `
     -e "APSNETCORE_URLS=https://+:7132;http://+:5282" `

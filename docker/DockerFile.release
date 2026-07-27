@@ -18,8 +18,7 @@ COPY --from=build-env /app/out .
 EXPOSE 7132
 EXPOSE 5282
 
-ENV APSNETCORE_ENVIRONMENT=Development \
-    APSNETCORE_URLS=https://+;http://+
+#Environment variables are set by the docker run command
 
 RUN mkdir -p /app/cert && echo "init" > /app/cert/init.text
 

@@ -22,7 +22,7 @@ public interface IRepo
 
 public class Repo : IDisposable, IRepo
 {
-    private EndpointConfig _config;
+    private TMDBConfiguration _config;
     private ICache _cache;
     private readonly IRateLimiter _limiter;
     private readonly CancellationTokenSource _tokenSource;
@@ -33,7 +33,7 @@ public class Repo : IDisposable, IRepo
         Console.WriteLine(msg);
     }
 
-    public Repo(IOptions<EndpointConfig> config, ICache cache, CancellationTokenSource tokenSource)
+    public Repo(IOptions<TMDBConfiguration> config, ICache cache, CancellationTokenSource tokenSource)
     {
         _config = config.Value;
         _cache = cache;
