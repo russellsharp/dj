@@ -17,20 +17,17 @@
       "applicationUrl": "http://localhost:5282",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
-<<<<<<< HEAD
         "DJ_JWT_ISSUER": "https://localhost32",
         "DJ_JWT_AUDIENCE": "https://localhost:7132",
         "DJ_MEDIA_BASE_DIRECTORY": "//fatty/Existing/",
         "DJ_MEDIA_DATABASE_PATH": "data/media.db",
         "TMDB:DatabasePath": "data/tmdb.db"
-=======
         "DJ_SECURITY_KEY": "",
         "HostConfiguration:Jwt:Issuer": "",
         "HostConfiguration:Jwt:Audience": "",
         "MediaCollectionConfiguration:BaseDirectory": "",
         "DatabaseConfiguration:DataFile": "",
         "TMDB:DatabasePath": ""
->>>>>>> origin/main
       }
     }
   }
