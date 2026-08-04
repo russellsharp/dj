@@ -1,3 +1,6 @@
 [submodule ".github/.github"]
 	path = .github/.github
 	url = https://github.com/russellsharp/github-tools/
+[submodule ".github"]
+	path = .github
+	url = https://github.com/russellsharp/github-tools/
