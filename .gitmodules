@@ -1,0 +1,3 @@
+[submodule "gitTools"]
+	path = gitTools
+	url = https://github.com/russellsharp/github-tools/
