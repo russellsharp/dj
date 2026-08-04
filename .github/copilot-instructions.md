@@ -1,3 +1,8 @@
+# Preamble For All Requests	
+  Do not use internal reasoning tags or thinking steps. 
+	Skip the `<|think|>` phase entirely. 
+	Provide direct code output only.
+  
 # General
 1. Use UTC and ISO 8601 format for date time and timestamps.
 2. Use comments when the code does not describe why it is being called.  The 'why' should be abvious from the method calls and the objects used.
