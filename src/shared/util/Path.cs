@@ -30,7 +30,7 @@ namespace shared.util
 
         public static bool IsDirectory(string path)
         {
-            if (path.TakeLast(1).First() == Path.PathSeparator)
+            if (path.EndsWith(Path.PathSeparator))
             {
                 return true;
             }
@@ -42,7 +42,7 @@ namespace shared.util
         {
             if (path == null) return string.Empty;
 
-            if (path.TakeLast(1).First() == Path.PathSeparator)
+            if (path.EndsWith(Path.PathSeparator))
             {
                 return path;
             }
