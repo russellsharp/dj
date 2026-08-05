@@ -35,7 +35,7 @@ namespace api
             var request = HttpContext.GetOpenIddictServerRequest()
                 ?? throw new InvalidOperationException("The OAuth request cannot be retrieved.");
 
-            var registeredClients = _userDb.UserInfo.Select(x => x.ClientId).ToList();
+            var registeredClients = _userDb.UserInfo.Select(x => x.client_id).ToList();
 
             if (request.IsClientCredentialsGrantType())
             {

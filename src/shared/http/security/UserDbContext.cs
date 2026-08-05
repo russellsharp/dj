@@ -5,25 +5,63 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using shared.TMDB;
 
 namespace shared.http.security;
 
 public class RegisteredScopes : List<Scopes>;
+
 public class UserInformation
 {
     [Key]
-    public string ClientId { get; set; } = "";
+    public string client_id { get; set; } = "";
 
     [JsonConverter(typeof(ScopeListConverter))]
-    public RegisteredScopes GrantedScopes { get; set; } = new();
-    public string Password { get; set; } = "";
-    public string DisplayName { get; set; } = "";
+    public RegisteredScopes scopes { get; set; } = [];
+    public string password_hash { get; set; } = "";
+    public string display_name { get; set; } = "";
+    public DateTime create_at { get; set; } = DateTime.UtcNow;
 };
 
 public class ScopeEntry
 {
     [Key]
     public Scopes Value;
+}
+
+public interface IUserDatabase { }
+
+public class UserDatabase : BaseSqliteDatabase
+{
+    private readonly CancellationTokenSource _tokenSource;
+    private readonly ILogger<UserDatabase> _logger;
+    protected override string? CreateQueryResource => QueryFiles.CreateDatabase;
+    protected override string? TruncateQueryResource => QueryFiles.TruncateDatabase;
+    protected override Type QueryAssemblyType => typeof(Cache);
+
+    public UserDatabase(IOptions<TMDBConfiguration> config, ILogger<UserDatabase> logger, CancellationTokenSource cts)
+    {
+        _logger = logger;
+
+        ArgumentNullException.ThrowIfNull(config);
+
+        _config = config.Value;
+
+        _tokenSource = cts;
+
+        Connect();
+
+        Create();
+    }
+
+    internal static class QueryFiles
+    {
+        public static string CreateDatabase = @"shared.Users.sql.Users_Create.sql";
+
+        public static string TruncateDatabase = @"shared.Users.sql.Users_Truncate.sql";
+    }
 }
 
 public class UserDbContext : DbContext
@@ -38,14 +76,14 @@ public class UserDbContext : DbContext
 
         // Define the Primary Key
         modelBuilder.Entity<UserInformation>()
-            .HasKey(u => u.ClientId);
+            .HasKey(u => u.client_id);
 
         modelBuilder.Entity<ScopeEntry>()
             .HasKey(u => u.Value);
 
         // Tell InMemory how to store the List<RegisteredScopes> as a JSON string internally
         modelBuilder.Entity<UserInformation>()
-            .Property(u => u.GrantedScopes)
+            .Property(u => u.scopes)
             .HasConversion(
                 v => JsonSerializer.Serialize(v, (JsonSerializerOptions)null),
                 v => JsonSerializer.Deserialize<RegisteredScopes>(v, (JsonSerializerOptions)null) ?? new RegisteredScopes()
@@ -67,18 +105,18 @@ public static class UserDBAppExtensions
             {
                 userContext.UserInfo.Add(new UserInformation
                 {
-                    ClientId = "console-app-client-read",
-                    GrantedScopes = [Scopes.MediaRead],
-                    DisplayName = "console-app-client-read",
-                    Password = "super-secret-password-123"
+                    client_id = "console-app-client-read",
+                    scopes = [Scopes.MediaRead],
+                    display_name = "console-app-client-read",
+                    password_hash = "super-secret-password-123"
                 });
 
                 userContext.UserInfo.Add(new UserInformation
                 {
-                    ClientId = "console-app-client-rw",
-                    GrantedScopes = [Scopes.MediaWrite, Scopes.MediaRead],
-                    DisplayName = "console-app-client-rw",
-                    Password = "super-secret-password-123"
+                    client_id = "console-app-client-rw",
+                    scopes = [Scopes.MediaWrite, Scopes.MediaRead],
+                    display_name = "console-app-client-rw",
+                    password_hash = "super-secret-password-123"
                 });
 
             }

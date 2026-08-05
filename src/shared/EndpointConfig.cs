@@ -2,7 +2,15 @@ using Polly;
 using shared.TMDB;
 namespace shared;
 
-public class TMDBConfiguration
+public interface IDbConfiguration
+{
+    public static string SectionName { get; }
+
+    public static string DatabasePathKey { get; }
+    public string DatabasePath { get; init; }
+}
+
+public class TMDBConfiguration : IDbConfiguration
 {
     private static string API_KEY_KEY { get; } = "DJ_TMDB_API_KEY";
     public static string TMDB_DATABASE_PATH { get; } = "DJ_TMDB_DATABASE_PATH";

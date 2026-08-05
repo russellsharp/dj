@@ -108,7 +108,9 @@ public static partial class ApplicationExtensions
         builder.Services.AddOpenIddict()
                 .AddCore(options =>
                 {
-                    options.UseEntityFrameworkCore().UseDbContext<ApplicationDbContext>();
+                    options.UseEntityFrameworkCore()
+                        .UseDbContext<ApplicationDbContext>()
+                        .UseDbContext<UserDbContext>();
                 })
                 .AddServer(options =>
                 {
@@ -154,7 +156,7 @@ public static partial class ApplicationExtensions
                         // options.AddDevelopmentEncryptionCertificate()
                         //     .AddDevelopmentSigningCertificate();
 
-                        // No explicit key configured and not a Development environment — use ephemeral keys so
+                        // No explicit key configured and is a Development environment — use ephemeral keys so
                         // the server can still issue tokens (e.g. test environments without a provisioned secret).
                         options.AddEphemeralEncryptionKey();
                         options.AddEphemeralSigningKey();
@@ -187,15 +189,15 @@ public static partial class ApplicationExtensions
             foreach (var user in userContext.UserInfo)
             {
                 // Check if our test client already exists
-                var application = await manager.FindByClientIdAsync(user.ClientId);
+                var application = await manager.FindByClientIdAsync(user.client_id);
 
                 if (application is null)
                 {
                     var applicationDescriptor = new OpenIddictApplicationDescriptor
                     {
-                        ClientId = user.ClientId,
-                        ClientSecret = user.Password,
-                        DisplayName = user.DisplayName,
+                        ClientId = user.client_id,
+                        ClientSecret = user.password_hash,
+                        DisplayName = user.display_name,
                         Permissions =
                                     {                                        
                                         // Must explicitly permit the flow and endpoint
@@ -206,11 +208,11 @@ public static partial class ApplicationExtensions
 
                     var result = await manager.CreateAsync(applicationDescriptor);
 
-                    application = await manager.FindByClientIdAsync(user.ClientId) ?? throw new Exception("Application not found.");
+                    application = await manager.FindByClientIdAsync(user.client_id) ?? throw new Exception("Application not found.");
 
                     await manager.PopulateAsync(applicationDescriptor, application);
 
-                    applicationDescriptor.AddScopePermissions([.. user.GrantedScopes.Select(x => x.ToOidc())]);
+                    applicationDescriptor.AddScopePermissions([.. user.scopes.Select(x => x.ToOidc())]);
 
                     await manager.UpdateAsync(application, applicationDescriptor);
                 }
