@@ -5,7 +5,7 @@ using System.Diagnostics;
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
-namespace shared.TMDB;
+namespace shared;
 
 public class BaseSqliteDatabase : IDisposable
 {

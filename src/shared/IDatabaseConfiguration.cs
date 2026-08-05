@@ -6,6 +6,7 @@ public interface IDatabaseConfiguration
 
     private static string DatabasePathKey { get; }
     public string DatabasePath { get; set; }
+    public string ConnectionString { get; }
 }
 
 

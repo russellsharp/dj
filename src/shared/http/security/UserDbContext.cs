@@ -1,13 +1,10 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace shared.http.security;
 
@@ -55,64 +52,6 @@ public class UserDbContext : DbContext
                 v => JsonSerializer.Serialize(v, (JsonSerializerOptions)null),
                 v => JsonSerializer.Deserialize<RegisteredScopes>(v, (JsonSerializerOptions)null) ?? new RegisteredScopes()
             );
-    }
-}
-
-public static class UserDBAppExtensions
-{
-
-    public static IHostApplicationBuilder AddUserAuthDatabase(this IHostApplicationBuilder builder)
-    {
-        builder.Services.AddSingleton<IUserDatabase, UserDatabase>();
-
-        // builder.Services.AddDbContext<UserDbContext>(options => options.UseSqlServer(UserDatabase.ConnectionString));
-
-        // builder.Services.Configure<IDatabaseConfiguration>(builder.Configuration.GetSection(UserDatabase.SectionName));
-        builder.Services.AddDbContext<UserDbContext>(options => options.UseInMemoryDatabase("UserDatabase"));
-
-        return builder;
-    }
-
-    public static WebApplication SetupTestData(this WebApplication app)
-    {
-        using (var scope = app.Services.CreateScope())
-        {
-            var userContext = scope.ServiceProvider.GetRequiredService<UserDbContext>();
-            userContext.Database.EnsureCreated();
-
-            //seed userContext with test users
-            if (!userContext.UserInfo.Any())
-            {
-                userContext.UserInfo.Add(new UserInformation
-                {
-                    client_id = "console-app-client-read",
-                    scopes = [Scopes.MediaRead],
-                    display_name = "console-app-client-read",
-                    password_hash = "super-secret-password-123"
-                });
-
-                userContext.UserInfo.Add(new UserInformation
-                {
-                    client_id = "console-app-client-rw",
-                    scopes = [Scopes.MediaWrite, Scopes.MediaRead],
-                    display_name = "console-app-client-rw",
-                    password_hash = "super-secret-password-123"
-                });
-
-            }
-
-            if (!userContext.ApplicationScopes.Any())
-            {
-                userContext.ApplicationScopes.AddRange(
-                    [
-                        new ScopeEntry { Value = Scopes.MediaRead },
-                        new ScopeEntry { Value = Scopes.MediaWrite }
-                    ]);
-            }
-
-            userContext.SaveChanges();
-        }
-        return app;
     }
 }
 

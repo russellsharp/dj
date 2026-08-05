@@ -131,7 +131,7 @@ public static partial class ApplicationExtensions
 
     public static IHostApplicationBuilder ConfigureTmdb(this IHostApplicationBuilder builder)
     {
-        builder.Services.Configure<shared.TMDBConfiguration>(builder.Configuration.GetSection(TMDBConfiguration.SectionName));
+        builder.Services.Configure<TMDBConfiguration>(builder.Configuration.GetSection(TMDBConfiguration.SectionName));
 
         var tmdbDict = new Dictionary<string, string?>();
 
