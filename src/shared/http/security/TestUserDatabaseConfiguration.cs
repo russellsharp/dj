@@ -2,7 +2,7 @@ using Microsoft.Data.Sqlite;
 
 namespace shared.http.security;
 
-public class UserDatabaseConfiguration : IDatabaseConfiguration
+public class TestUserDatabaseConfiguration : IDatabaseConfiguration
 {
     private static string DatabasePathKey { get; } = "DJ_USER_DATABASE_PATH";
     public static string SectionName { get; } = "AuthUsers";

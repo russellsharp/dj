@@ -7,18 +7,18 @@ namespace shared.http.security;
 
 public interface IUserDatabase { }
 
-public class UserDatabase : BaseSqliteDatabase, IUserDatabase
+public class TestUserDatabase : BaseSqliteDatabase, IUserDatabase
 {
     private readonly CancellationTokenSource _tokenSource;
-    private readonly ILogger<UserDatabase> _logger;
-    private readonly DbContextOptions<UserDbContext> _efContext;
+    private readonly ILogger<TestUserDatabase> _logger;
+    private readonly DbContextOptions<TestUserDbContext> _efContext;
 
     protected override string? CreateQueryResource => QueryFiles.CreateDatabase;
     protected override string? TruncateQueryResource => QueryFiles.TruncateDatabase;
     protected override Type QueryAssemblyType => typeof(Cache);
-    public override string SectionName => nameof(UserDatabase);
+    public override string SectionName => nameof(TestUserDatabase);
 
-    public UserDatabase(IOptions<UserDatabaseConfiguration> config, ILogger<UserDatabase> logger, DbContextOptions<UserDbContext> efContext, CancellationTokenSource cts)
+    public TestUserDatabase(IOptions<TestUserDatabaseConfiguration> config, ILogger<TestUserDatabase> logger, DbContextOptions<TestUserDbContext> efContext, CancellationTokenSource cts)
     {
         _logger = logger;
 

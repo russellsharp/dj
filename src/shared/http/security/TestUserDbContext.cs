@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace shared.http.security;
 
@@ -17,7 +18,7 @@ public class UserInformation
 
     [JsonConverter(typeof(ScopeListConverter))]
     public RegisteredScopes scopes { get; set; } = [];
-    public string password_hash { get; set; } = "";
+    public string password_plaintext { get; set; } = "";
     public string display_name { get; set; } = "";
     public DateTime created_at { get; set; } = DateTime.UtcNow;
 };
@@ -28,9 +29,9 @@ public class ScopeEntry
     public Scopes Value;
 }
 
-public class UserDbContext : DbContext
+public class TestUserDbContext : DbContext
 {
-    public UserDbContext(DbContextOptions<UserDbContext> options) : base(options) { }
+    public TestUserDbContext(DbContextOptions<TestUserDbContext> options) : base(options) { }
     public DbSet<UserInformation> UserInfo { get; set; }
     public DbSet<ScopeEntry> ApplicationScopes { get; set; }
 

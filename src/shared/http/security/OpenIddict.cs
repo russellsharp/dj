@@ -1,25 +1,16 @@
-using System;
-using System.Collections.Frozen;
-using System.Collections.Generic;
 using System.ComponentModel;
-using System.Diagnostics;
-using System.Diagnostics.Eventing.Reader;
-using System.Linq;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using OpenIddict.Abstractions;
 using OpenIddict.Validation.AspNetCore;
-using Polly;
 using shared.util;
 
 namespace shared.http.security;
@@ -97,20 +88,29 @@ public static partial class ApplicationExtensions
 
     private static IHostApplicationBuilder AddOpenIddictService(this IHostApplicationBuilder builder)
     {
-        builder.Services.AddDbContext<ApplicationDbContext>(options =>
+        builder.Services.AddDbContext<OpenIdDictDatabaseContext>(options =>
         {
-            options.UseInMemoryDatabase("OAuthDatabase");
+            var dbConfig = builder.Configuration.GetSection(OpenIdDictDatabaseConfiguration.SectionName).Get<OpenIdDictDatabaseConfiguration>() ?? new OpenIdDictDatabaseConfiguration();
+
+            var dbPath = PathUtilities.GetDirectory(dbConfig.DatabasePath);
+
+            Directory.CreateDirectory(dbPath);
+
+            ArgumentException.ThrowIfNullOrEmpty(dbConfig?.ConnectionString);
+
+            options.UseSqlite(dbConfig?.ConnectionString);
+
             options.UseOpenIddict();
         });
 
-        builder.AddUserAuthDatabase();
+        builder.AddTestUserDatabase();
 
         builder.Services.AddOpenIddict()
                 .AddCore(options =>
                 {
                     options.UseEntityFrameworkCore()
-                        .UseDbContext<ApplicationDbContext>()
-                        // .UseDbContext<UserDbContext>();
+                        .UseDbContext<TestUserDbContext>()
+                        .UseDbContext<OpenIdDictDatabaseContext>()
                         ;
                 })
                 .AddServer(options =>
@@ -175,13 +175,45 @@ public static partial class ApplicationExtensions
         return builder;
     }
 
+
+    public static WebApplication SetupOpenIdDictDatabase(this WebApplication app)
+    {
+        // Create a scope to resolve scoped dependencies safely
+        using (var scope = app.Services.CreateScope())
+        {
+            var services = scope.ServiceProvider;
+            try
+            {
+                // Resolve your shared DbContext
+                var context = services.GetRequiredService<OpenIdDictDatabaseContext>();
+
+                // This will automatically run any pending migrations and create the file
+                // context.Database.Migrate();
+
+                context.Database.EnsureCreated();
+            }
+            catch (Exception ex)
+            {
+                var logger = services.GetRequiredService<ILogger<OpenIdDictDatabaseContext>>();
+                logger.LogError(ex, "An error occurred while migrating the OpenIddict database.");
+
+                throw;
+            }
+        }
+        return app;
+    }
+
     public static async Task<WebApplication> SetupTestClient(this WebApplication app)
     {
         using (var scope = app.Services.CreateScope())
         {
-            var userContext = scope.ServiceProvider.GetRequiredService<UserDbContext>();
+            var userContext = scope.ServiceProvider.GetRequiredService<TestUserDbContext>();
 
             userContext.Database.EnsureCreated();
+
+            // userContext.Database.Migrate();
+
+            app.SetupOpenIdDictDatabase();
 
             app.SetupTestData();
 
@@ -197,7 +229,7 @@ public static partial class ApplicationExtensions
                     var applicationDescriptor = new OpenIddictApplicationDescriptor
                     {
                         ClientId = user.client_id,
-                        ClientSecret = user.password_hash,
+                        ClientSecret = user.password_plaintext,
                         DisplayName = user.display_name,
                         Permissions =
                                     {                                        
