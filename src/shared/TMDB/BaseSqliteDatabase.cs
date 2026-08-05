@@ -46,8 +46,6 @@ public class BaseSqliteDatabase : IDisposable
 
     public void Connect()
     {
-        ArgumentNullException.ThrowIfNull(CreateQueryResource);
-
         Directory.CreateDirectory(Path.GetDirectoryName(DatabasePath) ?? throw new InvalidOperationException("Unable to determine database directory"));
 
         if (!File.Exists(DatabasePath))

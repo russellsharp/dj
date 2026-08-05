@@ -19,17 +19,6 @@ public record File
     public string? extra_attributes { get; init; }
 }
 
-[Table("users")]
-public record Users
-{
-    public required string user_name { get; init; }
-    public string display_name { get; init; }
-    public string client_id { get; init; }
-    public string scopes { get; init; }
-    public string password_hash { get; init; }
-    public DateTime create_at { get; init; }
-}
-
 public class UtcDateTimeHandler : SqlMapper.TypeHandler<DateTime>
 {
     public override void SetValue(IDbDataParameter parameter, DateTime value)

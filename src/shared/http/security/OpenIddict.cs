@@ -103,14 +103,16 @@ public static partial class ApplicationExtensions
             options.UseOpenIddict();
         });
 
-        builder.Services.AddDbContext<UserDbContext>(options => options.UseInMemoryDatabase("UserDatabase"));
+        // builder.Services.AddDbContext<UserDbContext>(options => options.UseSqlServer("UserDatabase"));
 
+        builder.Services.AddDbContext<UserDbContext>(options => options.UseInMemoryDatabase("UserDatabase"));
         builder.Services.AddOpenIddict()
                 .AddCore(options =>
                 {
                     options.UseEntityFrameworkCore()
                         .UseDbContext<ApplicationDbContext>()
-                        .UseDbContext<UserDbContext>();
+                        // .UseDbContext<UserDbContext>();
+                        ;
                 })
                 .AddServer(options =>
                 {

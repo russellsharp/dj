@@ -22,7 +22,6 @@ public class UserInformation
     public RegisteredScopes scopes { get; set; } = [];
     public string password_hash { get; set; } = "";
     public string display_name { get; set; } = "";
-    public DateTime create_at { get; set; } = DateTime.UtcNow;
 };
 
 public class ScopeEntry

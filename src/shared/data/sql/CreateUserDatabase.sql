@@ -1,5 +1,4 @@
 CREATE TABLE IF NOT EXISTS 'users' (
-    user_name TEXT NOT NULL UNIQUE,
     display_name TEXT NOT NULL UNIQUE,
     client_id TEXT NOT NULL,
     scopes TEXT NOT NULL,
