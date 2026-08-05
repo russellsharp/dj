@@ -10,12 +10,13 @@ namespace shared.TMDB;
 public class BaseSqliteDatabase : IDisposable
 {
     protected SqliteConnection? _connection = null;
-    protected IDbConfiguration? _config { get; set; } = null;
+    protected IDatabaseConfiguration? _config { get; set; } = null;
     protected static readonly ConcurrentDictionary<string, object> s_databaseLocks = new();
     protected const int _commandTimeoutMs = 2000;
-    protected virtual string? CreateQueryResource => null;
-    protected virtual string? TruncateQueryResource => null;
-    protected virtual Type QueryAssemblyType => typeof(BaseSqliteDatabase);
+    protected virtual string CreateQueryResource => throw new NotImplementedException();
+    protected virtual string TruncateQueryResource => throw new NotImplementedException();
+    protected virtual Type QueryAssemblyType => throw new NotImplementedException();
+    public virtual string SectionName => throw new NotImplementedException();
 
     protected string DatabasePath
     {

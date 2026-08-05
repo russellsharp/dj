@@ -142,7 +142,7 @@ public static partial class ApplicationExtensions
             tmdbDict.Add("TMDB:ApiKey", TMDBConfiguration.GetApiKey());
         }
 
-        var tmdbDatabasePath = Environment.GetEnvironmentVariable(TMDBConfiguration.TMDB_DATABASE_PATH);
+        var tmdbDatabasePath = Environment.GetEnvironmentVariable(TMDBConfiguration.DatabasePathKey);
 
         if (tmdbDatabasePath is not null)
         {

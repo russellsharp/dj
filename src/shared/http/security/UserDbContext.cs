@@ -2,12 +2,12 @@ using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using shared.TMDB;
+using Microsoft.Extensions.Hosting;
 
 namespace shared.http.security;
 
@@ -22,45 +22,13 @@ public class UserInformation
     public RegisteredScopes scopes { get; set; } = [];
     public string password_hash { get; set; } = "";
     public string display_name { get; set; } = "";
+    public DateTime created_at { get; set; } = DateTime.UtcNow;
 };
 
 public class ScopeEntry
 {
     [Key]
     public Scopes Value;
-}
-
-public interface IUserDatabase { }
-
-public class UserDatabase : BaseSqliteDatabase
-{
-    private readonly CancellationTokenSource _tokenSource;
-    private readonly ILogger<UserDatabase> _logger;
-    protected override string? CreateQueryResource => QueryFiles.CreateDatabase;
-    protected override string? TruncateQueryResource => QueryFiles.TruncateDatabase;
-    protected override Type QueryAssemblyType => typeof(Cache);
-
-    public UserDatabase(IOptions<TMDBConfiguration> config, ILogger<UserDatabase> logger, CancellationTokenSource cts)
-    {
-        _logger = logger;
-
-        ArgumentNullException.ThrowIfNull(config);
-
-        _config = config.Value;
-
-        _tokenSource = cts;
-
-        Connect();
-
-        Create();
-    }
-
-    internal static class QueryFiles
-    {
-        public static string CreateDatabase = @"shared.Users.sql.Users_Create.sql";
-
-        public static string TruncateDatabase = @"shared.Users.sql.Users_Truncate.sql";
-    }
 }
 
 public class UserDbContext : DbContext
@@ -92,6 +60,19 @@ public class UserDbContext : DbContext
 
 public static class UserDBAppExtensions
 {
+
+    public static IHostApplicationBuilder AddUserAuthDatabase(this IHostApplicationBuilder builder)
+    {
+        builder.Services.AddSingleton<IUserDatabase, UserDatabase>();
+
+        // builder.Services.AddDbContext<UserDbContext>(options => options.UseSqlServer(UserDatabase.ConnectionString));
+
+        // builder.Services.Configure<IDatabaseConfiguration>(builder.Configuration.GetSection(UserDatabase.SectionName));
+        builder.Services.AddDbContext<UserDbContext>(options => options.UseInMemoryDatabase("UserDatabase"));
+
+        return builder;
+    }
+
     public static WebApplication SetupTestData(this WebApplication app)
     {
         using (var scope = app.Services.CreateScope())

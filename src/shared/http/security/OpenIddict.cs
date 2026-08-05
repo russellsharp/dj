@@ -103,9 +103,8 @@ public static partial class ApplicationExtensions
             options.UseOpenIddict();
         });
 
-        // builder.Services.AddDbContext<UserDbContext>(options => options.UseSqlServer("UserDatabase"));
+        builder.AddUserAuthDatabase();
 
-        builder.Services.AddDbContext<UserDbContext>(options => options.UseInMemoryDatabase("UserDatabase"));
         builder.Services.AddOpenIddict()
                 .AddCore(options =>
                 {

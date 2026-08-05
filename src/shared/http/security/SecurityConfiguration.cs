@@ -36,6 +36,8 @@ public static class SecurityExtensions
 
         builder.Services.Configure<SecurityConfiguration>(options => { options.SecurityKey = securityKey; });
 
+        builder.Services.Configure<UserDatabaseConfiguration>(builder.Configuration.GetSection(UserDatabaseConfiguration.SectionName));
+
         return builder;
     }
 }
