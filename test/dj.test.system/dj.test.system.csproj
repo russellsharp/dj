@@ -11,6 +11,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Content Include=".runsettings" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
 

@@ -40,4 +40,4 @@ jobs:
       run: |
         echo $DJ_OPENIDDICT_DATABASE_PATH
         echo $DJ_USERS_DATABASE_PATH
-        dotnet test --no-build --verbosity detailed -- --diagnostic
+        dotnet test --no-build --verbosity detailed -- --diagnostic --settings .runsettings
