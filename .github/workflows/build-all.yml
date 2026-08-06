@@ -39,3 +39,9 @@ jobs:
         ASPNETCORE_ENVIRONMENT: Development
       run: |
         dotnet test --no-build --verbosity normal -- --diagnostic --settings .runsettings
+    - name: Upload Test Logs
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: dotnet-test-results
+        path: ./home/runner/work/dj/dj/test/dj.test/bin/Debug/net11.0/TestResults/*.log
