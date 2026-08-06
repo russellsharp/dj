@@ -11,6 +11,8 @@ public class SearchTests : BaseTest
     public SearchTests(WireupFixture fixture, ITestOutputHelper logger) : base(logger)
     {
         _fixture = fixture;
+
+        Initialize().GetAwaiter().GetResult();
     }
 
     private async Task Initialize()
@@ -23,8 +25,6 @@ public class SearchTests : BaseTest
     [Fact]
     public async Task Ok200()
     {
-        await Initialize();
-
         Dictionary<string, string> searchTerms = new()
         {
             ["query"] = "training,day"
@@ -48,8 +48,6 @@ public class SearchTests : BaseTest
     [Fact]
     public async Task Unauthorized401()
     {
-        await Initialize();
-
         Dictionary<string, string> searchTerms = new()
         {
             ["query"] = "training,day"
@@ -69,8 +67,6 @@ public class SearchTests : BaseTest
     [Fact]
     public async Task Forbidden403()
     {
-        await Initialize();
-
         Dictionary<string, string> searchTerms = new()
         {
             ["query"] = "training,day"
