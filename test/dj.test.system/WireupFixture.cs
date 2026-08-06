@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using shared;
 
 namespace dj.test.system;
@@ -14,6 +13,8 @@ public class WireupCollection : ICollectionFixture<WireupFixture> { }
 
 public class WireupFixture : BaseFixture, IDisposable
 {
+    public override IServiceProvider Services { get; protected set; }
+
     public override async Task Initialize()
     {
         var cts = new CancellationTokenSource();
@@ -25,7 +26,7 @@ public class WireupFixture : BaseFixture, IDisposable
         };
 
         var args = Array.Empty<string>();
-        var builder = Microsoft.AspNetCore.Builder.WebApplication.CreateBuilder(args);
+        var builder = WebApplication.CreateBuilder(args);
 
         builder.Services.AddControllers()
             .AddApplicationPart(typeof(DjController).Assembly)
@@ -62,6 +63,8 @@ public class WireupFixture : BaseFixture, IDisposable
 
         // Test widgets from here
         Client = app.GetTestClient();
+
+        Services = app.Services;
 
         Client.BaseAddress = new Uri("https://localhost");
 

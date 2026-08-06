@@ -13,6 +13,12 @@ public class WebAppFixture : BaseFixture
 {
     public WebApplicationFactory<Program> Application;
 
+    public override IServiceProvider Services
+    {
+        get => Application.Services;
+        protected set => throw new InvalidOperationException("Cannot set Services for this fixture.");
+    }
+
     public override async Task Initialize()
     {
         Application = new TestWebApplicationFactory<Program>();

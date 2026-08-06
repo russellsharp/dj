@@ -1,12 +1,5 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using api.models;
 using FluentAssertions;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.Hosting;
-using Xunit;
 
 namespace dj.test.system;
 
@@ -18,7 +11,10 @@ public class SearchTests : BaseTest
     public SearchTests(WireupFixture fixture, ITestOutputHelper logger) : base(logger)
     {
         _fixture = fixture;
+    }
 
+    private async Task Initialize()
+    {
         Log($"Environment: {Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")}");
 
         _fixture.Initialize().GetAwaiter().GetResult();
@@ -27,6 +23,8 @@ public class SearchTests : BaseTest
     [Fact]
     public async Task Ok200()
     {
+        await Initialize();
+
         Dictionary<string, string> searchTerms = new()
         {
             ["query"] = "training,day"
@@ -50,6 +48,8 @@ public class SearchTests : BaseTest
     [Fact]
     public async Task Unauthorized401()
     {
+        await Initialize();
+
         Dictionary<string, string> searchTerms = new()
         {
             ["query"] = "training,day"
@@ -69,6 +69,8 @@ public class SearchTests : BaseTest
     [Fact]
     public async Task Forbidden403()
     {
+        await Initialize();
+
         Dictionary<string, string> searchTerms = new()
         {
             ["query"] = "training,day"
