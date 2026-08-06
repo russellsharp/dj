@@ -20,7 +20,7 @@ namespace api
     [ApiController]
     [AllowAnonymous]
     [Route("api/token")]
-    public class TokenController(ITokenGenerator _tokenGen, UserDbContext _userDb, ILogger<TokenController> _logger) : Controller
+    public class TokenController(ITokenGenerator _tokenGen, TestUserDbContext _userDb, ILogger<TokenController> _logger) : Controller
     {
         [HttpGet("anonymous"), AllowAnonymous]
         public async Task<string> RequestAnonymousToken()
@@ -30,19 +30,23 @@ namespace api
 
         [HttpPost("scoped"), AllowAnonymous]
         // [IgnoreAntiforgeryToken]
-        public async Task<Results<SignInHttpResult, ForbidHttpResult, BadRequest<OpenIddictResponse>>> ExchangeToken()
+        public async Task<Results<SignInHttpResult, ForbidHttpResult, BadRequest, BadRequest<OpenIddictResponse>>> ExchangeToken()
         {
             var request = HttpContext.GetOpenIddictServerRequest()
                 ?? throw new InvalidOperationException("The OAuth request cannot be retrieved.");
 
-            var registeredClients = _userDb.UserInfo.Select(x => x.ClientId).ToList();
+            if (request is null)
+                return TypedResults.BadRequest();
 
             if (request.IsClientCredentialsGrantType())
             {
-                if (request.ClientId != null && !registeredClients.Contains(request.ClientId))
-                {
+                if (request.ClientId is null || request.ClientSecret is null)
                     return TypedResults.Forbid(authenticationSchemes: [OpenIddictServerAspNetCoreDefaults.AuthenticationScheme]);
-                }
+
+                var user = _userDb.UserInfo.FirstOrDefault(u => u.client_id == request.ClientId);
+
+                if (user == null)
+                    return TypedResults.Forbid(authenticationSchemes: [OpenIddictServerAspNetCoreDefaults.AuthenticationScheme]);
 
                 // 2. Create an identity for the token
                 var identity = new ClaimsIdentity(TokenValidationParameters.DefaultAuthenticationType);

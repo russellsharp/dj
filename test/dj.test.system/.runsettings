@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <RunConfiguration>
+    <EnvironmentVariables>
+      <DJ_OPENIDDICT_DATABASE_PATH>data/openiddict.db</DJ_OPENIDDICT_DATABASE_PATH>
+      <DJ_USER_DATABASE_PATH>data/testusers.db</DJ_USER_DATABASE_PATH>
+    </EnvironmentVariables>
+  </RunConfiguration>
+</RunSettings>

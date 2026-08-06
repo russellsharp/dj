@@ -2,7 +2,6 @@ using System.Data;
 using Microsoft.Data.Sqlite;
 using Dapper;
 using Microsoft.Extensions.Options;
-using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Collections.Concurrent;
@@ -15,13 +14,6 @@ namespace shared.TMDB;
 
 public interface ICache
 {
-    void Connect();
-    void Disconnect();
-    void Dispose();
-    void EnsureConnected();
-    bool IsConnected();
-    void Create();
-    Task Truncate();
     bool Get<ResponseType>(string tmdb_request_url, out ResponseType? response, CancellationToken? token = null);
     Task Store<ResponseType>(string requestUrl, string? content, CancellationToken? token = null);
     IAsyncEnumerable<ContentType?> GetAllStream<ContentType>(CancellationToken? token = null);
@@ -30,24 +22,13 @@ public interface ICache
     Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryWithGroupedTerms(IEnumerable<IEnumerable<string>> keywords, int minimumHits, CancellationToken? token = null);
 }
 
-public class Cache : IDisposable, ICache
+public class Cache : BaseSqliteDatabase, ICache
 {
-    private TMDBConfiguration _config;
     private readonly CancellationTokenSource _tokenSource;
-    private SqliteConnection? _connection = null;
-    private static readonly ConcurrentDictionary<string, object> s_databaseLocks = new();
-    private const int _commandTimeoutMs = 2000;
     private readonly ILogger<ICache> _logger;
-
-    private string DatabasePath
-    {
-        get
-        {
-            var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
-            var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
-            return Path.GetFullPath(Path.Combine(rootDir, _config.DatabasePath));
-        }
-    }
+    protected override string? CreateQueryResource => QueryFiles.CreateDatabase;
+    protected override string? TruncateQueryResource => QueryFiles.TruncateDatabase;
+    protected override Type QueryAssemblyType => typeof(Cache);
 
     public Cache(IOptions<TMDBConfiguration> config, ILogger<ICache> logger, CancellationTokenSource cts)
     {
@@ -62,22 +43,6 @@ public class Cache : IDisposable, ICache
         Connect();
 
         Create();
-    }
-
-    private string ConnectionString
-    {
-        get
-        {
-            var builder = new SqliteConnectionStringBuilder
-            {
-                DataSource = DatabasePath,
-                Mode = SqliteOpenMode.ReadWriteCreate,
-                Cache = SqliteCacheMode.Shared,
-                Pooling = true
-            };
-
-            return builder.ToString();
-        }
     }
 
     public bool Get<ResponseType>(string tmdb_request_url, out ResponseType? response, CancellationToken? token = null)
@@ -320,126 +285,6 @@ public class Cache : IDisposable, ICache
 
         throw new NotImplementedException();
     }
-    public void Connect()
-    {
-        Directory.CreateDirectory(Path.GetDirectoryName(DatabasePath) ?? throw new InvalidOperationException("Unable to determine database directory"));
-
-        if (!File.Exists(DatabasePath))
-        {
-            // Creating an empty file is enough for SQLite to initialize it on first connect
-            using (File.Create(DatabasePath)) { }
-        }
-
-        var lockObject = s_databaseLocks.GetOrAdd(DatabasePath, _ => new object());
-        lock (lockObject)
-        {
-            _connection = new SqliteConnection(ConnectionString);
-
-            _connection.Open();
-
-            var access = FileHelper.CanAccessFile(DatabasePath, FileAccess.ReadWrite);
-            if (access is not FileAccessResult.Available)
-            {
-                throw new FieldAccessException(FileHelper.AccessMessage(access, DatabasePath, FileAccess.ReadWrite));
-            }
-            // WAL mode allows one writer + multiple readers concurrently across connections.
-            // busy_timeout tells SQLite retry on a locked write for up to 5 s rather than
-            // immediately returning SQLITE_BUSY.
-            _connection.Execute("PRAGMA journal_mode=WAL;");
-            _connection.Execute("PRAGMA busy_timeout=5000;");
-
-            Debug.Assert(_connection.Database == "main", $"Expected main, found: {_connection.Database}");
-            Create();
-        }
-    }
-    public bool IsConnected()
-    {
-        return _connection is not null && _connection.State == ConnectionState.Open;
-    }
-
-    public void EnsureConnected()
-    {
-        if (_connection is null)
-        {
-            Connect();
-            return;
-        }
-
-        if (_connection.State != ConnectionState.Open)
-        {
-            _connection.Open();
-        }
-    }
-
-    public void Disconnect()
-    {
-        var lockObject = s_databaseLocks.GetOrAdd(DatabasePath, _ => new object());
-        lock (lockObject)
-        {
-            SqliteConnection.ClearAllPools();
-            _connection?.Close();
-            _connection?.Dispose();
-            _connection = null;
-        }
-    }
-
-    public void Create()
-    {
-        string query = GetQueryFromResource<shared.TMDB.Cache>(QueryFiles.CreateDatabase);
-
-        using (var transaction = _connection?.BeginTransaction() ?? throw new NullReferenceException("Null database connection or failure to create transaction"))
-        {
-            try
-            {
-                using var command = new SqliteCommand(query, _connection, transaction);
-                command.ExecuteNonQuery();
-                transaction.Commit();
-            }
-            catch
-            {
-                transaction.Rollback();
-                throw;
-            }
-        }
-    }
-
-    public async Task Truncate()
-    {
-        string query = GetQueryFromResource<shared.TMDB.Cache>(QueryFiles.TruncateDatabase);
-        using (var transaction = _connection?.BeginTransaction() ?? throw new NullReferenceException("Null database connection or failure to create transaction"))
-        {
-            try
-            {
-                using var command = new SqliteCommand(query, _connection, transaction);
-                command.ExecuteNonQuery();
-                transaction.Commit();
-            }
-            catch
-            {
-                transaction.Rollback();
-                throw;
-            }
-        }
-    }
-
-    private string GetQueryFromResource<ModuleName>(string resourceName)
-    {
-        //find embedded resources in shared library
-        var assembly = typeof(ModuleName).Assembly;
-
-        string? query = null;
-
-        using (var stream = assembly.GetManifestResourceStream(resourceName))
-        {
-            if (stream is null) throw new ArgumentNullException(resourceName);
-
-            using (var reader = new StreamReader(stream))
-            {
-                query = reader.ReadToEnd();
-            }
-        }
-        return query!;
-    }
 
     internal static class QueryFiles
     {
@@ -447,35 +292,4 @@ public class Cache : IDisposable, ICache
 
         public static string TruncateDatabase = @"shared.TMDB.sql.TMDB_Truncate.sql";
     }
-
-    #region IDisposable
-    private int _disposed = 0;
-
-    public virtual void Dispose(bool disposing)
-    {
-        if (Interlocked.CompareExchange(ref _disposed, 1, 0) == 0)
-        {
-            if (disposing)
-            {
-                var conn = _connection;
-                if (conn != null && conn.State == ConnectionState.Open)
-                    conn?.Close();
-            }
-
-            //dispose unmanaged objects
-        }
-    }
-
-    public void Dispose()
-    {
-        Dispose(true);
-        GC.SuppressFinalize(this);
-    }
-
-    ~Cache()
-    {
-        Dispose();
-    }
-
-    #endregion IDisposable
 }

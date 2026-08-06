@@ -1,12 +1,5 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using api.models;
 using FluentAssertions;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.Hosting;
-using Xunit;
 
 namespace dj.test.system;
 
@@ -19,6 +12,11 @@ public class SearchTests : BaseTest
     {
         _fixture = fixture;
 
+        Initialize().GetAwaiter().GetResult();
+    }
+
+    private async Task Initialize()
+    {
         Log($"Environment: {Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")}");
 
         _fixture.Initialize().GetAwaiter().GetResult();

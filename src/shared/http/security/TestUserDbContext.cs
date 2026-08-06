@@ -1,23 +1,26 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
-using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace shared.http.security;
 
 public class RegisteredScopes : List<Scopes>;
+
 public class UserInformation
 {
     [Key]
-    public string ClientId { get; set; } = "";
+    public string client_id { get; set; } = "";
 
     [JsonConverter(typeof(ScopeListConverter))]
-    public RegisteredScopes GrantedScopes { get; set; } = new();
-    public string Password { get; set; } = "";
-    public string DisplayName { get; set; } = "";
+    public RegisteredScopes scopes { get; set; } = [];
+    public string password_plaintext { get; set; } = "";
+    public string display_name { get; set; } = "";
+    public DateTime created_at { get; set; } = DateTime.UtcNow;
 };
 
 public class ScopeEntry
@@ -26,9 +29,9 @@ public class ScopeEntry
     public Scopes Value;
 }
 
-public class UserDbContext : DbContext
+public class TestUserDbContext : DbContext
 {
-    public UserDbContext(DbContextOptions<UserDbContext> options) : base(options) { }
+    public TestUserDbContext(DbContextOptions<TestUserDbContext> options) : base(options) { }
     public DbSet<UserInformation> UserInfo { get; set; }
     public DbSet<ScopeEntry> ApplicationScopes { get; set; }
 
@@ -38,63 +41,18 @@ public class UserDbContext : DbContext
 
         // Define the Primary Key
         modelBuilder.Entity<UserInformation>()
-            .HasKey(u => u.ClientId);
+            .HasKey(u => u.client_id);
 
         modelBuilder.Entity<ScopeEntry>()
             .HasKey(u => u.Value);
 
         // Tell InMemory how to store the List<RegisteredScopes> as a JSON string internally
         modelBuilder.Entity<UserInformation>()
-            .Property(u => u.GrantedScopes)
+            .Property(u => u.scopes)
             .HasConversion(
                 v => JsonSerializer.Serialize(v, (JsonSerializerOptions)null),
                 v => JsonSerializer.Deserialize<RegisteredScopes>(v, (JsonSerializerOptions)null) ?? new RegisteredScopes()
             );
-    }
-}
-
-public static class UserDBAppExtensions
-{
-    public static WebApplication SetupTestData(this WebApplication app)
-    {
-        using (var scope = app.Services.CreateScope())
-        {
-            var userContext = scope.ServiceProvider.GetRequiredService<UserDbContext>();
-            userContext.Database.EnsureCreated();
-
-            //seed userContext with test users
-            if (!userContext.UserInfo.Any())
-            {
-                userContext.UserInfo.Add(new UserInformation
-                {
-                    ClientId = "console-app-client-read",
-                    GrantedScopes = [Scopes.MediaRead],
-                    DisplayName = "console-app-client-read",
-                    Password = "super-secret-password-123"
-                });
-
-                userContext.UserInfo.Add(new UserInformation
-                {
-                    ClientId = "console-app-client-rw",
-                    GrantedScopes = [Scopes.MediaWrite, Scopes.MediaRead],
-                    DisplayName = "console-app-client-rw",
-                    Password = "super-secret-password-123"
-                });
-
-            }
-
-            if (!userContext.ApplicationScopes.Any())
-            {
-                userContext.ApplicationScopes.AddRange(
-                    [
-                        new ScopeEntry { Value = Scopes.MediaRead },
-                        new ScopeEntry { Value = Scopes.MediaWrite }
-                    ]);
-            }
-
-            userContext.SaveChanges();
-        }
-        return app;
     }
 }
 

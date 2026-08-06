@@ -1,25 +1,16 @@
-using System;
-using System.Collections.Frozen;
-using System.Collections.Generic;
 using System.ComponentModel;
-using System.Diagnostics;
-using System.Diagnostics.Eventing.Reader;
-using System.Linq;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using OpenIddict.Abstractions;
 using OpenIddict.Validation.AspNetCore;
-using Polly;
 using shared.util;
 
 namespace shared.http.security;
@@ -97,18 +88,30 @@ public static partial class ApplicationExtensions
 
     private static IHostApplicationBuilder AddOpenIddictService(this IHostApplicationBuilder builder)
     {
-        builder.Services.AddDbContext<ApplicationDbContext>(options =>
+        builder.Services.AddDbContext<OpenIdDictDatabaseContext>(options =>
         {
-            options.UseInMemoryDatabase("OAuthDatabase");
+            var dbConfig = builder.Configuration.GetSection(OpenIdDictDatabaseConfiguration.SectionName).Get<OpenIdDictDatabaseConfiguration>() ?? new OpenIdDictDatabaseConfiguration();
+
+            var dbPath = PathUtilities.GetDirectory(dbConfig.DatabasePath);
+
+            Directory.CreateDirectory(dbPath);
+
+            ArgumentException.ThrowIfNullOrEmpty(dbConfig?.ConnectionString);
+
+            options.UseSqlite(dbConfig?.ConnectionString);
+
             options.UseOpenIddict();
         });
 
-        builder.Services.AddDbContext<UserDbContext>(options => options.UseInMemoryDatabase("UserDatabase"));
+        builder.AddTestUserDatabase();
 
         builder.Services.AddOpenIddict()
                 .AddCore(options =>
                 {
-                    options.UseEntityFrameworkCore().UseDbContext<ApplicationDbContext>();
+                    options.UseEntityFrameworkCore()
+                        .UseDbContext<TestUserDbContext>()
+                        .UseDbContext<OpenIdDictDatabaseContext>()
+                        ;
                 })
                 .AddServer(options =>
                 {
@@ -154,7 +157,7 @@ public static partial class ApplicationExtensions
                         // options.AddDevelopmentEncryptionCertificate()
                         //     .AddDevelopmentSigningCertificate();
 
-                        // No explicit key configured and not a Development environment — use ephemeral keys so
+                        // No explicit key configured and is a Development environment — use ephemeral keys so
                         // the server can still issue tokens (e.g. test environments without a provisioned secret).
                         options.AddEphemeralEncryptionKey();
                         options.AddEphemeralSigningKey();
@@ -172,13 +175,45 @@ public static partial class ApplicationExtensions
         return builder;
     }
 
+
+    public static WebApplication SetupOpenIdDictDatabase(this WebApplication app)
+    {
+        // Create a scope to resolve scoped dependencies safely
+        using (var scope = app.Services.CreateScope())
+        {
+            var services = scope.ServiceProvider;
+            try
+            {
+                // Resolve your shared DbContext
+                var context = services.GetRequiredService<OpenIdDictDatabaseContext>();
+
+                // This will automatically run any pending migrations and create the file
+                // context.Database.Migrate();
+
+                context.Database.EnsureCreated();
+            }
+            catch (Exception ex)
+            {
+                var logger = services.GetRequiredService<ILogger<OpenIdDictDatabaseContext>>();
+                logger.LogError(ex, "An error occurred while migrating the OpenIddict database.");
+
+                throw;
+            }
+        }
+        return app;
+    }
+
     public static async Task<WebApplication> SetupTestClient(this WebApplication app)
     {
         using (var scope = app.Services.CreateScope())
         {
-            var userContext = scope.ServiceProvider.GetRequiredService<UserDbContext>();
+            var userContext = scope.ServiceProvider.GetRequiredService<TestUserDbContext>();
 
             userContext.Database.EnsureCreated();
+
+            // userContext.Database.Migrate();
+
+            app.SetupOpenIdDictDatabase();
 
             app.SetupTestData();
 
@@ -187,15 +222,15 @@ public static partial class ApplicationExtensions
             foreach (var user in userContext.UserInfo)
             {
                 // Check if our test client already exists
-                var application = await manager.FindByClientIdAsync(user.ClientId);
+                var application = await manager.FindByClientIdAsync(user.client_id);
 
                 if (application is null)
                 {
                     var applicationDescriptor = new OpenIddictApplicationDescriptor
                     {
-                        ClientId = user.ClientId,
-                        ClientSecret = user.Password,
-                        DisplayName = user.DisplayName,
+                        ClientId = user.client_id,
+                        ClientSecret = user.password_plaintext,
+                        DisplayName = user.display_name,
                         Permissions =
                                     {                                        
                                         // Must explicitly permit the flow and endpoint
@@ -206,11 +241,11 @@ public static partial class ApplicationExtensions
 
                     var result = await manager.CreateAsync(applicationDescriptor);
 
-                    application = await manager.FindByClientIdAsync(user.ClientId) ?? throw new Exception("Application not found.");
+                    application = await manager.FindByClientIdAsync(user.client_id) ?? throw new Exception("Application not found.");
 
                     await manager.PopulateAsync(applicationDescriptor, application);
 
-                    applicationDescriptor.AddScopePermissions([.. user.GrantedScopes.Select(x => x.ToOidc())]);
+                    applicationDescriptor.AddScopePermissions([.. user.scopes.Select(x => x.ToOidc())]);
 
                     await manager.UpdateAsync(application, applicationDescriptor);
                 }

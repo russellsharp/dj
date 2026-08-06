@@ -36,6 +36,10 @@ public static class SecurityExtensions
 
         builder.Services.Configure<SecurityConfiguration>(options => { options.SecurityKey = securityKey; });
 
+        builder.Services.Configure<OpenIdDictDatabaseConfiguration>(builder.Configuration.GetSection(OpenIdDictDatabaseConfiguration.SectionName));
+
+        builder.Services.Configure<TestUserDatabaseConfiguration>(builder.Configuration.GetSection(TestUserDatabaseConfiguration.SectionName));
+
         return builder;
     }
 }
