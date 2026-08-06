@@ -13,7 +13,7 @@ public class TestUserDatabaseConfiguration : IDatabaseConfiguration
         {
             if (string.IsNullOrEmpty(_dbFilePath))
             {
-                _dbFilePath = Environment.GetEnvironmentVariable(DatabasePathKey) ?? throw new ArgumentNullException($"Database connection string should be set in environment variable: {DatabasePathKey}");
+                _dbFilePath = Environment.GetEnvironmentVariable(DatabasePathKey) ?? "data/users.db";
             }
 
             var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");

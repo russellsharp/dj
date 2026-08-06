@@ -38,6 +38,4 @@ jobs:
         DJ_OPENIDDICT_DATABASE_PATH: data/openiddict.db
         ASPNETCORE_ENVIRONMENT: Development
       run: |
-        echo $DJ_OPENIDDICT_DATABASE_PATH
-        echo $DJ_USERS_DATABASE_PATH
         dotnet test --no-build --verbosity normal -- --diagnostic --settings .runsettings
