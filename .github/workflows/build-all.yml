@@ -38,7 +38,7 @@ jobs:
         DJ_OPENIDDICT_DATABASE_PATH: data/openiddict.db
         ASPNETCORE_ENVIRONMENT: Development
       run: |
-        dotnet test --no-build --verbosity normal -- --diagnostic --settings .runsettings
+        dotnet test --no-build --settings .runsettings --verbosity normal -- --diagnostic 
     - name: Upload Test Logs
       if: failure()
       uses: actions/upload-artifact@v4
