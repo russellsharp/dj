@@ -44,4 +44,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: dotnet-test-results
-        path: ./home/runner/work/dj/dj/test/dj.test/bin/Debug/net11.0/TestResults/*.log
+        path: ./test/dj.test.system/bin/Debug/net11.0/TestResults/*.log
