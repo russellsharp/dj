@@ -7,12 +7,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using OpenIddict.Abstractions;
 using OpenIddict.Server.AspNetCore;
-using OpenIdConnectRequest = Microsoft.IdentityModel.Protocols.OpenIdConnect.OpenIdConnectMessage;
-using shared.http;
-using shared.util;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 using shared.http.security;
-using Microsoft.OpenApi;
 using Microsoft.Extensions.Logging;
 
 namespace api
@@ -20,33 +16,33 @@ namespace api
     [ApiController]
     [AllowAnonymous]
     [Route("api/token")]
-    public class TokenController(ITokenGenerator _tokenGen, TestUserDbContext _userDb, ILogger<TokenController> _logger) : Controller
+    public class TokenController(ITokenGenerator _tokenGen, TestUserDbContext _userDb, ILogger<TokenController> _logger) : ControllerBase
     {
         [HttpGet("anonymous"), AllowAnonymous]
-        public async Task<string> RequestAnonymousToken()
+        public async Task<ActionResult<string>> RequestAnonymousToken()
         {
-            return await _tokenGen.GenerateAnonymousToken();
+            return Ok(await _tokenGen.GenerateAnonymousToken());
         }
 
         [HttpPost("scoped"), AllowAnonymous]
         // [IgnoreAntiforgeryToken]
-        public async Task<Results<SignInHttpResult, ForbidHttpResult, BadRequest, BadRequest<OpenIddictResponse>>> ExchangeToken()
+        public async Task<ActionResult<SignInHttpResult>> ExchangeToken()
         {
             var request = HttpContext.GetOpenIddictServerRequest()
                 ?? throw new InvalidOperationException("The OAuth request cannot be retrieved.");
 
             if (request is null)
-                return TypedResults.BadRequest();
+                return BadRequest();
 
             if (request.IsClientCredentialsGrantType())
             {
                 if (request.ClientId is null || request.ClientSecret is null)
-                    return TypedResults.Forbid(authenticationSchemes: [OpenIddictServerAspNetCoreDefaults.AuthenticationScheme]);
+                    return Forbid(authenticationSchemes: [OpenIddictServerAspNetCoreDefaults.AuthenticationScheme]);
 
                 var user = _userDb.UserInfo.FirstOrDefault(u => u.client_id == request.ClientId);
 
                 if (user == null)
-                    return TypedResults.Forbid(authenticationSchemes: [OpenIddictServerAspNetCoreDefaults.AuthenticationScheme]);
+                    return Forbid(authenticationSchemes: [OpenIddictServerAspNetCoreDefaults.AuthenticationScheme]);
 
                 // 2. Create an identity for the token
                 var identity = new ClaimsIdentity(TokenValidationParameters.DefaultAuthenticationType);
@@ -62,7 +58,7 @@ namespace api
 
                 if (grantedScopes.Count == 0)
                 {
-                    return TypedResults.BadRequest(new OpenIddictResponse
+                    return BadRequest(new OpenIddictResponse
                     {
                         Error = Errors.InvalidScope,
                         ErrorDescription = "The requested scope is not permitted."
@@ -74,10 +70,10 @@ namespace api
                 principal.SetScopes(grantedScopes);
 
                 // OpenIddict takes this principal and signs it into a secure JWT
-                return TypedResults.SignIn(principal, authenticationScheme: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+                return SignIn(principal, authenticationScheme: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
             }
 
-            return TypedResults.BadRequest(new OpenIddictResponse
+            return BadRequest(new OpenIddictResponse
             {
                 Error = Errors.UnsupportedGrantType,
                 ErrorDescription = "The specified grant type is not supported."

@@ -37,6 +37,7 @@ public class BaseFixture : ISystemFixture
         await RequestReadWriteScopedToken();
     }
 
+    [Obsolete("No longer supported and should not be used.", true)]
     protected async Task RequestAnonymousToken()
     {
         var tokenResponse = await Client.GetAsync(_securityEndpoint);

@@ -17,8 +17,6 @@ public class SearchTests : BaseTest
 
     private async Task Initialize()
     {
-        Log($"Environment: {Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")}");
-
         _fixture.Initialize().GetAwaiter().GetResult();
     }
 
@@ -41,8 +39,6 @@ public class SearchTests : BaseTest
         content.Should().NotBeNullOrEmpty();
 
         var matches = System.Text.Json.JsonSerializer.Deserialize<QueryResults>(content);
-
-        Log(content);
     }
 
     [Fact]

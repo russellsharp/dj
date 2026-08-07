@@ -17,9 +17,9 @@ public interface ICache
     bool Get<ResponseType>(string tmdb_request_url, out ResponseType? response, CancellationToken? token = null);
     Task Store<ResponseType>(string requestUrl, string? content, CancellationToken? token = null);
     IAsyncEnumerable<ContentType?> GetAllStream<ContentType>(CancellationToken? token = null);
-    Task<IEnumerable<MatchScore<ResponseType>>> FindQueryHits<ResponseType>(IEnumerable<string> keywords, int minimum_hits, CancellationToken? token = null) where ResponseType : class;
-    Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryOverviews(IEnumerable<string> keywords, int minimumHits, CancellationToken? token = null);
-    Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryWithGroupedTerms(IEnumerable<IEnumerable<string>> keywords, int minimumHits, CancellationToken? token = null);
+    Task<IEnumerable<MatchScore<ResponseType>>> FindQueryHits<ResponseType>(IEnumerable<string> keywords, uint minimumHits, CancellationToken? token = null) where ResponseType : class;
+    Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryOverviews(IEnumerable<string> keywords, uint minimumHits, CancellationToken? token = null);
+    Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryWithGroupedTerms(IEnumerable<IEnumerable<string>> keywords, uint minimumHits, CancellationToken? token = null);
 }
 
 public class Cache : BaseSqliteDatabase, ICache
@@ -121,7 +121,7 @@ public class Cache : BaseSqliteDatabase, ICache
     }
 
     // search movie fields from tmdb for keywords and count hits for each movie
-    public async Task<IEnumerable<MatchScore<ResponseType>>> FindQueryHits<ResponseType>(IEnumerable<string> keywords, int minimum_hits, CancellationToken? token = null) where ResponseType : class
+    public async Task<IEnumerable<MatchScore<ResponseType>>> FindQueryHits<ResponseType>(IEnumerable<string> keywords, uint minimumHits, CancellationToken? token = null) where ResponseType : class
     {
         //         SELECT url_hash, response, 
         //                          (CASE WHEN description_field LIKE '%apple%' THEN 1 ELSE 0 END +
@@ -136,7 +136,7 @@ public class Cache : BaseSqliteDatabase, ICache
         try
         {
             const string sqlPrefix = "SELECT response as Details, ";
-            string suffix = $" AS Hits \n FROM tmdb_cache \n WHERE Hits >= {minimum_hits} AND response_type = '{typeof(ResponseType)}' \n ORDER BY Hits;";
+            string suffix = $" AS Hits \n FROM tmdb_cache \n WHERE Hits >= {minimumHits} AND response_type = '{typeof(ResponseType)}' \n ORDER BY Hits;";
             var caseStatements = keywords.Where(x => !string.IsNullOrEmpty(x)).Select(x => $"CASE WHEN response LIKE '%{x}%' THEN 1 ELSE 0 END");
             string sql = $"{sqlPrefix} ({string.Join(" + \n", caseStatements)}) {suffix}";
 
@@ -161,7 +161,7 @@ public class Cache : BaseSqliteDatabase, ICache
 
     }
 
-    public async Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryOverviews(IEnumerable<string> keywords, int minimumHits, CancellationToken? token = null)
+    public async Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryOverviews(IEnumerable<string> keywords, uint minimumHits, CancellationToken? token = null)
     {
         //         SELECT url_hash, response, 
         //                          (CASE WHEN description_field LIKE '%apple%' THEN 1 ELSE 0 END +
@@ -201,7 +201,7 @@ public class Cache : BaseSqliteDatabase, ICache
         }
     }
 
-    public async Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryWithGroupedTerms(IEnumerable<IEnumerable<string>> keywordsWithSynonyms, int minimumHits, CancellationToken? token = null)
+    public async Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryWithGroupedTerms(IEnumerable<IEnumerable<string>> keywordsWithSynonyms, uint minimumHits, CancellationToken? token = null)
     {
         token ??= _tokenSource.Token;
 
