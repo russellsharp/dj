@@ -136,7 +136,7 @@ public class TMDB : BaseTest
 
         var keywords = SearchHelpers.SanitizeForSearch(searchTerm, base._cts.Token, true); ;
 
-        var queryHits = await repo.QueryTitle<MovieQueryResponse>(keywords, keywords.Count(), base._cts.Token);
+        var queryHits = await repo.QueryTitle<MovieQueryResponse>(keywords, (uint)keywords.Count(), base._cts.Token);
 
         queryHits.Should().NotBeNull();
 
@@ -212,7 +212,7 @@ public class TMDB : BaseTest
     [Fact]
     public async Task GetTotalScoreForQuery()
     {
-        var minimumHitCount = 100;
+        uint minimumHitCount = 100;
 
         using Repo repo = new(BasicOptions, new Cache(BasicOptions, new LoggerFactory().CreateLogger<ICache>(), _cts), new LoggerFactory().CreateLogger<IRepo>(), _cts);
 
@@ -248,7 +248,7 @@ public class TMDB : BaseTest
         //search movie details in database by matching terms in their overview
         var searchTerm = "First day".ToLower();
 
-        var minimumHitCount = searchTerm.Split(' ').Count();
+        var minimumHitCount = (uint)searchTerm.Split(' ').Count();
 
         var queryMatches = await tmdb.QueryOverviews(searchTerm, minimumHitCount);
 
@@ -279,7 +279,7 @@ public class TMDB : BaseTest
         //search movie details in database by matching terms in their overview
         var searchTerm = "police drama".ToLower();
 
-        var minimumHitCount = searchTerm.Split(' ').Count();
+        var minimumHitCount = (uint)searchTerm.Split(' ').Count();
 
         var queryMatches = await tmdb.QueryOverviews(searchTerm, minimumHitCount);
 
@@ -291,7 +291,7 @@ public class TMDB : BaseTest
 
         var synonyms = await Task.WhenAll(synonymTasks);
 
-        minimumHitCount = (int)(synonyms.Count() * 0.50);
+        minimumHitCount = (uint)(synonyms.Count() * 0.50);
 
         queryMatches = await tmdb.QueryWithGroupedTerms(synonyms.ToList(), minimumHitCount);
 
@@ -315,7 +315,7 @@ public class TMDB : BaseTest
         //search movie details in database by matching terms in their overview
         var searchTerm = "world war 2".ToLower();
 
-        var minimumHitCount = searchTerm.Split(' ').Count();
+        var minimumHitCount = (uint)searchTerm.Split(' ').Count();
 
         List<MatchScore<MovieDetailsResponse>> queryMatches = (await tmdb.QueryOverviews(searchTerm, minimumHitCount)).ToList();
 
@@ -330,7 +330,7 @@ public class TMDB : BaseTest
         //add original terms as a group
         synonyms.Add(searchTerm.Split(' ').ToList());
 
-        minimumHitCount = (int)(synonyms.Count() * 0.50);
+        minimumHitCount = (uint)(synonyms.Count() * 0.50);
 
         queryMatches.AddRange(await tmdb.QueryWithGroupedTerms(synonyms.ToList(), minimumHitCount));
 

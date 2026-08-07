@@ -6,6 +6,7 @@ using shared;
 using System.Diagnostics;
 using Microsoft.Extensions.Options;
 using System.Net;
+using Microsoft.Extensions.Logging;
 namespace dj.test;
 
 public class Database : BaseTest, IDisposable
@@ -24,7 +25,7 @@ public class Database : BaseTest, IDisposable
 
         var optionsConfig = Options.Create(_dataConfig);
 
-        _db = new shared.data.Database(optionsConfig, _cts);
+        _db = new shared.data.Database(optionsConfig, new LoggerFactory().CreateLogger<shared.data.Database>(), _cts);
 
         _db.Connect();
         _db.Create();

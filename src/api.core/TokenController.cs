@@ -26,7 +26,7 @@ namespace api
 
         [HttpPost("scoped"), AllowAnonymous]
         // [IgnoreAntiforgeryToken]
-        public async Task<ActionResult<SignInHttpResult>> ExchangeToken()
+        public async Task<IActionResult> ExchangeToken()
         {
             var request = HttpContext.GetOpenIddictServerRequest()
                 ?? throw new InvalidOperationException("The OAuth request cannot be retrieved.");

@@ -1,44 +1,14 @@
 using Microsoft.Data.Sqlite;
-using System.Runtime.CompilerServices;
 using System.Diagnostics;
-using System.Transactions;
 using Dapper;
-using Dapper.Contrib.Extensions;
 using System.Data;
 using System.Globalization;
-using System.Linq;
-using System.Reflection;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Xml.Linq;
-using Dapper.Logging;
-
-
-namespace shared.data;
-
-using System;
-using System.Data;
-using System.Data.Common;
-using System.Reflection.Metadata;
 using System.Text;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
 
-public interface IDatabase
-{
-    void Connect();
-    void Create(CancellationToken? token = null);
-    void Dispose(bool disposing);
-    void Dispose();
-    Task<File?> File(string path, CancellationToken? token = null);
-    Task<bool> FileExists(string filePath, CancellationToken? token = null);
-    Task<IEnumerable<File>> Files(CancellationToken? token = null);
-    Task<IEnumerable<File>> Files(IEnumerable<string> paths, CancellationToken? token = null);
-    Task<IEnumerable<File>> FilesByDirectory(IEnumerable<string> paths, CancellationToken? token = null);
-    Task<IEnumerable<File>> FilesByExtensions(IEnumerable<string> extensions, CancellationToken? token = null);
-    Task Insert(File file, CancellationToken? token = null);
-    Task InsertOrUpdate(IEnumerable<File> testData, CancellationToken? token = null);
-    Task Truncate(CancellationToken? token = null);
-}
+namespace shared.data;
 
 public class DatabaseNotConnected : Exception { }
 
@@ -46,7 +16,8 @@ public class Database : IDisposable, IDatabase
 {
     private static readonly ConcurrentDictionary<string, object> s_databaseLocks = new();
     private readonly DatabaseConfiguration _config;
-    private int _commandTimeoutSeconds = 20;
+    private readonly ILogger<Database> _logger;
+    private const int _commandTimeoutSeconds = 20;
     private CancellationTokenSource _cts;
 
     private string DatabasePath
@@ -135,9 +106,11 @@ public class Database : IDisposable, IDatabase
         }
     }
 
-    public Database(IOptions<DatabaseConfiguration> config, CancellationTokenSource cts)
+    public Database(IOptions<DatabaseConfiguration> config, ILogger<Database> logger, CancellationTokenSource cts)
     {
         _config = config.Value;
+
+        _logger = logger;
 
         _cts = cts;
 
@@ -231,14 +204,14 @@ public class Database : IDisposable, IDatabase
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error while inserting file record: {ex}");
+                _logger.LogError($"Error while inserting file record: {ex}");
                 transaction.Rollback();
                 throw;
             }
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"WHAT {ex}");
+            _logger.LogError($"WHAT {ex}");
             throw;
         }
     }
@@ -290,6 +263,7 @@ public class Database : IDisposable, IDatabase
             try
             {
                 var command = new CommandDefinition(sql, batchedParameters, transaction, _commandTimeoutSeconds, CommandType.Text, CommandFlags.Buffered, token.Value);
+
                 await connection.ExecuteAsync(command);
 
                 await transaction.CommitAsync(token.Value);
@@ -307,7 +281,7 @@ public class Database : IDisposable, IDatabase
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"WHAT {ex}");
+            _logger.LogError($"WHAT {ex}");
             throw;
         }
     }
@@ -330,7 +304,7 @@ public class Database : IDisposable, IDatabase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Exception while checking for file entry: {ex}");
+            _logger.LogError($"Exception while checking for file entry: {ex}");
             throw;
         }
     }
@@ -354,7 +328,7 @@ public class Database : IDisposable, IDatabase
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Error while querying file record: {ex}");
+            _logger.LogError($"Error while querying file record: {ex}");
             throw;
         }
 
@@ -377,7 +351,7 @@ public class Database : IDisposable, IDatabase
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Error while querying file record: {ex}");
+            _logger.LogError($"Error while querying file record: {ex}");
             throw;
         }
     }
@@ -402,7 +376,7 @@ public class Database : IDisposable, IDatabase
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Error while querying file record: {ex}");
+            _logger.LogError($"Error while querying file record: {ex}");
             throw;
         }
 
@@ -427,7 +401,7 @@ public class Database : IDisposable, IDatabase
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Error while querying file record: {ex}");
+            _logger.LogError($"Error while querying file record: {ex}");
             throw;
         }
 
@@ -448,7 +422,6 @@ public class Database : IDisposable, IDatabase
         var conditions = new List<string>();
         var parameters = new DynamicParameters();
         var searchTerms = paths.Select(x => Path.GetDirectoryName(x) ?? string.Empty).ToList();
-        Console.WriteLine(string.Join(", ", searchTerms));
 
         for (int i = 0; i < paths.Count(); i++)
         {
@@ -469,7 +442,7 @@ public class Database : IDisposable, IDatabase
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Error while querying file record: {ex}");
+            _logger.LogError($"Error while querying file record: {ex}");
             throw;
         }
 
@@ -562,16 +535,6 @@ public static class DateTimeExtensions
     {
         return DateTime.Parse(dateText, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal);
     }
-}
-
-public static class Queries
-{
-    public static string InsertFile = @";alskdjf;";
-    public static string InsertFiles = @"aslkdjf";
-    public static string FileByPathHash = @"a;sldfj";
-    public static string FIlesByExtensions = @"asdf";
-    public static string FilesByParentDirectory = @";alksdjf";
-    public static string Files = @"";
 }
 
 internal static class QueryFiles

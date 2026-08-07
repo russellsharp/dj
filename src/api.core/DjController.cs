@@ -17,7 +17,6 @@ namespace api.controllers;
 [ApiController]
 [Route("api/media")]
 public class DjController(
-    IOptions<MediaCollectionConfiguration> _configuration,
     IMediaCollection _media,
     ITMDB _tmdb,
     ITaskMonitor _monitor,

@@ -75,7 +75,7 @@ public class MediaCollection : BaseTest, IDisposable
     {
         IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions, new LoggerFactory().CreateLogger<ICache>(), cts), new LoggerFactory().CreateLogger<IRepo>(), cts);
         ITMDB tmdb = new shared.TMDB.TMDB(repo, cts);
-        IDatabase db = new shared.data.Database(BasicDatabaseConfig, cts);
+        IDatabase db = new shared.data.Database(BasicDatabaseConfig, new LoggerFactory().CreateLogger<shared.data.Database>(), cts);
         IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, new LoggerFactory().CreateLogger<shared.MediaCollection>(), cts);
 
         return (repo, tmdb, db, media);

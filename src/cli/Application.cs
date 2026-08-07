@@ -16,7 +16,6 @@ public class Application(IMediaCollection _mediaCollection, IRepo _repo, Cancell
             Console.WriteLine($"Arguments passed: {string.Join(", ", args)}");
         }
 
-
         await _mediaCollection.Initialize(_tokenSource.Token);
 
         await _mediaCollection.UpdateRepos(baseDirectory, false, _tokenSource.Token);
