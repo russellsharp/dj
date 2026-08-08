@@ -21,7 +21,7 @@ public static partial class ApplicationExtensions
     public static IHostApplicationBuilder AddServices(this IHostApplicationBuilder builder)
     {
         builder.Services.AddSingleton<IMediaCollection, MediaCollection>()
-                        .AddSingleton<shared.data.IDatabase, shared.data.Database>()
+                        .AddSingleton<shared.data.IMediaDatabase, shared.data.MediaDatabase>()
                         .AddSingleton<shared.TMDB.ICache, shared.TMDB.Cache>()
                         .AddSingleton<shared.TMDB.IRepo, shared.TMDB.Repo>()
                         .AddSingleton<ITMDB, shared.TMDB.TMDB>()
@@ -83,9 +83,9 @@ public static partial class ApplicationExtensions
 
     public static IHostApplicationBuilder ConfigureMediaDatabase(this IHostApplicationBuilder builder)
     {
-        builder.Services.Configure<shared.data.DatabaseConfiguration>(builder.Configuration.GetSection(shared.data.DatabaseConfiguration.SectionName));
+        builder.Services.Configure<shared.data.MediaDatabaseConfiguration>(builder.Configuration.GetSection(MediaDatabaseConfiguration.SectionName));
 
-        var dbPath = Environment.GetEnvironmentVariable(DatabaseConfiguration.DJ_MEDIA_DATABASE_PATH);
+        var dbPath = Environment.GetEnvironmentVariable(MediaDatabaseConfiguration.DatabasePathKey);
 
         if (dbPath is not null)
         {

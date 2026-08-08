@@ -47,6 +47,7 @@ logger.LogWarning($"Environment: {app.Environment.EnvironmentName}");
 
 
 app.UseRouting(); // must be called before SetupSecurity
+//security is not used for AWS ("Production") environment.
 if (builder.Environment.IsDevelopment())
 {
     await app.SetupSecurity(); //must come before MapControllers

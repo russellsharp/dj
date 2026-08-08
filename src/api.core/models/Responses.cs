@@ -37,7 +37,7 @@ public record TMDBSummary
 
 public record TMDBDetailResults
 {
-    public List<TMDBDetails> Media { get; init; }
+    public List<TMDBDetails> Media { get; init; } = new();
 }
 public record TMDBDetails : TMDBSummary
 {
@@ -56,7 +56,7 @@ public record MatchQueries
 
 public record Matches
 {
-    public List<MatchScore<MediaReferences>> Suggestions { get; set; }
+    public List<MatchScore<MediaReferences>> Suggestions { get; set; } = new();
 }
 
 public record MediaReferences : shared.data.File

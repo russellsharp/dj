@@ -1,14 +1,10 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
 
 namespace shared.http.security;
 
 public class OpenIdDictDatabaseConfiguration : IDatabaseConfiguration
 {
-    private static string DatabasePathKey { get; } = "DJ_OPENIDDICT_DATABASE_PATH";
+    private static string PathKey { get; } = "DJ_OPENIDDICT_DATABASE_PATH";
     public static string SectionName { get; } = "OpenIdDict";
     private string _dbFilePath = "";
     public string DatabasePath
@@ -17,7 +13,7 @@ public class OpenIdDictDatabaseConfiguration : IDatabaseConfiguration
         {
             if (string.IsNullOrEmpty(_dbFilePath))
             {
-                _dbFilePath = Environment.GetEnvironmentVariable(DatabasePathKey) ?? "data/openiddict.db";
+                _dbFilePath = Environment.GetEnvironmentVariable(PathKey) ?? "data/openiddict.db";
             }
 
             var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");

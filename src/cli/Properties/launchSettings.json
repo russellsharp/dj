@@ -3,7 +3,18 @@
     "cli": {
       "commandName": "Project",
       "workingDirectory": "bin/debug/net10.0",
-      "console": "integratedTerminal"
+      "console": "integratedTerminal",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "DJ_JWT_ISSUER": "https://localhost:7132",
+        "DJ_JWT_AUDIENCE": "https://localhost:7132",
+        "DJ_MEDIA_BASE_DIRECTORY": "//fatty/Existing/",
+        "DJ_MEDIA_DATABASE_PATH": "data/media.db",
+        "DJ_OPENIDDICT_DATABASE_PATH": "data/openiddict.db",
+        "DJ_USER_DATABASE_PATH": "data/testusers.db",
+        "TMDB:DatabasePath": "data/tmdb.db",
+        "DJ_HOST_ALLOWED_CORS_URL": "127.0.0.1,127.0.0.1"
+      }
     }
   }
 }

@@ -6,25 +6,26 @@ using shared;
 using System.Diagnostics;
 using Microsoft.Extensions.Options;
 using System.Net;
+using Microsoft.Extensions.Logging;
 namespace dj.test;
 
 public class Database : BaseTest, IDisposable
 {
-    private shared.data.Database _db;
-    private shared.data.DatabaseConfiguration _dataConfig;
+    private shared.data.MediaDatabase _db;
+    private shared.data.MediaDatabaseConfiguration _dataConfig;
     private bool _deleteDatabaseFile = true;
     private string _baseDirectory = "testMedia/";
 
     public Database(ITestOutputHelper output) : base(output)
     {
-        _dataConfig = new shared.data.DatabaseConfiguration()
+        _dataConfig = new shared.data.MediaDatabaseConfiguration()
         {
             DataFile = Path.GetFullPath("testdata/database.db")
         };
 
         var optionsConfig = Options.Create(_dataConfig);
 
-        _db = new shared.data.Database(optionsConfig, _cts);
+        _db = new shared.data.MediaDatabase(optionsConfig, new LoggerFactory().CreateLogger<shared.data.MediaDatabase>(), _cts);
 
         _db.Connect();
         _db.Create();

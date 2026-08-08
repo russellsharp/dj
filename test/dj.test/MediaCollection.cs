@@ -24,7 +24,7 @@ public class MediaCollection : BaseTest, IDisposable
         VideoExtensions = @"avi;mkv;mp4",
     });
 
-    private static IOptions<DatabaseConfiguration> BasicDatabaseConfig = Options.Create(new DatabaseConfiguration
+    private static IOptions<MediaDatabaseConfiguration> BasicDatabaseConfig = Options.Create(new MediaDatabaseConfiguration
     {
         DataFile = "testdata/mediacollection.db",
     });
@@ -71,11 +71,11 @@ public class MediaCollection : BaseTest, IDisposable
         }
     }
 
-    private static (IRepo repo, ITMDB tmdb, IDatabase db, IMediaCollection medai) BuildServices(CancellationTokenSource cts)
+    private static (IRepo repo, ITMDB tmdb, IMediaDatabase db, IMediaCollection medai) BuildServices(CancellationTokenSource cts)
     {
         IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions, new LoggerFactory().CreateLogger<ICache>(), cts), new LoggerFactory().CreateLogger<IRepo>(), cts);
         ITMDB tmdb = new shared.TMDB.TMDB(repo, cts);
-        IDatabase db = new shared.data.Database(BasicDatabaseConfig, cts);
+        IMediaDatabase db = new shared.data.MediaDatabase(BasicDatabaseConfig, new LoggerFactory().CreateLogger<shared.data.MediaDatabase>(), cts);
         IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, new LoggerFactory().CreateLogger<shared.MediaCollection>(), cts);
 
         return (repo, tmdb, db, media);

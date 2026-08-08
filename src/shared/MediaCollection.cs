@@ -41,10 +41,10 @@ public class MediaCollection : IMediaCollection
 
     private CancellationTokenSource _cts;
 
-    private shared.data.IDatabase _db;
+    private shared.data.IMediaDatabase _db;
     private readonly ILogger<MediaCollection> _logger;
 
-    public MediaCollection(IOptions<MediaCollectionConfiguration> configuration, IDatabase db, ILogger<MediaCollection> logger, CancellationTokenSource cts)
+    public MediaCollection(IOptions<MediaCollectionConfiguration> configuration, IMediaDatabase db, ILogger<MediaCollection> logger, CancellationTokenSource cts)
     {
         _configuration = configuration.Value;
 
