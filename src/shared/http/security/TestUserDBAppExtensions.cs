@@ -10,12 +10,9 @@ namespace shared.http.security;
 
 public static class TestUserDBAppExtensions
 {
-
     public static IHostApplicationBuilder AddTestUserDatabase(this IHostApplicationBuilder builder)
     {
-        builder.Services.AddScoped<IUserDatabase, TestUserDatabase>();
-
-        var dbConfig = builder.Configuration.GetSection(TestUserDatabaseConfiguration.SectionName).Get<TestUserDatabaseConfiguration>() ?? new TestUserDatabaseConfiguration();
+        var dbConfig = builder.Configuration.GetSection(TestUserDbConfiguration.SectionName).Get<TestUserDbConfiguration>() ?? new TestUserDbConfiguration();
 
         ArgumentException.ThrowIfNullOrEmpty(dbConfig?.ConnectionString);
 

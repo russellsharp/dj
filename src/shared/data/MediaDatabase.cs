@@ -12,23 +12,13 @@ namespace shared.data;
 
 public class DatabaseNotConnected : Exception { }
 
-public class Database : IDisposable, IDatabase
+public class MediaDatabase : IDisposable, IMediaDatabase
 {
     private static readonly ConcurrentDictionary<string, object> s_databaseLocks = new();
-    private readonly DatabaseConfiguration _config;
-    private readonly ILogger<Database> _logger;
+    private readonly IDatabaseConfiguration _config;
+    private readonly ILogger<MediaDatabase> _logger;
     private const int _commandTimeoutSeconds = 20;
     private CancellationTokenSource _cts;
-
-    private string DatabasePath
-    {
-        get
-        {
-            var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
-            var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
-            return Path.GetFullPath(Path.Combine(rootDir, _config.DataFile));
-        }
-    }
 
     private string ConnectionStringReadOnly
     {
@@ -36,7 +26,7 @@ public class Database : IDisposable, IDatabase
         {
             var builder = new SqliteConnectionStringBuilder
             {
-                DataSource = DatabasePath,
+                DataSource = _config.DatabasePath,
                 Mode = SqliteOpenMode.ReadOnly,
                 Cache = SqliteCacheMode.Shared
             };
@@ -51,7 +41,7 @@ public class Database : IDisposable, IDatabase
         {
             var builder = new SqliteConnectionStringBuilder
             {
-                DataSource = DatabasePath,
+                DataSource = _config.DatabasePath,
                 Mode = SqliteOpenMode.ReadWriteCreate,
                 Cache = SqliteCacheMode.Shared
             };
@@ -63,14 +53,14 @@ public class Database : IDisposable, IDatabase
     {
         get
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(DatabasePath) ?? throw new InvalidOperationException("Unable to determine database directory"));
+            Directory.CreateDirectory(Path.GetDirectoryName(_config.DatabasePath) ?? throw new InvalidOperationException("Unable to determine database directory"));
 
-            if (!System.IO.File.Exists(DatabasePath))
+            if (!System.IO.File.Exists(_config.DatabasePath))
             {
-                Console.WriteLine($"Database file does not exist and will be created: {DatabasePath}");
+                _logger.LogInformation($"Database file does not exist and will be created: {_config.DatabasePath}");
             }
 
-            var lockObject = s_databaseLocks.GetOrAdd(DatabasePath, _ => new object());
+            var lockObject = s_databaseLocks.GetOrAdd(_config.DatabasePath, _ => new object());
             lock (lockObject)
             {
                 var connection = new SqliteConnection(ConnectionStringReadWrite);
@@ -89,9 +79,9 @@ public class Database : IDisposable, IDatabase
     {
         get
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(DatabasePath) ?? throw new InvalidOperationException("Unable to determine database directory"));
+            Directory.CreateDirectory(Path.GetDirectoryName(_config.DatabasePath) ?? throw new InvalidOperationException("Unable to determine database directory"));
 
-            var lockObject = s_databaseLocks.GetOrAdd(DatabasePath, _ => new object());
+            var lockObject = s_databaseLocks.GetOrAdd(_config.DatabasePath, _ => new object());
             lock (lockObject)
             {
                 var connection = new SqliteConnection(ConnectionStringReadWrite);
@@ -106,7 +96,7 @@ public class Database : IDisposable, IDatabase
         }
     }
 
-    public Database(IOptions<DatabaseConfiguration> config, ILogger<Database> logger, CancellationTokenSource cts)
+    public MediaDatabase(IOptions<MediaDatabaseConfiguration> config, ILogger<MediaDatabase> logger, CancellationTokenSource cts)
     {
         _config = config.Value;
 
@@ -122,9 +112,9 @@ public class Database : IDisposable, IDatabase
     /// </summary>
     public void Connect()
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(DatabasePath) ?? throw new InvalidOperationException("Unable to determine database directory"));
+        Directory.CreateDirectory(Path.GetDirectoryName(_config.DatabasePath) ?? throw new InvalidOperationException("Unable to determine database directory"));
 
-        var lockObject = s_databaseLocks.GetOrAdd(DatabasePath, _ => new object());
+        var lockObject = s_databaseLocks.GetOrAdd(_config.DatabasePath, _ => new object());
         lock (lockObject)
         {
             using var connection = new SqliteConnection(ConnectionStringReadWrite);
@@ -270,7 +260,7 @@ public class Database : IDisposable, IDatabase
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error while inserting file record: {ex}");
+                _logger.LogError($"Error while inserting file record: {ex}");
                 transaction.Rollback();
                 throw;
             }
@@ -478,7 +468,7 @@ public class Database : IDisposable, IDatabase
     private string GetQueryFromResource(string resourceName)
     {
         //find embedded resources in shared library
-        var assembly = typeof(shared.data.Database).Assembly;
+        var assembly = typeof(shared.data.MediaDatabase).Assembly;
 
         string? query = null;
 
@@ -516,7 +506,7 @@ public class Database : IDisposable, IDatabase
         GC.SuppressFinalize(this);
     }
 
-    ~Database()
+    ~MediaDatabase()
     {
         Dispose();
     }

@@ -136,6 +136,7 @@ public static partial class ApplicationExtensions
                     }
 
                     Console.WriteLine($"Security Token is empty or null: {string.IsNullOrEmpty(securityConfig.SecurityKey)}");
+
                     // Register the cryptographic signing keys
                     if (securityConfig != null && !string.IsNullOrEmpty(securityConfig.SecurityKey))
                     {
@@ -153,7 +154,7 @@ public static partial class ApplicationExtensions
 
                     if (builder.Environment.IsDevelopment())
                     {
-                        // TODO: Find a use case for development keys
+                        // TODO: Find a use case for development keys or remove it
                         // options.AddDevelopmentEncryptionCertificate()
                         //     .AddDevelopmentSigningCertificate();
 
@@ -190,6 +191,7 @@ public static partial class ApplicationExtensions
                 // This will automatically run any pending migrations and create the file
                 // context.Database.Migrate();
 
+                //use Migrate or EnsureCreated but not both
                 context.Database.EnsureCreated();
             }
             catch (Exception ex)
@@ -210,8 +212,6 @@ public static partial class ApplicationExtensions
             var userContext = scope.ServiceProvider.GetRequiredService<TestUserDbContext>();
 
             userContext.Database.EnsureCreated();
-
-            // userContext.Database.Migrate();
 
             app.SetupOpenIdDictDatabase();
 

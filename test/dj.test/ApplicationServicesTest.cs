@@ -56,7 +56,7 @@ public class ApplicationServices : BaseTest
 
         _builder.Services.AddSingleton(Options.Create(mediaConfig));
 
-        var databaseConfig = new DatabaseConfiguration
+        var databaseConfig = new MediaDatabaseConfiguration
         {
             DataFile = "testdata/appservices.db",
         };

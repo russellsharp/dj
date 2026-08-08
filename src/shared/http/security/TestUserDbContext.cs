@@ -2,7 +2,9 @@ using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.StaticAssets;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Conventions;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
@@ -27,6 +29,12 @@ public class ScopeEntry
 {
     [Key]
     public Scopes Value;
+}
+
+public class TestUserDbConfiguration : BaseDatabaseConfiguration
+{
+    public new static string SectionName = nameof(TestUserDbConfiguration);
+    protected override string _dbFIlePath { get; set; } = "data/testuser.db";
 }
 
 public class TestUserDbContext : DbContext

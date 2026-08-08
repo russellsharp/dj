@@ -1,14 +1,6 @@
-
-
-using System;
-using System.Buffers.Text;
-using System.ComponentModel;
-using System.Diagnostics;
-using System.Net.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Polly;
-using Polly.RateLimit;
 using Polly.Retry;
 using RestSharp;
 using shared.TMDB;
@@ -25,14 +17,18 @@ public class RateLimiter : IRateLimiter
 {
     private readonly RestClient _client;
     private readonly TMDBConfiguration _config;
-    private Polly.ResiliencePipeline<RestResponse> _pipeline;
+    private ResiliencePipeline<RestResponse> _pipeline;
+    private ILogger<RateLimiter> _logger;
+    private static readonly ResiliencePropertyKey<ILogger<RateLimiter>> LoggerKey = new("RateLimiterLogger");
 
-    public RateLimiter(IOptions<TMDBConfiguration> options, ILogger<RateLimiter> _logger)
+    public RateLimiter(IOptions<TMDBConfiguration> options, ILogger<RateLimiter> logger)
     {
 
         _config = options.Value;
 
         _client = new RestClient(_config.BaseUrl);
+
+        _logger = logger;
 
         _pipeline = new ResiliencePipelineBuilder<RestResponse>()
                 .AddRetry(new RetryStrategyOptions<RestResponse>
@@ -59,7 +55,14 @@ public class RateLimiter : IRateLimiter
 
                     OnRetry = static (args) =>
                     {
-                        Console.WriteLine($"Retry attempt: {args.AttemptNumber + 1}\r\nException: {args.Outcome.Exception?.Message}\r\nWaiting: {args.RetryDelay.TotalSeconds}");
+                        if (args.Context.Properties.TryGetValue(LoggerKey, out var logger))
+                        {
+                            logger.LogWarning(args.Outcome.Exception, $"Retry attempt: {args.AttemptNumber + 1}\r\nException: {args.Outcome.Exception?.Message}\r\nWaiting: {args.RetryDelay.TotalSeconds}");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"Retry attempt: {args.AttemptNumber + 1}\r\nException: {args.Outcome.Exception?.Message}\r\nWaiting: {args.RetryDelay.TotalSeconds}");
+                        }
                         return ValueTask.CompletedTask;
                     }
                 })
@@ -68,6 +71,10 @@ public class RateLimiter : IRateLimiter
 
     public async Task<RestResponse> Get(RestRequest request, CancellationToken token)
     {
+        var context = ResilienceContextPool.Shared.Get();
+
+        context.Properties.Set(LoggerKey, _logger);
+
         try
         {
             return await _pipeline.ExecuteAsync(
@@ -80,7 +87,11 @@ public class RateLimiter : IRateLimiter
         }
         catch (Polly.RateLimit.RateLimitRejectedException ex)
         {
-            Console.WriteLine($"Retry after: {ex.RetryAfter}\r\n{ex.InnerException}");
+            _logger.LogError($"Retry after: {ex.RetryAfter}\r\n{ex.InnerException}");
+        }
+        finally
+        {
+            ResilienceContextPool.Shared.Return(context);
         }
 
         return new RestResponse() { ResponseStatus = ResponseStatus.Error, StatusCode = System.Net.HttpStatusCode.TooManyRequests };

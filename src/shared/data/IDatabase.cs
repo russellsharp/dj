@@ -1,6 +1,6 @@
 namespace shared.data;
 
-public interface IDatabase
+public interface IMediaDatabase
 {
     void Connect();
     void Create(CancellationToken? token = null);

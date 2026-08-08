@@ -9,7 +9,7 @@ public interface IDataManagement
     Task SetTmdb(string tmdbDatabasePath);
 }
 
-public class DataManagement(IOptions<shared.data.DatabaseConfiguration> _dbConfig, ILogger<DataManagement> _logger) : IDataManagement
+public class DataManagement(IOptions<shared.data.MediaDatabaseConfiguration> _dbConfig, ILogger<DataManagement> _logger) : IDataManagement
 {
     private string DatabasePath
     {
