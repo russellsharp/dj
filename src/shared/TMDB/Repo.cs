@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using RestSharp;
 using shared.TMDB.Models;
 using shared.http;
+using shared.data;
 using Microsoft.Data.Sqlite;
 using System.Text.Json;
 using System.Security.Cryptography.X509Certificates;

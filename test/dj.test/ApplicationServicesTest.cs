@@ -58,7 +58,7 @@ public class ApplicationServices : BaseTest
 
         var databaseConfig = new MediaDatabaseConfiguration
         {
-            DataFile = "testdata/appservices.db",
+            DatabasePath = "testdata/appservices.db",
         };
 
         var thesaurusConfig = new ThesaurusConfiguration()

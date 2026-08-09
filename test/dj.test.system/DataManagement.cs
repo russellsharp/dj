@@ -15,9 +15,7 @@ public class DataManagement(IOptions<shared.data.MediaDatabaseConfiguration> _db
     {
         get
         {
-            var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
-            var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
-            return Path.GetFullPath(Path.Combine(rootDir, _dbConfig.Value.DataFile));
+            return _dbConfig.Value.DatabasePath;
         }
     }
 

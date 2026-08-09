@@ -26,38 +26,20 @@ public class MediaCollection : BaseTest, IDisposable
 
     private static IOptions<MediaDatabaseConfiguration> BasicDatabaseConfig = Options.Create(new MediaDatabaseConfiguration
     {
-        DataFile = "testdata/mediacollection.db",
+        DatabasePath = "testdata/mediacollection.db",
     });
 
     private static IOptions<TMDBConfiguration> BasicEndpointOptions = Options.Create(new TMDBConfiguration
     {
         BaseUrl = "https://api.themoviedb.org/3",
         DatabasePath = "testdata/tmdb.db",
-        RequestLimit = 40,
-        RequestWindowSeconds = 10,
         TitleWeight = 100,
         OverviewWeight = 1
     });
 
-    private string MediaDatabasePath
-    {
-        get
-        {
-            var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
-            var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
-            return Path.GetFullPath(Path.Combine(rootDir, BasicDatabaseConfig.Value.DataFile));
-        }
-    }
+    private string MediaDatabasePath => Path.GetFullPath(BasicDatabaseConfig.Value.DatabasePath);
 
-    private string TmdbDatabasePath
-    {
-        get
-        {
-            var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
-            var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
-            return Path.GetFullPath(Path.Combine(rootDir, BasicEndpointOptions.Value.DatabasePath));
-        }
-    }
+    private string TmdbDatabasePath => Path.GetFullPath(BasicEndpointOptions.Value.DatabasePath);
 
     public MediaCollection(ITestOutputHelper output) : base(output)
     {

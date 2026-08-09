@@ -20,7 +20,7 @@ public class Database : BaseTest, IDisposable
     {
         _dataConfig = new shared.data.MediaDatabaseConfiguration()
         {
-            DataFile = Path.GetFullPath("testdata/database.db")
+            DatabasePath = Path.GetFullPath("testdata/database.db")
         };
 
         var optionsConfig = Options.Create(_dataConfig);
@@ -44,7 +44,7 @@ public class Database : BaseTest, IDisposable
     {
         _db.Create();
 
-        System.IO.File.Exists(Path.GetFullPath(_dataConfig.DataFile)).Should().BeTrue();
+        System.IO.File.Exists(Path.GetFullPath(_dataConfig.DatabasePath)).Should().BeTrue();
     }
 
     [Fact]
@@ -268,7 +268,7 @@ public class Database : BaseTest, IDisposable
     #region IDisposable
     private int _disposed = 0;
 
-    protected virtual void Dispose(bool disposing)
+    public override void Dispose(bool disposing)
     {
         if (Interlocked.CompareExchange(ref _disposed, 1, 0) == 0)
         {
@@ -276,7 +276,7 @@ public class Database : BaseTest, IDisposable
             {
                 base.Dispose(disposing);
 
-                if (_deleteDatabaseFile && System.IO.File.Exists(_dataConfig.DataFile))
+                if (_deleteDatabaseFile && System.IO.File.Exists(_dataConfig.DatabasePath))
                 {
                     var deletionTryMax = 10;
                     int tries = 0;
@@ -288,7 +288,7 @@ public class Database : BaseTest, IDisposable
                             //we request GC so that SQLite.Data frees the database file.
                             GC.Collect();
                             GC.WaitForPendingFinalizers();
-                            System.IO.File.Delete(_dataConfig.DataFile);
+                            System.IO.File.Delete(_dataConfig.DatabasePath);
                             break;
                         }
                         catch

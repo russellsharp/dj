@@ -3,9 +3,8 @@ using Microsoft.Data.Sqlite;
 using Dapper;
 using System.Diagnostics;
 using System.Collections.Concurrent;
-using System.Runtime.CompilerServices;
-using Microsoft.Extensions.Logging;
-namespace shared;
+
+namespace shared.data;
 
 public class BaseSqliteDatabase : IDisposable
 {
@@ -22,26 +21,7 @@ public class BaseSqliteDatabase : IDisposable
     {
         get
         {
-            ArgumentNullException.ThrowIfNull(_config);
-            var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
-            var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
-            return Path.GetFullPath(Path.Combine(rootDir, _config.DatabasePath));
-        }
-    }
-
-    protected string ConnectionString
-    {
-        get
-        {
-            var builder = new SqliteConnectionStringBuilder
-            {
-                DataSource = DatabasePath,
-                Mode = SqliteOpenMode.ReadWriteCreate,
-                Cache = SqliteCacheMode.Shared,
-                Pooling = true
-            };
-
-            return builder.ToString();
+            return Path.GetFullPath(_config.DatabasePath);
         }
     }
 
@@ -49,16 +29,16 @@ public class BaseSqliteDatabase : IDisposable
     {
         Directory.CreateDirectory(Path.GetDirectoryName(DatabasePath) ?? throw new InvalidOperationException("Unable to determine database directory"));
 
-        if (!File.Exists(DatabasePath))
+        if (!System.IO.File.Exists(DatabasePath))
         {
             // Creating an empty file is enough for SQLite to initialize it on first connect
-            using (File.Create(DatabasePath)) { }
+            using (System.IO.File.Create(DatabasePath)) { }
         }
 
         var lockObject = s_databaseLocks.GetOrAdd(DatabasePath, _ => new object());
         lock (lockObject)
         {
-            _connection = new SqliteConnection(ConnectionString);
+            _connection = new SqliteConnection(_config.ConnectionString);
 
             _connection.Open();
 

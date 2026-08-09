@@ -75,27 +75,6 @@ public class MediaDatabase : IDisposable, IMediaDatabase
         }
     }
 
-    private SqliteConnection ConnectionWrite
-    {
-        get
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(_config.DatabasePath) ?? throw new InvalidOperationException("Unable to determine database directory"));
-
-            var lockObject = s_databaseLocks.GetOrAdd(_config.DatabasePath, _ => new object());
-            lock (lockObject)
-            {
-                var connection = new SqliteConnection(ConnectionStringReadWrite);
-
-                //uses its own connection with write permissions
-                Create();
-
-                connection.Open();
-
-                return connection;
-            }
-        }
-    }
-
     public MediaDatabase(IOptions<MediaDatabaseConfiguration> config, ILogger<MediaDatabase> logger, CancellationTokenSource cts)
     {
         _config = config.Value;

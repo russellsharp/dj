@@ -10,6 +10,7 @@ using System.Net.Mime;
 using System.Text.Json;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
+using shared.data;
 namespace shared.TMDB;
 
 public interface ICache
@@ -26,8 +27,8 @@ public class Cache : BaseSqliteDatabase, ICache
 {
     private readonly CancellationTokenSource _tokenSource;
     private readonly ILogger<ICache> _logger;
-    protected override string? CreateQueryResource => QueryFiles.CreateDatabase;
-    protected override string? TruncateQueryResource => QueryFiles.TruncateDatabase;
+    protected override string CreateQueryResource => QueryFiles.CreateDatabase;
+    protected override string TruncateQueryResource => QueryFiles.TruncateDatabase;
     protected override Type QueryAssemblyType => typeof(Cache);
 
     public Cache(IOptions<TMDBConfiguration> config, ILogger<ICache> logger, CancellationTokenSource cts)
@@ -40,6 +41,11 @@ public class Cache : BaseSqliteDatabase, ICache
 
         _tokenSource = cts;
 
+        Initialize();
+    }
+
+    public void Initialize()
+    {
         Connect();
 
         Create();
@@ -49,7 +55,7 @@ public class Cache : BaseSqliteDatabase, ICache
     {
         token ??= _tokenSource.Token;
 
-        using var connection = new SqliteConnection(ConnectionString);
+        using var connection = new SqliteConnection(_config.ConnectionString);
         connection.Open();
 
         var sql = $"SELECT response FROM tmdb_cache WHERE url_hash = @request_hash AND response_type = @type";
@@ -86,7 +92,7 @@ public class Cache : BaseSqliteDatabase, ICache
     {
         token ??= _tokenSource.Token;
 
-        using var connection = new SqliteConnection(ConnectionString);
+        using var connection = new SqliteConnection(_config.ConnectionString);
         connection.Open();
 
         var sql = "INSERT INTO tmdb_cache (url_hash, url, response, response_type) VALUES (@request_hash, @request, @response, @response_type) ON CONFLICT(url_hash) DO UPDATE SET response = excluded.response, response_type = excluded.response_type";
@@ -280,7 +286,7 @@ public class Cache : BaseSqliteDatabase, ICache
 
     public async Task StoreMovieQuery(MovieQueryResponse result, CancellationToken? token = null)
     {
-        using var connection = new SqliteConnection(ConnectionString);
+        using var connection = new SqliteConnection(_config.ConnectionString);
         await connection.OpenAsync();
 
         throw new NotImplementedException();

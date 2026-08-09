@@ -1,13 +1,9 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.StaticAssets;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Metadata.Conventions;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
-using Microsoft.EntityFrameworkCore.Storage;
-using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using shared.data;
 
 namespace shared.http.security;
 
@@ -34,7 +30,7 @@ public class ScopeEntry
 public class TestUserDbConfiguration : BaseDatabaseConfiguration
 {
     public new static string SectionName = nameof(TestUserDbConfiguration);
-    protected override string _dbFIlePath { get; set; } = "data/testuser.db";
+    protected override string DefaultPath { get; } = "data/testuser.db";
 }
 
 public class TestUserDbContext : DbContext

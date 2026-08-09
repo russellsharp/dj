@@ -37,7 +37,10 @@ public class RateLimiter : IRateLimiter
                         .HandleResult(response => response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
                         .HandleResult(response => !response.IsSuccessful && response.ErrorException != null),
 
-                    MaxRetryAttempts = _config.AttemptCountMax,
+
+                    MaxRetryAttempts = 10,
+
+                    UseJitter = true,
 
                     DelayGenerator = static args =>
                     {

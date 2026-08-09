@@ -11,6 +11,7 @@ using shared.thesaurus;
 using Microsoft.CodeAnalysis;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using shared.data;
 
 namespace dj.test;
 
@@ -20,8 +21,6 @@ public class TMDB : BaseTest
     {
         BaseUrl = "https://api.themoviedb.org/3",
         DatabasePath = "testdata/tmdb.db",
-        RequestLimit = 40,
-        RequestWindowSeconds = 10,
         TitleWeight = 100,
         OverviewWeight = 1
     });
@@ -358,7 +357,7 @@ public class TMDB : BaseTest
         int attempt = 0;
         //Sqlite driver can be slow to release database file
 
-        if (!File.Exists(TmdbDatabasePath)) return;
+        if (!System.IO.File.Exists(TmdbDatabasePath)) return;
 
         while (attempt < deleteAttemptsMax)
         {

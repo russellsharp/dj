@@ -63,7 +63,7 @@ public class BaseTest : IDisposable
 
     #region IDisposable
     private int _disposed = 0;
-    public void Dispose(bool disposing)
+    public virtual void Dispose(bool disposing)
     {
         if (Interlocked.Exchange(ref _disposed, 1) == 1)
         {
