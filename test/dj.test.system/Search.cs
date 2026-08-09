@@ -3,6 +3,8 @@ using FluentAssertions;
 
 namespace dj.test.system;
 
+#pragma warning disable xUnit1051 // Calls to methods which accept CancellationToken should use TestContext.Current.CancellationToken
+
 [Collection("WireupCollection")]
 public class SearchTests : BaseTest
 {
@@ -34,7 +36,9 @@ public class SearchTests : BaseTest
 
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
 
-        var content = await response.Content.ReadAsStringAsync();
+        response.Content.Should().NotBeNull();
+
+        var content = await response!.Content!.ReadAsStringAsync();
 
         content.Should().NotBeNullOrEmpty();
 

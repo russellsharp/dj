@@ -40,22 +40,13 @@ public class Cache : BaseSqliteDatabase, ICache
         _config = config.Value;
 
         _tokenSource = cts;
-
-        Initialize();
-    }
-
-    public void Initialize()
-    {
-        Connect();
-
-        Create();
     }
 
     public bool Get<ResponseType>(string tmdb_request_url, out ResponseType? response, CancellationToken? token = null)
     {
         token ??= _tokenSource.Token;
 
-        using var connection = new SqliteConnection(_config.ConnectionString);
+        using var connection = GetConnection();
         connection.Open();
 
         var sql = $"SELECT response FROM tmdb_cache WHERE url_hash = @request_hash AND response_type = @type";
@@ -92,7 +83,7 @@ public class Cache : BaseSqliteDatabase, ICache
     {
         token ??= _tokenSource.Token;
 
-        using var connection = new SqliteConnection(_config.ConnectionString);
+        using var connection = GetConnection();
         connection.Open();
 
         var sql = "INSERT INTO tmdb_cache (url_hash, url, response, response_type) VALUES (@request_hash, @request, @response, @response_type) ON CONFLICT(url_hash) DO UPDATE SET response = excluded.response, response_type = excluded.response_type";
@@ -114,7 +105,7 @@ public class Cache : BaseSqliteDatabase, ICache
     {
         token ??= _tokenSource.Token;
 
-        var connection = _connection ?? throw new InvalidOperationException("Cache is not connected.");
+        using var connection = GetConnection() ?? throw new InvalidOperationException("Cache is not connected.");
         const string sql = "SELECT * FROM tmdb_cache";
         var dataSet = connection.QueryUnbufferedAsync<(string hash, string response)>(sql);
 
@@ -146,7 +137,7 @@ public class Cache : BaseSqliteDatabase, ICache
             var caseStatements = keywords.Where(x => !string.IsNullOrEmpty(x)).Select(x => $"CASE WHEN response LIKE '%{x}%' THEN 1 ELSE 0 END");
             string sql = $"{sqlPrefix} ({string.Join(" + \n", caseStatements)}) {suffix}";
 
-            var connection = _connection ?? throw new InvalidOperationException("Cache is not connected.");
+            using var connection = GetConnection() ?? throw new InvalidOperationException("Cache is not connected.");
             var matches = await connection.QueryAsync(new CommandDefinition(sql, cancellationToken: token.Value));
             var typedMatches = matches.Select(x =>
             {
@@ -188,7 +179,7 @@ public class Cache : BaseSqliteDatabase, ICache
 
             if (!caseStatements.Any()) return new List<MatchScore<MovieDetailsResponse>>();
 
-            var connection = _connection ?? throw new InvalidOperationException("Cache is not connected.");
+            using var connection = GetConnection() ?? throw new InvalidOperationException("Cache is not connected.");
             var matches = await connection.QueryAsync(new CommandDefinition(sql, cancellationToken: token.Value));
             return matches.Select(x =>
             {
@@ -227,7 +218,7 @@ public class Cache : BaseSqliteDatabase, ICache
             var caseStatements = cases.Where(x => !string.IsNullOrEmpty(x)).Select(x => $"(CASE WHEN {x} THEN 1 ELSE 0 END)");
             string sql = $"{sqlPrefix} ({string.Join(" + \n", caseStatements)}) {suffix}";
 
-            var connection = _connection ?? throw new InvalidOperationException("Cache is not connected.");
+            using var connection = GetConnection() ?? throw new InvalidOperationException("Cache is not connected.");
             var matches = await connection.QueryAsync(new CommandDefinition(sql, cancellationToken: token.Value));
             return matches.Select(x =>
             {
@@ -246,33 +237,19 @@ public class Cache : BaseSqliteDatabase, ICache
         }
     }
 
-    public async Task StoreTypedData<ResponseType>(ResponseType contents, CancellationToken? token = null)
+    public Task StoreTypedData<ResponseType>(ResponseType contents, CancellationToken? token = null) => contents switch
     {
-        switch (contents)
-        {
-            case MovieDetailsResponse details:
-            {
-                await StoreMovieDetails(details, token);
-                break;
-            }
-            case MovieQueryResponse result:
-            {
-                await StoreMovieQuery(result, token);
-                break;
-            }
-            default:
-            {
-                throw new NotSupportedException($"{typeof(ResponseType).Name} is not supported for typed storage.");
-            }
-        }
-    }
+        MovieDetailsResponse details => StoreMovieDetails(details, token),
+        MovieQueryResponse result => StoreMovieQuery(result, token),
+        _ => throw new NotSupportedException($"{typeof(ResponseType).Name} is not supported for typed storage.")
+    };
 
     public async Task StoreMovieDetails(MovieDetailsResponse details, CancellationToken? token = null)
     {
 
         throw new NotImplementedException();
 
-        var connection = _connection ?? throw new InvalidOperationException("Cache is not connected.");
+        using var connection = GetConnection() ?? throw new InvalidOperationException("Cache is not connected.");
         const string sql = "INSERT INTO movie_details (id, details, title, overview) VALUES (@id, @Details, @title, @overview) ON CONFLICT(id) DO UPDATE SET details = EXCLUDED.details";
         var detailString = JsonSerializer.Serialize(details);
         using var command = new SqliteCommand(sql, connection);
@@ -286,7 +263,8 @@ public class Cache : BaseSqliteDatabase, ICache
 
     public async Task StoreMovieQuery(MovieQueryResponse result, CancellationToken? token = null)
     {
-        using var connection = new SqliteConnection(_config.ConnectionString);
+        using var connection = GetConnection();
+
         await connection.OpenAsync();
 
         throw new NotImplementedException();

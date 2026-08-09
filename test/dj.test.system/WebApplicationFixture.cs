@@ -51,8 +51,6 @@ public class TestWebApplicationFactory<TProgram> : WebApplicationFactory<TProgra
             var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cts.Token, TestContext.Current.CancellationToken);
 
             services.AddSingleton(linkedCts);
-
-            services.AddSingleton<IDataManagement, DataManagement>();
         });
     }
 
