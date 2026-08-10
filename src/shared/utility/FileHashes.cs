@@ -1,5 +1,5 @@
 using System.Security.Cryptography;
-namespace shared;
+namespace shared.utility;
 
 public static class FileHashes
 {

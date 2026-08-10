@@ -7,10 +7,11 @@
     <RootNamespace>dj.test.system</RootNamespace>
     <TargetFramework>net11.0</TargetFramework>
     <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <RunSettingsFile>$(MSBuildProjectDirectory)\.runsettings</RunSettingsFile>
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include=".runsettings" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

@@ -15,6 +15,8 @@ public interface ITokenGenerator
 
 public class AnonymousTokenGenerator : ITokenGenerator
 {
+    private static string AppName = "DjApp";
+    private static string ClientName = "AnonymousClient";
     private readonly JwtConfiguration _configuration;
 
     public AnonymousTokenGenerator(IOptions<JwtConfiguration> configuration)
@@ -31,8 +33,8 @@ public class AnonymousTokenGenerator : ITokenGenerator
     {
         var claims = new[]
         {
-            new Claim(ClaimTypes.Name, "AnonymousClient"),
-            new Claim(ClaimTypes.Role, "DjApp"),
+            new Claim(ClaimTypes.Name, ClientName),
+            new Claim(ClaimTypes.Role, AppName),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 

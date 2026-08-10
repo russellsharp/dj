@@ -5,6 +5,6 @@ namespace api.models;
 
 public record QueryRequest
 {
-    public List<string> Keywords { get; init; }
+    public List<string> Keywords { get; init; } = new();
     public MediaType Type { get; init; }
 }

@@ -1,10 +1,6 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using Microsoft.Extensions.Options;
 using shared.TMDB.Models;
-using System.Linq;
-using Microsoft.Extensions.FileSystemGlobbing.Internal;
+using shared.utility;
 
 namespace shared.TMDB;
 
@@ -12,8 +8,8 @@ public interface ITMDB : IDisposable
 {
     Task<MovieDetailsResponse?> GetMovie(int id);
     Task<MovieQueryResponse?> QueryTitle(string query, int page = 1, CancellationToken? token = null);
-    Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryOverviews(string query, int minimumHitCount, CancellationToken? token = null);
-    Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryWithGroupedTerms(IEnumerable<IEnumerable<string>> query, int minimumHitCount, CancellationToken? token = null);
+    Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryOverviews(string query, uint minimumHitCount, CancellationToken? token = null);
+    Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryWithGroupedTerms(IEnumerable<IEnumerable<string>> query, uint minimumHitCount, CancellationToken? token = null);
     Task<IEnumerable<Result?>> PathToTmdb(string filePath, MatchingContext context, bool useDictionary = true, CancellationToken? token = null);
     Task Populate(IEnumerable<string> paths, MatchingContext context, bool useDictionary = false, CancellationToken? token = null);
     UpdateStatus Status { get; }
@@ -63,12 +59,12 @@ public class TMDB : ITMDB, IDisposable
         return await _repo.QueryTitle(query, page, token);
     }
 
-    public async Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryOverviews(string query, int minimumHitCount, CancellationToken? token = null)
+    public async Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryOverviews(string query, uint minimumHitCount, CancellationToken? token = null)
     {
         return await _repo.QueryOverviews(query, minimumHitCount, token);
     }
 
-    public async Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryWithGroupedTerms(IEnumerable<IEnumerable<string>> query, int minimumHitCount, CancellationToken? token = null)
+    public async Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryWithGroupedTerms(IEnumerable<IEnumerable<string>> query, uint minimumHitCount, CancellationToken? token = null)
     {
         return await _repo.QueryWithGroupedTerms(query, minimumHitCount, token);
     }

@@ -1,12 +1,10 @@
-using System.Diagnostics;
 using Microsoft.Extensions.Options;
 using RestSharp;
 using shared.TMDB.Models;
 using shared.http;
-using Microsoft.Data.Sqlite;
 using System.Text.Json;
-using System.Security.Cryptography.X509Certificates;
 using Microsoft.Extensions.Logging;
+using shared.utility;
 
 namespace shared.TMDB;
 
@@ -16,9 +14,9 @@ public interface IRepo
     Task<MovieQueryResponse?> QueryTitle(string query, int page = 1, CancellationToken? token = null);
     Task<MovieDetailsResponse?> Movie(long id, CancellationToken? token = null);
     Task<GenreResponse?> MovieGenres(CancellationToken? token = null);
-    Task<IEnumerable<MatchScore<ResponseType>>> QueryTitle<ResponseType>(IEnumerable<string> keywords, int mimimumHitCount, CancellationToken? token = null) where ResponseType : class;
-    Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryOverviews(string searchTerm, int minimumHitCount, CancellationToken? token = null);
-    Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryWithGroupedTerms(IEnumerable<IEnumerable<string>> query, int minimumHitCount, CancellationToken? token = null);
+    Task<IEnumerable<MatchScore<ResponseType>>> QueryTitle<ResponseType>(IEnumerable<string> keywords, uint mimimumHitCount, CancellationToken? token = null) where ResponseType : class;
+    Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryOverviews(string searchTerm, uint minimumHitCount, CancellationToken? token = null);
+    Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryWithGroupedTerms(IEnumerable<IEnumerable<string>> query, uint minimumHitCount, CancellationToken? token = null);
 }
 
 public class Repo : IDisposable, IRepo
@@ -99,11 +97,11 @@ public class Repo : IDisposable, IRepo
         return await Get<GenreResponse>(request, token);
     }
 
-    public async Task<IEnumerable<MatchScore<ResponseType>>> QueryTitle<ResponseType>(IEnumerable<string> keywords, int minimum_hits, CancellationToken? token = null) where ResponseType : class
+    public async Task<IEnumerable<MatchScore<ResponseType>>> QueryTitle<ResponseType>(IEnumerable<string> keywords, uint minimumHits, CancellationToken? token = null) where ResponseType : class
     {
         token ??= _tokenSource.Token;
 
-        return await _cache.FindQueryHits<ResponseType>(keywords, minimum_hits, token);
+        return await _cache.FindQueryHits<ResponseType>(keywords, minimumHits, token);
     }
 
     private async Task<ResponseType?> Get<ResponseType>(RestRequest request, CancellationToken? token = null) where ResponseType : new()
@@ -141,7 +139,7 @@ public class Repo : IDisposable, IRepo
         }
     }
 
-    public async Task<List<MatchScore<MovieDetailsResponse>>> QueryMatches(string searchTerm, int minimumHitCount = 100, CancellationToken? token = null)
+    public async Task<List<MatchScore<MovieDetailsResponse>>> QueryMatches(string searchTerm, uint minimumHitCount = 100, CancellationToken? token = null)
     {
         token ??= _tokenSource.Token;
 
@@ -193,7 +191,7 @@ public class Repo : IDisposable, IRepo
         return matchedMovies.Values.ToList();
     }
 
-    public async Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryOverviews(string searchTerm, int minimumHitCount, CancellationToken? token = null)
+    public async Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryOverviews(string searchTerm, uint minimumHitCount, CancellationToken? token = null)
     {
         token ??= _tokenSource.Token;
 
@@ -204,7 +202,7 @@ public class Repo : IDisposable, IRepo
         return movieDetails.Where(x => x.Details is not null && x.Details.adult == _config.IncludeAdult);
     }
 
-    public async Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryWithGroupedTerms(IEnumerable<IEnumerable<string>> query, int minimumHitCount, CancellationToken? token = null)
+    public async Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryWithGroupedTerms(IEnumerable<IEnumerable<string>> query, uint minimumHitCount, CancellationToken? token = null)
     {
         token ??= _tokenSource.Token;
 
@@ -223,19 +221,28 @@ public class Repo : IDisposable, IRepo
     #region IDisposable
 
     private int _disposed = 0;
-    public void Dispose()
+
+    protected void Dispose(bool isDisposing)
     {
-        if (Interlocked.Exchange(ref _disposed, 1) == 1)
+        if (Interlocked.Exchange(ref _disposed, 1) == 1) return;
+
+        _cache.Dispose();
+
+        if (isDisposing)
         {
-            return;
+            // dispose managed objects
         }
 
-        try
-        {
-        }
-        catch (Exception)
-        {
-        }
+    }
+
+    public void Dispose()
+    {
+        Dispose(true);
+    }
+
+    ~Repo()
+    {
+        Dispose(false);
     }
     #endregion IDisposable
 }

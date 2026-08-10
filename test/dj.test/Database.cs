@@ -1,33 +1,30 @@
-
-using Xunit.Internal;
-using shared.data;
 using FluentAssertions;
-using shared;
-using System.Diagnostics;
+using shared.utility;
 using Microsoft.Extensions.Options;
-using System.Net;
+using Microsoft.Extensions.Logging;
+
 namespace dj.test;
 
 public class Database : BaseTest, IDisposable
 {
-    private shared.data.Database _db;
-    private shared.data.DatabaseConfiguration _dataConfig;
+    private shared.data.MediaDatabase _db;
+    private shared.data.MediaDatabaseConfiguration _dataConfig;
     private bool _deleteDatabaseFile = true;
     private string _baseDirectory = "testMedia/";
 
     public Database(ITestOutputHelper output) : base(output)
     {
-        _dataConfig = new shared.data.DatabaseConfiguration()
+        _dataConfig = new shared.data.MediaDatabaseConfiguration()
         {
-            DataFile = Path.GetFullPath("testdata/database.db")
+            DatabasePath = Path.GetFullPath("testdata/database.db")
         };
 
         var optionsConfig = Options.Create(_dataConfig);
 
-        _db = new shared.data.Database(optionsConfig, _cts);
+        _db = new shared.data.MediaDatabase(optionsConfig, new LoggerFactory().CreateLogger<shared.data.MediaDatabase>(), _cts);
 
         _db.Connect();
-        _db.Create();
+        _db.Create().GetAwaiter().GetResult();
         _db.Truncate().GetAwaiter().GetResult();
     }
 
@@ -41,9 +38,9 @@ public class Database : BaseTest, IDisposable
     [Fact]
     public async Task Create()
     {
-        _db.Create();
+        await _db.Create();
 
-        System.IO.File.Exists(Path.GetFullPath(_dataConfig.DataFile)).Should().BeTrue();
+        System.IO.File.Exists(Path.GetFullPath(_dataConfig.DatabasePath)).Should().BeTrue();
     }
 
     [Fact]
@@ -51,7 +48,7 @@ public class Database : BaseTest, IDisposable
     {
         _db.Connect();
         await _db.Truncate();
-        _db.Create();
+        await _db.Create();
         await _db.Truncate();
     }
 
@@ -62,7 +59,7 @@ public class Database : BaseTest, IDisposable
 
         await CreateTestFile(Path.GetDirectoryName(testFile), 5000, (byte)'w', (byte)'w', "avi", Path.GetFileName(testFile));
 
-        var file = await shared.FileHelper.PathToFile(testFile);
+        var file = await FileHelper.PathToFile(testFile);
 
         await _db.Insert(file);
     }
@@ -260,44 +257,49 @@ public class Database : BaseTest, IDisposable
 
         var testFileData = testFiles
             .AsParallel().WithCancellation(_cts.Token)
-            .Select(async x => await shared.FileHelper.PathToFile(Path.GetFullPath(x))).ToList();
+            .Select(async x => await FileHelper.PathToFile(Path.GetFullPath(x))).ToList();
         return await Task.WhenAll(testFileData);
     }
 
     #region IDisposable
     private int _disposed = 0;
 
-    protected virtual void Dispose(bool disposing)
+    protected override void Dispose(bool disposing)
     {
-        if (Interlocked.CompareExchange(ref _disposed, 1, 0) == 0)
+        try
         {
-            if (disposing)
+            if (Interlocked.CompareExchange(ref _disposed, 1, 0) == 0)
             {
-                base.Dispose(disposing);
-
-                if (_deleteDatabaseFile && System.IO.File.Exists(_dataConfig.DataFile))
+                if (disposing)
                 {
-                    var deletionTryMax = 10;
-                    int tries = 0;
-                    //Sqlite driver can be slow to release database file
-                    while (tries < deletionTryMax)
+                    if (_deleteDatabaseFile && System.IO.File.Exists(_dataConfig.DatabasePath))
                     {
-                        try
+                        var deletionTryMax = 10;
+                        int tries = 0;
+                        //Sqlite driver can be slow to release database file
+                        while (tries < deletionTryMax)
                         {
-                            //we request GC so that SQLite.Data frees the database file.
-                            GC.Collect();
-                            GC.WaitForPendingFinalizers();
-                            System.IO.File.Delete(_dataConfig.DataFile);
-                            break;
-                        }
-                        catch
-                        {
-                            Task.Delay(TimeSpan.FromSeconds(1).Milliseconds);
-                            tries++;
+                            try
+                            {
+                                //we request GC so that SQLite.Data frees the database file.
+                                GC.Collect();
+                                GC.WaitForPendingFinalizers();
+                                System.IO.File.Delete(_dataConfig.DatabasePath);
+                                break;
+                            }
+                            catch
+                            {
+                                Task.Delay(TimeSpan.FromSeconds(1).Milliseconds);
+                                tries++;
+                            }
                         }
                     }
                 }
             }
+        }
+        finally
+        {
+            base.Dispose(disposing);
         }
     }
     #endregion IDisposable

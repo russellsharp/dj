@@ -11,8 +11,9 @@ using Microsoft.IdentityModel.Tokens;
 using shared.thesaurus;
 using shared.TMDB;
 using shared.http.security;
-using System.Runtime.CompilerServices;
 using shared.data;
+using shared.http;
+using shared.utility;
 
 namespace shared;
 
@@ -21,7 +22,7 @@ public static partial class ApplicationExtensions
     public static IHostApplicationBuilder AddServices(this IHostApplicationBuilder builder)
     {
         builder.Services.AddSingleton<IMediaCollection, MediaCollection>()
-                        .AddSingleton<shared.data.IDatabase, shared.data.Database>()
+                        .AddSingleton<shared.data.IMediaDatabase, shared.data.MediaDatabase>()
                         .AddSingleton<shared.TMDB.ICache, shared.TMDB.Cache>()
                         .AddSingleton<shared.TMDB.IRepo, shared.TMDB.Repo>()
                         .AddSingleton<ITMDB, shared.TMDB.TMDB>()
@@ -83,9 +84,9 @@ public static partial class ApplicationExtensions
 
     public static IHostApplicationBuilder ConfigureMediaDatabase(this IHostApplicationBuilder builder)
     {
-        builder.Services.Configure<shared.data.DatabaseConfiguration>(builder.Configuration.GetSection(shared.data.DatabaseConfiguration.SectionName));
+        builder.Services.Configure<shared.data.MediaDatabaseConfiguration>(builder.Configuration.GetSection(MediaDatabaseConfiguration.SectionName));
 
-        var dbPath = Environment.GetEnvironmentVariable(DatabaseConfiguration.DJ_MEDIA_DATABASE_PATH);
+        var dbPath = Environment.GetEnvironmentVariable(MediaDatabaseConfiguration.DatabasePathKey);
 
         if (dbPath is not null)
         {
@@ -131,7 +132,7 @@ public static partial class ApplicationExtensions
 
     public static IHostApplicationBuilder ConfigureTmdb(this IHostApplicationBuilder builder)
     {
-        builder.Services.Configure<shared.TMDBConfiguration>(builder.Configuration.GetSection(TMDBConfiguration.SectionName));
+        builder.Services.Configure<TMDBConfiguration>(builder.Configuration.GetSection(TMDBConfiguration.SectionName));
 
         var tmdbDict = new Dictionary<string, string?>();
 
@@ -142,7 +143,7 @@ public static partial class ApplicationExtensions
             tmdbDict.Add("TMDB:ApiKey", TMDBConfiguration.GetApiKey());
         }
 
-        var tmdbDatabasePath = Environment.GetEnvironmentVariable(TMDBConfiguration.TMDB_DATABASE_PATH);
+        var tmdbDatabasePath = Environment.GetEnvironmentVariable(TMDBConfiguration.DatabasePathKey);
 
         if (tmdbDatabasePath is not null)
         {
@@ -175,6 +176,7 @@ public static partial class ApplicationExtensions
 
         builder.Services.AddSingleton<ITokenGenerator, AnonymousTokenGenerator>();
 
+        // we're not using anonymous tokens at this time
         // builder.AddAnonymousTokenService();
 
         return builder;
@@ -208,7 +210,6 @@ public static partial class ApplicationExtensions
 
     public static IHostApplicationBuilder AddRateLimiter(this IHostApplicationBuilder builder)
     {
-
         builder.Services.AddRateLimiter(options =>
         {
             options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
@@ -227,7 +228,7 @@ public static partial class ApplicationExtensions
 
             var hostSettings = builder.Configuration.GetSection(HostConfiguration.SectionName).Get<HostConfiguration>();
 
-            var healthSettings = hostSettings?.RateLimiters["health"] ?? new RateLimiterTypeConfiguration();
+            var healthSettings = hostSettings?.RateLimiters["health"] ?? new RateLimiterConfiguration();
             options.AddFixedWindowLimiter("health", opt =>
             {
                 opt.PermitLimit = healthSettings.PermitLimit;
@@ -237,7 +238,7 @@ public static partial class ApplicationExtensions
             });
 
 
-            var heavySettings = hostSettings?.RateLimiters["heavy"] ?? new RateLimiterTypeConfiguration();
+            var heavySettings = hostSettings?.RateLimiters["heavy"] ?? new RateLimiterConfiguration();
             options.AddSlidingWindowLimiter("heavy", opt =>
             {
                 opt.PermitLimit = heavySettings.PermitLimit;
@@ -270,32 +271,3 @@ public static partial class ApplicationExtensions
         return await app.SetupTestClient();
     }
 }
-
-
-public class HostConfiguration
-{
-    public static string SectionName = typeof(HostConfiguration).Name;
-    public static string DJ_HOST_ALLOWED_CORS_URL = "DJ_HOST_ALLOWED_CORS_URL";
-    public List<string> CorsAllowedUrl { get; init; } = ["127.0.0.1"];
-    public Dictionary<string, RateLimiterTypeConfiguration> RateLimiters { get; init; } = new();
-    public JwtConfiguration Jwt { get; init; } = new();
-}
-
-public class JwtConfiguration
-{
-    public static string SectionName = "Jwt";
-    public string Issuer { get; init; } = "";
-    public string Audience { get; init; } = "";
-    public string Key { get; init; } = "";
-    public static string DJ_JWT_ISSUER { get; } = "DJ_JWT_ISSUER";
-    public static string DJ_JWT_AUDIENCE { get; } = "DJ_JWT_AUDIENCE";
-}
-
-public class RateLimiterTypeConfiguration
-{
-    public int PermitLimit { get; init; } = 1;
-    public int WindowSeconds { get; init; } = 5;
-    public string QueueProcessingOrder { get; init; } = "OldestFirst";
-    public int QueueLimit { get; init; } = 1;
-}
-

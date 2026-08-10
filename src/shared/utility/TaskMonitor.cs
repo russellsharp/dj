@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace shared;
+namespace shared.utility;
 
 public interface ITaskMonitor<T>
 {

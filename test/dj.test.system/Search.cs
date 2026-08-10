@@ -1,14 +1,9 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using api.models;
 using FluentAssertions;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.Hosting;
-using Xunit;
 
 namespace dj.test.system;
+
+#pragma warning disable xUnit1051 // Calls to methods which accept CancellationToken should use TestContext.Current.CancellationToken
 
 [Collection("WireupCollection")]
 public class SearchTests : BaseTest
@@ -19,9 +14,12 @@ public class SearchTests : BaseTest
     {
         _fixture = fixture;
 
-        Log($"Environment: {Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")}");
+        Initialize().GetAwaiter().GetResult();
+    }
 
-        _fixture.Initialize().GetAwaiter().GetResult();
+    private Task Initialize()
+    {
+        return _fixture.Initialize();
     }
 
     [Fact]
@@ -38,13 +36,13 @@ public class SearchTests : BaseTest
 
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
 
-        var content = await response.Content.ReadAsStringAsync();
+        response.Content.Should().NotBeNull();
+
+        var content = await response!.Content!.ReadAsStringAsync();
 
         content.Should().NotBeNullOrEmpty();
 
         var matches = System.Text.Json.JsonSerializer.Deserialize<QueryResults>(content);
-
-        Log(content);
     }
 
     [Fact]
