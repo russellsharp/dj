@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Microsoft.IdentityModel.Tokens;
 using shared;
 using shared.TMDB;
 using shared.TMDB.Models;
@@ -35,7 +36,7 @@ public class Application(IMediaCollection _mediaCollection, IRepo _repo, Cancell
 
             foreach (var movieFilePath in fileMatches.Take(600))
             {
-                var keywords = SearchHelpers.SanitizeForSearch(movieFilePath, _tokenSource.Token, true);
+                var keywords = shared.utility.SearchHelpers.SanitizeForSearch(movieFilePath, _tokenSource.Token, true);
 
                 Debug.WriteLine(string.Join(" ", keywords));
 
