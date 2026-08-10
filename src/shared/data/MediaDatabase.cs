@@ -7,6 +7,8 @@ using System.Collections.Concurrent;
 using System.Text;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
+using System.Runtime.CompilerServices;
+using shared.utility;
 
 namespace shared.data;
 
@@ -66,7 +68,7 @@ public class MediaDatabase : IDisposable, IMediaDatabase
                 var connection = new SqliteConnection(ConnectionStringReadWrite);
 
                 //uses its own connection with write permissions
-                Create();
+                Create().GetAwaiter().GetResult();
 
                 connection.Open();
 
@@ -99,13 +101,13 @@ public class MediaDatabase : IDisposable, IMediaDatabase
             using var connection = new SqliteConnection(ConnectionStringReadWrite);
 
             //uses its own connection with write permissions
-            Create();
+            Create().GetAwaiter().GetResult();
 
             connection.Open();
         }
     }
 
-    public void Create(CancellationToken? token = null)
+    public Task Create(CancellationToken? token = null)
     {
         token ??= _cts.Token;
 
@@ -129,6 +131,7 @@ public class MediaDatabase : IDisposable, IMediaDatabase
                 throw;
             }
         }
+        return Task.CompletedTask;
     }
 
     public async Task Insert(File file, CancellationToken? token = null)

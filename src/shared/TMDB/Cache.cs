@@ -1,16 +1,14 @@
 using System.Data;
-using Microsoft.Data.Sqlite;
-using Dapper;
-using Microsoft.Extensions.Options;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
-using System.Collections.Concurrent;
-using shared.TMDB.Models;
-using System.Net.Mime;
 using System.Text.Json;
-using System.Runtime.CompilerServices;
+using Dapper;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using shared.data;
+using shared.TMDB.Models;
 namespace shared.TMDB;
 
 public interface ICache
@@ -21,6 +19,7 @@ public interface ICache
     Task<IEnumerable<MatchScore<ResponseType>>> FindQueryHits<ResponseType>(IEnumerable<string> keywords, uint minimumHits, CancellationToken? token = null) where ResponseType : class;
     Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryOverviews(IEnumerable<string> keywords, uint minimumHits, CancellationToken? token = null);
     Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryWithGroupedTerms(IEnumerable<IEnumerable<string>> keywords, uint minimumHits, CancellationToken? token = null);
+    void Dispose();
 }
 
 public class Cache : BaseSqliteDatabase, ICache
@@ -74,6 +73,10 @@ public class Cache : BaseSqliteDatabase, ICache
             _logger.LogDebug($"Error while executing sql: {sql}, {ex}");
             response = default;
             throw;
+        }
+        finally
+        {
+            connection.Dispose();
         }
         response = default;
         return false;

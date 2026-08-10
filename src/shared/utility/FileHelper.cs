@@ -6,7 +6,8 @@ using System.Security.Cryptography;
 using System.Buffers;
 using System.Diagnostics;
 using System.Text;
-namespace shared;
+
+namespace shared.utility;
 
 public enum FileAccessResult
 {
@@ -94,6 +95,7 @@ public static class FileHelper
     {
         var fileInfo = new FileInfo(path);
 
+        // not using full file hash.  1. It takes too much time.  2. It is not necessary.
         // var fileHash = await shared.FileHashes.HashFs(path);
 
         var fullPath = Path.GetFullPath(path);

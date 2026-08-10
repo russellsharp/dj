@@ -1,13 +1,10 @@
-using System.Diagnostics;
 using Microsoft.Extensions.Options;
 using RestSharp;
 using shared.TMDB.Models;
 using shared.http;
-using shared.data;
-using Microsoft.Data.Sqlite;
 using System.Text.Json;
-using System.Security.Cryptography.X509Certificates;
 using Microsoft.Extensions.Logging;
+using shared.utility;
 
 namespace shared.TMDB;
 
@@ -224,19 +221,28 @@ public class Repo : IDisposable, IRepo
     #region IDisposable
 
     private int _disposed = 0;
-    public void Dispose()
+
+    protected void Dispose(bool isDisposing)
     {
-        if (Interlocked.Exchange(ref _disposed, 1) == 1)
+        if (Interlocked.Exchange(ref _disposed, 1) == 1) return;
+
+        _cache.Dispose();
+
+        if (isDisposing)
         {
-            return;
+            // dispose managed objects
         }
 
-        try
-        {
-        }
-        catch (Exception)
-        {
-        }
+    }
+
+    public void Dispose()
+    {
+        Dispose(true);
+    }
+
+    ~Repo()
+    {
+        Dispose(false);
     }
     #endregion IDisposable
 }

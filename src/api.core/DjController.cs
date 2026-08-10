@@ -10,6 +10,7 @@ using shared.TMDB.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using shared.utility;
 
 namespace api.controllers;
 

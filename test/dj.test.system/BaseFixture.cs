@@ -20,8 +20,6 @@ public class BaseFixture : ISystemFixture
     {
         token ??= TokeRead;
 
-        Console.WriteLine($"Token {string.IsNullOrEmpty(token)} tokenRead {string.IsNullOrEmpty(TokeRead)}");
-
         var uri = new Uri(Client.BaseAddress, endpoint);
 
         var uriWithParameters = parameters != null ? new Uri(QueryHelpers.AddQueryString(uri.ToString(), parameters)) : uri;
@@ -65,7 +63,6 @@ public class BaseFixture : ISystemFixture
 
         if (response.IsSuccessStatusCode)
         {
-            // var tokenString = await response.Content.ReadAsStringAsync();
             var tokenData = await response.Content.ReadFromJsonAsync<TokenResponse>(Cts.Token);
             TokeRead = tokenData.access_token;
         }

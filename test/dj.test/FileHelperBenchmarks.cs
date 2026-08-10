@@ -1,12 +1,7 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Threading.Tasks;
 using BenchmarkDotNet.Attributes;
-using shared;
+using shared.utility;
 using Xunit.Internal;
-using Xunit.v3;
 
 namespace dj.benchmarks;
 
@@ -21,9 +16,9 @@ public class FileHelperBenchmarks
     private CancellationTokenSource _tokenSource = new();
 
     [GlobalSetup]
-    public void CreateTestFile()
+    public void CreateTestFile(long sizeKilobytes = 1024)
     {
-        long numberOfBytes = 1024 * 1024; // 1 MB
+        long numberOfBytes = 1024 * sizeKilobytes;
 
         Directory.CreateDirectory(Path.GetDirectoryName(filePath));
 
@@ -75,7 +70,7 @@ public class FileHelperBenchmarks
 
         var testConversion = testFiles
             .AsParallel().WithCancellation(_tokenSource.Token)
-            .Select(async x => await shared.FileHelper.PathToFile(x)).ToList();
+            .Select(async x => await FileHelper.PathToFile(x)).ToList();
         await Task.WhenAll(testConversion);
     }
 
@@ -89,7 +84,7 @@ public class FileHelperBenchmarks
 
         var testConversion = testFiles
             .AsParallel().WithCancellation(_tokenSource.Token)
-            .Select(async x => await shared.FileHelper.PathToFile(x)).ToList();
+            .Select(async x => await FileHelper.PathToFile(x)).ToList();
         await Task.WhenAll(testConversion);
     }
 
@@ -106,7 +101,7 @@ public class FileHelperBenchmarks
 
         var testConversion = testFiles
             .AsParallel().WithCancellation(_tokenSource.Token)
-            .Select(async x => await shared.FileHelper.PathToFile(x)).ToList();
+            .Select(async x => await FileHelper.PathToFile(x)).ToList();
 
         var testData = await Task.WhenAll(testConversion);
 

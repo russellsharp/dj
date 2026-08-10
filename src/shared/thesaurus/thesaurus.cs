@@ -6,6 +6,7 @@ using Dapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using shared.utility;
 using Syn.WordNet;
 using File = System.IO.File;
 

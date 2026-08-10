@@ -1,10 +1,6 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using Microsoft.Extensions.Options;
 using shared.TMDB.Models;
-using System.Linq;
-using Microsoft.Extensions.FileSystemGlobbing.Internal;
+using shared.utility;
 
 namespace shared.TMDB;
 

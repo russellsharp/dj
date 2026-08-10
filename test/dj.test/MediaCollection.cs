@@ -1,14 +1,10 @@
-using System.Data.Common;
-using System.Diagnostics;
-using System.Reflection;
 using FluentAssertions;
-using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using shared;
 using shared.data;
 using shared.TMDB;
-using Xunit.Internal;
+using shared.utility;
 
 namespace dj.test;
 
@@ -80,15 +76,9 @@ public class MediaCollection : BaseTest, IDisposable
 
         keywords = SearchHelpers.SanitizeForSearch("Inglourious Basterds", _cts.Token, true);
 
-        log("Keywords:");
-        keywords.ForEach(x => log(x));
-
         var matcheScores = (await media.FindInPath<shared.data.File>(keywords, null, _cts.Token)).ToList();
 
         matcheScores.Should().NotBeEmpty();
-
-        log("Matches made:");
-        matcheScores.ForEach(x => log(x.Details?.path ?? string.Empty));
     }
 
     [Fact]
@@ -123,7 +113,6 @@ public class MediaCollection : BaseTest, IDisposable
         //sanitize the path to find simple titles
         var movieKeywords = SearchHelpers.SanitizeString(movieTitle);
         var localMovie = localMovies.FirstOrDefault(x => SearchHelpers.SanitizeString(x.path).Contains(movieKeywords));
-        log($"'{movieKeywords}'");
 
         if (localMovie is null)
         {
@@ -133,7 +122,6 @@ public class MediaCollection : BaseTest, IDisposable
         }
 
         localMovie.Should().NotBeNull();
-        var matchedLocalMovie = localMovie ?? throw new InvalidOperationException("Expected a local movie match.");
 
         var context = new MatchingContext
         {
@@ -142,7 +130,7 @@ public class MediaCollection : BaseTest, IDisposable
             PathDepthMax = 2
         };
 
-        var bestMatches = await tmdb.PathToTmdb(matchedLocalMovie.path ?? string.Empty, context, true, _cts.Token);
+        var bestMatches = await tmdb.PathToTmdb(localMovie.path ?? string.Empty, context, true, _cts.Token);
 
         bestMatches.Should().NotBeNull();
     }
@@ -228,15 +216,21 @@ public class MediaCollection : BaseTest, IDisposable
     #region IDisposable
     private int _disposed = 0;
 
-    protected virtual void Dispose(bool disposing)
+    protected override void Dispose(bool disposing)
     {
-        if (Interlocked.CompareExchange(ref _disposed, 1, 0) == 0)
+        try
         {
-            if (disposing)
+            if (Interlocked.CompareExchange(ref _disposed, 1, 0) == 0)
             {
-                base.Dispose(disposing);
-                RestoreDatabase();
+                if (disposing)
+                {
+                    RestoreDatabase();
+                }
             }
+        }
+        finally
+        {
+            base.Dispose(disposing);
         }
     }
 
@@ -250,7 +244,6 @@ public class MediaCollection : BaseTest, IDisposable
             try
             {
                 var directoryCreated = Directory.CreateDirectory(Path.GetDirectoryName(MediaDatabasePath)!);
-                log($"Directory Created: {directoryCreated.FullName}");
                 //we request GC so that SQLite.Data frees the database file.
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
@@ -260,7 +253,7 @@ public class MediaCollection : BaseTest, IDisposable
             }
             catch (Exception ex)
             {
-                log($"Failed to overwrite: {MediaDatabasePath}\r\nDirectory path: {Path.GetDirectoryName(MediaDatabasePath)}\r\n{ex}");
+                log($"Database failed to overwrite.  Will retry in 1 second.\r\n\t{MediaDatabasePath}\r\n\tDirectory path: {Path.GetDirectoryName(MediaDatabasePath)}\r\n\t{ex}");
                 Task.Delay(TimeSpan.FromSeconds(1).Milliseconds);
                 attempt++;
             }

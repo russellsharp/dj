@@ -3,6 +3,7 @@ using Microsoft.Data.Sqlite;
 using Dapper;
 using System.Diagnostics;
 using System.Collections.Concurrent;
+using shared.utility;
 
 namespace shared.data;
 
@@ -16,13 +17,7 @@ public class BaseSqliteDatabase : IDisposable
     protected virtual Type QueryAssemblyType => throw new NotImplementedException();
     public virtual string SectionName => throw new NotImplementedException();
 
-    protected string DatabasePath
-    {
-        get
-        {
-            return Path.GetFullPath(_config.DatabasePath);
-        }
-    }
+    protected string DatabasePath => Path.GetFullPath(_config.DatabasePath);
 
     public SqliteConnection GetConnection()
     {
@@ -34,29 +29,37 @@ public class BaseSqliteDatabase : IDisposable
             using (System.IO.File.Create(DatabasePath)) { }
         }
 
+        var access = FileHelper.CanAccessFile(DatabasePath, FileAccess.ReadWrite);
+        if (access is not FileAccessResult.Available)
+        {
+            throw new FieldAccessException(FileHelper.AccessMessage(access, DatabasePath, FileAccess.ReadWrite));
+        }
+
         var lockObject = s_databaseLocks.GetOrAdd(DatabasePath, _ => new object());
         lock (lockObject)
         {
-            var connection = new SqliteConnection(_config.ConnectionString);
-
-            connection.Open();
-
-            var access = FileHelper.CanAccessFile(DatabasePath, FileAccess.ReadWrite);
-            if (access is not FileAccessResult.Available)
+            try
             {
-                throw new FieldAccessException(FileHelper.AccessMessage(access, DatabasePath, FileAccess.ReadWrite));
+                var connection = new SqliteConnection(_config.ConnectionString);
+
+                connection.Open();
+                // WAL mode allows one writer + multiple readers concurrently across connections.
+                // busy_timeout tells SQLite retry on a locked write for up to 5 s rather than
+                // immediately returning SQLITE_BUSY.
+                connection.Execute("PRAGMA journal_mode=WAL;");
+                connection.Execute("PRAGMA busy_timeout=5000;");
+
+                Debug.Assert(connection.Database == "main", $"Expected main, found: {connection.Database}");
+
+                Create();
+
+                return connection;
             }
-            // WAL mode allows one writer + multiple readers concurrently across connections.
-            // busy_timeout tells SQLite retry on a locked write for up to 5 s rather than
-            // immediately returning SQLITE_BUSY.
-            connection.Execute("PRAGMA journal_mode=WAL;");
-            connection.Execute("PRAGMA busy_timeout=5000;");
-
-            Debug.Assert(connection.Database == "main", $"Expected main, found: {connection.Database}");
-
-            Create();
-
-            return connection;
+            catch (Exception ex)
+            {
+                Console.WriteLine($"WHAT IS GOING ON {ex}");
+            }
+            return null;
         }
     }
 
@@ -130,20 +133,24 @@ public class BaseSqliteDatabase : IDisposable
 
     public virtual void Dispose(bool disposing)
     {
-        if (Interlocked.CompareExchange(ref _disposed, 1, 0) == 0)
-        {
-            if (disposing)
-            {
-            }
+        if (Interlocked.CompareExchange(ref _disposed, 1, 0) == 1) return;
 
-            //dispose unmanaged objects
+        if (disposing)
+        {
+            // dispose managed objects
         }
+
+        // force sqlite to close all connections and file references
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        System.GC.Collect();
+        System.GC.WaitForPendingFinalizers();
+
+        //dispose unmanaged objects
     }
 
     public void Dispose()
     {
         Dispose(true);
-        GC.SuppressFinalize(this);
     }
 
     ~BaseSqliteDatabase()

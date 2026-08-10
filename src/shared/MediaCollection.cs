@@ -2,14 +2,11 @@ using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Data;
 using System.Diagnostics;
-using System.Diagnostics.Tracing;
-using System.Net.NetworkInformation;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using shared.data;
-using shared.TMDB;
-using SQLitePCL;
+using shared.utility;
 
 namespace shared;
 
@@ -63,7 +60,7 @@ public class MediaCollection : IMediaCollection
     {
         _db.Connect();
 
-        _db.Create();
+        await _db.Create();
 
         await LoadDatabase(token);
     }

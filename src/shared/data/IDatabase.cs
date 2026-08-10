@@ -3,7 +3,8 @@ namespace shared.data;
 public interface IMediaDatabase
 {
     void Connect();
-    void Create(CancellationToken? token = null);
+    Task Create(CancellationToken? token = null);
+    Task Truncate(CancellationToken? token = null);
     void Dispose(bool disposing);
     void Dispose();
     Task<File?> File(string path, CancellationToken? token = null);
@@ -14,5 +15,4 @@ public interface IMediaDatabase
     Task<IEnumerable<File>> FilesByExtensions(IEnumerable<string> extensions, CancellationToken? token = null);
     Task Insert(File file, CancellationToken? token = null);
     Task InsertOrUpdate(IEnumerable<File> testData, CancellationToken? token = null);
-    Task Truncate(CancellationToken? token = null);
 }

@@ -17,9 +17,9 @@ public class SearchTests : BaseTest
         Initialize().GetAwaiter().GetResult();
     }
 
-    private async Task Initialize()
+    private Task Initialize()
     {
-        _fixture.Initialize().GetAwaiter().GetResult();
+        return _fixture.Initialize();
     }
 
     [Fact]
