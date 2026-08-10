@@ -6,7 +6,21 @@ namespace shared.http.security;
 
 public class SecurityConfiguration
 {
-    public string SecurityKey { get; set; }
+    private static string SecurityKeyKey = "DJ_SECURITY_KEY";
+    private string _securityKey = "";
+    public string SecurityKey
+    {
+        get
+        {
+            _securityKey = Environment.GetEnvironmentVariable(SecurityKeyKey);
+            if (string.IsNullOrWhiteSpace(_securityKey))
+            {
+                throw new InvalidOperationException(
+                    $"Required environment variable '{SecurityKeyKey}' was not set or was empty.");
+            }
+            return _securityKey;
+        }
+    }
 }
 
 public record AwsSecret
@@ -23,22 +37,12 @@ public record SecretString(string name, string value);
 
 public static class SecurityExtensions
 {
-    public static string SecurityKeyKey = "DJ_SECURITY_KEY";
 
     public static IHostApplicationBuilder AddSecurityConfiguration(this IHostApplicationBuilder builder)
     {
-        var securityKey = Environment.GetEnvironmentVariable(SecurityKeyKey);
-        if (string.IsNullOrWhiteSpace(securityKey))
-        {
-            throw new InvalidOperationException(
-                $"Required environment variable '{SecurityKeyKey}' was not set or was empty.");
-        }
-
-        builder.Services.Configure<SecurityConfiguration>(options => { options.SecurityKey = securityKey; });
+        builder.Services.Configure<SecurityConfiguration>(options => { });
 
         builder.Services.Configure<OpenIdDictDatabaseConfiguration>(builder.Configuration.GetSection(OpenIdDictDatabaseConfiguration.SectionName));
-
-        builder.Services.Configure<TestUserDatabaseConfiguration>(builder.Configuration.GetSection(TestUserDatabaseConfiguration.SectionName));
 
         return builder;
     }

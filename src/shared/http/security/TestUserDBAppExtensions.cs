@@ -4,18 +4,16 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using shared.util;
+using shared.utility;
+using shared.data;
 
 namespace shared.http.security;
 
 public static class TestUserDBAppExtensions
 {
-
     public static IHostApplicationBuilder AddTestUserDatabase(this IHostApplicationBuilder builder)
     {
-        builder.Services.AddScoped<IUserDatabase, TestUserDatabase>();
-
-        var dbConfig = builder.Configuration.GetSection(TestUserDatabaseConfiguration.SectionName).Get<TestUserDatabaseConfiguration>() ?? new TestUserDatabaseConfiguration();
+        var dbConfig = builder.Configuration.GetSection(TestUserDbConfiguration.SectionName).Get<TestUserDbConfiguration>() ?? new TestUserDbConfiguration();
 
         ArgumentException.ThrowIfNullOrEmpty(dbConfig?.ConnectionString);
 

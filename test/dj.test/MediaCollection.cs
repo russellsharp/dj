@@ -1,14 +1,10 @@
-using System.Data.Common;
-using System.Diagnostics;
-using System.Reflection;
 using FluentAssertions;
-using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using shared;
 using shared.data;
 using shared.TMDB;
-using Xunit.Internal;
+using shared.utility;
 
 namespace dj.test;
 
@@ -24,40 +20,22 @@ public class MediaCollection : BaseTest, IDisposable
         VideoExtensions = @"avi;mkv;mp4",
     });
 
-    private static IOptions<DatabaseConfiguration> BasicDatabaseConfig = Options.Create(new DatabaseConfiguration
+    private static IOptions<MediaDatabaseConfiguration> BasicDatabaseConfig = Options.Create(new MediaDatabaseConfiguration
     {
-        DataFile = "testdata/mediacollection.db",
+        DatabasePath = "testdata/mediacollection.db",
     });
 
     private static IOptions<TMDBConfiguration> BasicEndpointOptions = Options.Create(new TMDBConfiguration
     {
         BaseUrl = "https://api.themoviedb.org/3",
         DatabasePath = "testdata/tmdb.db",
-        RequestLimit = 40,
-        RequestWindowSeconds = 10,
         TitleWeight = 100,
         OverviewWeight = 1
     });
 
-    private string MediaDatabasePath
-    {
-        get
-        {
-            var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
-            var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
-            return Path.GetFullPath(Path.Combine(rootDir, BasicDatabaseConfig.Value.DataFile));
-        }
-    }
+    private string MediaDatabasePath => Path.GetFullPath(BasicDatabaseConfig.Value.DatabasePath);
 
-    private string TmdbDatabasePath
-    {
-        get
-        {
-            var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
-            var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
-            return Path.GetFullPath(Path.Combine(rootDir, BasicEndpointOptions.Value.DatabasePath));
-        }
-    }
+    private string TmdbDatabasePath => Path.GetFullPath(BasicEndpointOptions.Value.DatabasePath);
 
     public MediaCollection(ITestOutputHelper output) : base(output)
     {
@@ -71,11 +49,11 @@ public class MediaCollection : BaseTest, IDisposable
         }
     }
 
-    private static (IRepo repo, ITMDB tmdb, IDatabase db, IMediaCollection medai) BuildServices(CancellationTokenSource cts)
+    private static (IRepo repo, ITMDB tmdb, IMediaDatabase db, IMediaCollection medai) BuildServices(CancellationTokenSource cts)
     {
         IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions, new LoggerFactory().CreateLogger<ICache>(), cts), new LoggerFactory().CreateLogger<IRepo>(), cts);
         ITMDB tmdb = new shared.TMDB.TMDB(repo, cts);
-        IDatabase db = new shared.data.Database(BasicDatabaseConfig, cts);
+        IMediaDatabase db = new shared.data.MediaDatabase(BasicDatabaseConfig, new LoggerFactory().CreateLogger<shared.data.MediaDatabase>(), cts);
         IMediaCollection media = new shared.MediaCollection(BasicMediaOptions, db, new LoggerFactory().CreateLogger<shared.MediaCollection>(), cts);
 
         return (repo, tmdb, db, media);
@@ -98,15 +76,9 @@ public class MediaCollection : BaseTest, IDisposable
 
         keywords = SearchHelpers.SanitizeForSearch("Inglourious Basterds", _cts.Token, true);
 
-        log("Keywords:");
-        keywords.ForEach(x => log(x));
-
         var matcheScores = (await media.FindInPath<shared.data.File>(keywords, null, _cts.Token)).ToList();
 
         matcheScores.Should().NotBeEmpty();
-
-        log("Matches made:");
-        matcheScores.ForEach(x => log(x.Details?.path ?? string.Empty));
     }
 
     [Fact]
@@ -141,7 +113,6 @@ public class MediaCollection : BaseTest, IDisposable
         //sanitize the path to find simple titles
         var movieKeywords = SearchHelpers.SanitizeString(movieTitle);
         var localMovie = localMovies.FirstOrDefault(x => SearchHelpers.SanitizeString(x.path).Contains(movieKeywords));
-        log($"'{movieKeywords}'");
 
         if (localMovie is null)
         {
@@ -151,7 +122,6 @@ public class MediaCollection : BaseTest, IDisposable
         }
 
         localMovie.Should().NotBeNull();
-        var matchedLocalMovie = localMovie ?? throw new InvalidOperationException("Expected a local movie match.");
 
         var context = new MatchingContext
         {
@@ -160,7 +130,7 @@ public class MediaCollection : BaseTest, IDisposable
             PathDepthMax = 2
         };
 
-        var bestMatches = await tmdb.PathToTmdb(matchedLocalMovie.path ?? string.Empty, context, true, _cts.Token);
+        var bestMatches = await tmdb.PathToTmdb(localMovie.path ?? string.Empty, context, true, _cts.Token);
 
         bestMatches.Should().NotBeNull();
     }
@@ -246,15 +216,21 @@ public class MediaCollection : BaseTest, IDisposable
     #region IDisposable
     private int _disposed = 0;
 
-    protected virtual void Dispose(bool disposing)
+    protected override void Dispose(bool disposing)
     {
-        if (Interlocked.CompareExchange(ref _disposed, 1, 0) == 0)
+        try
         {
-            if (disposing)
+            if (Interlocked.CompareExchange(ref _disposed, 1, 0) == 0)
             {
-                base.Dispose(disposing);
-                RestoreDatabase();
+                if (disposing)
+                {
+                    RestoreDatabase();
+                }
             }
+        }
+        finally
+        {
+            base.Dispose(disposing);
         }
     }
 
@@ -268,7 +244,6 @@ public class MediaCollection : BaseTest, IDisposable
             try
             {
                 var directoryCreated = Directory.CreateDirectory(Path.GetDirectoryName(MediaDatabasePath)!);
-                log($"Directory Created: {directoryCreated.FullName}");
                 //we request GC so that SQLite.Data frees the database file.
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
@@ -278,7 +253,7 @@ public class MediaCollection : BaseTest, IDisposable
             }
             catch (Exception ex)
             {
-                log($"Failed to overwrite: {MediaDatabasePath}\r\nDirectory path: {Path.GetDirectoryName(MediaDatabasePath)}\r\n{ex}");
+                log($"Database failed to overwrite.  Will retry in 1 second.\r\n\t{MediaDatabasePath}\r\n\tDirectory path: {Path.GetDirectoryName(MediaDatabasePath)}\r\n\t{ex}");
                 Task.Delay(TimeSpan.FromSeconds(1).Milliseconds);
                 attempt++;
             }

@@ -43,8 +43,6 @@ public class WireupFixture : BaseFixture, IDisposable
         Cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken, cts.Token);
         builder.Services.AddSingleton(Cts);
 
-        builder.Services.AddSingleton<IDataManagement, DataManagement>();
-
         builder.WebHost.UseTestServer();
         builder.WebHost.UseSetting("https_port", "443");
 

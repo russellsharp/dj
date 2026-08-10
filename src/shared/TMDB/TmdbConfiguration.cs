@@ -1,61 +1,41 @@
 using Microsoft.Data.Sqlite;
+using shared.data;
 namespace shared.TMDB;
 
-public class TMDBConfiguration : IDatabaseConfiguration
+public class TMDBConfiguration : BaseDatabaseConfiguration
 {
-    private static string API_KEY_KEY { get; } = "DJ_TMDB_API_KEY";
-    public static string DatabasePathKey { get; } = "DJ_TMDB_DATABASE_PATH";
-    public static string SectionName { get; } = "TMDB";
+    public new static string SectionName { get; } = "TMDB";
     public required string BaseUrl { get; init; } = "https://api.themoviedb.org/3";
     public string? ApiKey { get; set; } = GetApiKey();
-    public int RequestLimit { init; get; } = 40;
-    public int RequestWindowSeconds { init; get; } = 10;
-    public int RequestBurstMax { init; get; } = 1;
-    public int AttemptCountMax { init; get; } = 10;
-    public int BackOffTimeMs { init; get; } = 1000;
     public int TitleWeight { init; get; } = 100;
     public int OverviewWeight { init; get; } = 1;
     public bool IncludeAdult { init; get; } = false;
 
+    #region Database configuration
+    private static string API_KEY_KEY { get; } = "DJ_TMDB_API_KEY";
+    public static string DatabasePathKey { get; } = "DJ_TMDB_DATABASE_PATH";
     public static string? GetApiKey()
     {
         return Environment.GetEnvironmentVariable(API_KEY_KEY);
     }
+    protected override string DefaultPath { get; } = "testdata/tmdb.db";
 
-    private string _dbFilePath { get; set; } = "testdata/tmdb.db";
-    public string DatabasePath
+    public override string DatabasePath
     {
         get
         {
             if (string.IsNullOrEmpty(_dbFilePath))
             {
-                _dbFilePath = Environment.GetEnvironmentVariable(DatabasePathKey) ?? throw new ArgumentNullException($"Database path should be set in environment variable: {DatabasePathKey}");
+                _dbFilePath = Environment.GetEnvironmentVariable(DatabasePathKey) ?? DefaultPath;
             }
-            return _dbFilePath;
+            return base.DatabasePath;
         }
         set
         {
             _dbFilePath = value;
         }
     }
-
-    public string ConnectionString
-    {
-        get
-        {
-            ArgumentNullException.ThrowIfNull(_dbFilePath);
-
-            var builder = new SqliteConnectionStringBuilder
-            {
-                DataSource = DatabasePath,
-                Mode = SqliteOpenMode.ReadWriteCreate,
-                Cache = SqliteCacheMode.Shared,
-                Pooling = true
-            };
-
-            return builder.ToString();
-        }
-    }
+    #endregion Database configuration
 }
 
 

@@ -1,7 +1,7 @@
 using System.Text;
 using WeCantSpell.Hunspell;
 
-namespace shared;
+namespace shared.utility;
 
 
 public static class SearchHelpers

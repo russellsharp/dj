@@ -1,8 +1,9 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using shared;
+using shared.utility;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 
 namespace dj.test;
 
@@ -41,12 +42,17 @@ public class BaseTest : IDisposable
     protected void log(object? message, [CallerMemberName] string caller = "")
     {
         var msg = $"[{caller}] - {Convert.ToString(message) ?? "Message was null!"}";
-        Debug.WriteLine(msg);
-        Console.WriteLine(msg);
         _output.WriteLine(msg);
+        var logger = new LoggerFactory().CreateLogger<dj.test.TMDB>();
+        logger.LogTrace(msg);
     }
 
-    protected async Task CreateTestFile(string parentDirectory, int count, long sizeKb = 250, byte filler = (byte)'w', string extension = "avi", string? fileName = null)
+    protected async Task CreateTestFile(string parentDirectory,
+                                        int count,
+                                        long sizeKb = 250,
+                                        byte filler = (byte)'w',
+                                        string extension = "avi",
+                                        string? fileName = null)
     {
         var fileDirectory = Path.GetFullPath(parentDirectory);
 
@@ -63,7 +69,7 @@ public class BaseTest : IDisposable
 
     #region IDisposable
     private int _disposed = 0;
-    public void Dispose(bool disposing)
+    protected virtual void Dispose(bool disposing)
     {
         if (Interlocked.Exchange(ref _disposed, 1) == 1)
         {
@@ -72,7 +78,6 @@ public class BaseTest : IDisposable
 
         try
         {
-            // _filesToDelete.ForEach(x => log($"File to delete: {x}"));
             _filesToDelete.ForEach(System.IO.File.Delete);
         }
         catch (Exception ex)
@@ -81,7 +86,7 @@ public class BaseTest : IDisposable
             throw;
         }
     }
-    void IDisposable.Dispose()
+    public void Dispose()
     {
         Dispose(true);
         GC.SuppressFinalize(this);

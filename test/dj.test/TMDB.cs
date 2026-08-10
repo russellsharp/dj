@@ -11,6 +11,9 @@ using shared.thesaurus;
 using Microsoft.CodeAnalysis;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using shared.data;
+using shared.utility;
+using Microsoft.Data.Sqlite;
 
 namespace dj.test;
 
@@ -19,9 +22,7 @@ public class TMDB : BaseTest
     private static IOptions<TMDBConfiguration> BasicOptions = Options.Create(new TMDBConfiguration
     {
         BaseUrl = "https://api.themoviedb.org/3",
-        DatabasePath = "testdata/tmdb.db",
-        RequestLimit = 40,
-        RequestWindowSeconds = 10,
+        DatabasePath = $"testdata/tmdb.db",
         TitleWeight = 100,
         OverviewWeight = 1
     });
@@ -36,9 +37,7 @@ public class TMDB : BaseTest
     {
         get
         {
-            var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
-            var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
-            return Path.GetFullPath(Path.Combine(rootDir, BasicOptions.Value.DatabasePath));
+            return Path.GetFullPath(BasicOptions.Value.DatabasePath);
         }
     }
 
@@ -136,7 +135,7 @@ public class TMDB : BaseTest
 
         var keywords = SearchHelpers.SanitizeForSearch(searchTerm, base._cts.Token, true); ;
 
-        var queryHits = await repo.QueryTitle<MovieQueryResponse>(keywords, keywords.Count(), base._cts.Token);
+        var queryHits = await repo.QueryTitle<MovieQueryResponse>(keywords, (uint)keywords.Count(), base._cts.Token);
 
         queryHits.Should().NotBeNull();
 
@@ -179,7 +178,7 @@ public class TMDB : BaseTest
         //get full movie details
         var movies = new List<MovieDetailsResponse?>();
 
-        var resultMovies = resultDetails.SelectMany(x => x.results).DistinctBy(x => x.id).Where(x => x.adult == false);
+        var resultMovies = resultDetails.Where(x => x?.results != null).SelectMany(x => x.results).DistinctBy(x => x.id).Where(x => x.adult == false);
 
         foreach (var result in resultMovies)
         {
@@ -212,7 +211,7 @@ public class TMDB : BaseTest
     [Fact]
     public async Task GetTotalScoreForQuery()
     {
-        var minimumHitCount = 100;
+        uint minimumHitCount = 100;
 
         using Repo repo = new(BasicOptions, new Cache(BasicOptions, new LoggerFactory().CreateLogger<ICache>(), _cts), new LoggerFactory().CreateLogger<IRepo>(), _cts);
 
@@ -231,124 +230,146 @@ public class TMDB : BaseTest
         var response = await repo.DiscoverMovie(searchTerm);
     }
 
+    public (Repo repo, ITMDB tmdb) GetComponents()
+    {
+
+        using Repo repo = new(BasicOptions, new Cache(BasicOptions, new LoggerFactory().CreateLogger<ICache>(), _cts), new LoggerFactory().CreateLogger<IRepo>(), _cts);
+        ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
+        return (repo, tmdb);
+    }
+
     [Fact]
     public async Task MatchByOverview()
     {
-        using Repo repo = new(BasicOptions, new Cache(BasicOptions, new LoggerFactory().CreateLogger<ICache>(), _cts), new LoggerFactory().CreateLogger<IRepo>(), _cts);
-        ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
-
-        var movies = await tmdb.QueryTitle("Training Day");
-
-        // movie details will be stored in database
-        foreach (var movie in movies.results)
+        var (repo, tmdb) = GetComponents();
+        using (repo)
         {
-            _ = await tmdb.GetMovie(movie.id.Value);
+
+            var movies = await tmdb.QueryTitle("Training Day");
+
+            movies.Should().NotBeNull();
+
+            movies.results.Should().NotBeNull();
+
+            // movie details will be stored in database
+            foreach (var movie in movies!.results.Where(x => x is not null))
+            {
+                _ = await tmdb.GetMovie(movie.id.Value);
+            }
+
+            //search movie details in database by matching terms in their overview
+            var searchTerm = "First day".ToLower();
+
+            var minimumHitCount = (uint)searchTerm.Split(' ').Count();
+
+            var queryMatches = await tmdb.QueryOverviews(searchTerm, minimumHitCount);
+
+            queryMatches.Should().NotBeNullOrEmpty();
         }
-
-        //search movie details in database by matching terms in their overview
-        var searchTerm = "First day".ToLower();
-
-        var minimumHitCount = searchTerm.Split(' ').Count();
-
-        var queryMatches = await tmdb.QueryOverviews(searchTerm, minimumHitCount);
-
-        queryMatches.Should().NotBeNullOrEmpty();
     }
 
     [Fact]
     public async Task MatchKeywordsByAll()
     {
-        using Repo repo = new(BasicOptions, new Cache(BasicOptions, new LoggerFactory().CreateLogger<ICache>(), _cts), new LoggerFactory().CreateLogger<IRepo>(), _cts);
-        using ITMDB tmdb = new shared.TMDB.TMDB(repo, base._cts);
-
-        var movies = await tmdb.QueryTitle("Training Day");
-
-        // movie details will be stored in database
-
-        if (movies?.results is not null)
+        var (repo, tmdb) = GetComponents();
+        using (repo)
         {
-            foreach (var movie in movies.results)
+            var movies = await tmdb.QueryTitle("Training Day");
+
+            // movie details will be stored in database
+
+            if (movies?.results is not null)
             {
-                if (movie.id is not null)
+                foreach (var movie in movies.results)
                 {
-                    _ = await tmdb.GetMovie(movie.id.Value);
+                    if (movie.id is not null)
+                    {
+                        _ = await tmdb.GetMovie(movie.id.Value);
+                    }
                 }
             }
+
+            //search movie details in database by matching terms in their overview
+            var searchTerm = "police drama".ToLower();
+
+            var minimumHitCount = (uint)searchTerm.Split(' ').Count();
+
+            var queryMatches = await tmdb.QueryOverviews(searchTerm, minimumHitCount);
+
+            var thesus = new Thesaurus(thesaurusOptionsDefaults, new LoggerFactory().CreateLogger<Thesaurus>());
+
+            var searchTerms = searchTerm.Split(' ').ToList();
+
+            var synonymTasks = searchTerms.Select(async x => await thesus.Search(x));
+
+            var synonyms = await Task.WhenAll(synonymTasks);
+
+            minimumHitCount = (uint)(synonyms.Count() * 0.50);
+
+            queryMatches = await tmdb.QueryWithGroupedTerms(synonyms.ToList(), minimumHitCount);
+
+            queryMatches.Should().NotBeNullOrEmpty();
         }
-
-        //search movie details in database by matching terms in their overview
-        var searchTerm = "police drama".ToLower();
-
-        var minimumHitCount = searchTerm.Split(' ').Count();
-
-        var queryMatches = await tmdb.QueryOverviews(searchTerm, minimumHitCount);
-
-        var thesus = new Thesaurus(thesaurusOptionsDefaults, new LoggerFactory().CreateLogger<Thesaurus>());
-
-        var searchTerms = searchTerm.Split(' ').ToList();
-
-        var synonymTasks = searchTerms.Select(async x => await thesus.Search(x));
-
-        var synonyms = await Task.WhenAll(synonymTasks);
-
-        minimumHitCount = (int)(synonyms.Count() * 0.50);
-
-        queryMatches = await tmdb.QueryWithGroupedTerms(synonyms.ToList(), minimumHitCount);
-
-        queryMatches.Should().NotBeNullOrEmpty();
     }
 
     [Fact]
     public async Task MatchKeywordsCollection()
     {
-        using Repo repo = new(BasicOptions, new Cache(BasicOptions, new LoggerFactory().CreateLogger<Cache>(), _cts), new LoggerFactory().CreateLogger<IRepo>(), _cts);
-        ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
-
-        var movies = await tmdb.QueryTitle("Inglourious Basterds");
-
-        // movie details will be stored in database
-        foreach (var movie in movies.results)
+        var (repo, tmdb) = GetComponents();
+        using (repo)
         {
-            _ = await tmdb.GetMovie(movie.id.Value);
+            var movies = await tmdb.QueryTitle("Inglourious Basterds");
+
+            // movie details will be stored in database
+            foreach (var movie in movies.results)
+            {
+                _ = await tmdb.GetMovie(movie.id.Value);
+            }
+
+            //search movie details in database by matching terms in their overview
+            var searchTerm = "world war 2".ToLower();
+
+            var minimumHitCount = (uint)searchTerm.Split(' ').Count();
+
+            List<MatchScore<MovieDetailsResponse>> queryMatches = (await tmdb.QueryOverviews(searchTerm, minimumHitCount)).ToList();
+
+            var thesus = new Thesaurus(thesaurusOptionsDefaults, new LoggerFactory().CreateLogger<Thesaurus>());
+
+            var searchTerms = searchTerm.Split(' ').ToList();
+
+            var synonymTasks = searchTerms.Select(async x => (await thesus.Search(x)).ToList());
+
+            List<List<string>> synonyms = (await Task.WhenAll(synonymTasks)).ToList();
+
+            //add original terms as a group
+            synonyms.Add(searchTerm.Split(' ').ToList());
+
+            minimumHitCount = (uint)(synonyms.Count() * 0.50);
+
+            queryMatches.AddRange(await tmdb.QueryWithGroupedTerms(synonyms.ToList(), minimumHitCount));
+
+            queryMatches.Should().NotBeNullOrEmpty();
         }
-
-        //search movie details in database by matching terms in their overview
-        var searchTerm = "world war 2".ToLower();
-
-        var minimumHitCount = searchTerm.Split(' ').Count();
-
-        List<MatchScore<MovieDetailsResponse>> queryMatches = (await tmdb.QueryOverviews(searchTerm, minimumHitCount)).ToList();
-
-        var thesus = new Thesaurus(thesaurusOptionsDefaults, new LoggerFactory().CreateLogger<Thesaurus>());
-
-        var searchTerms = searchTerm.Split(' ').ToList();
-
-        var synonymTasks = searchTerms.Select(async x => (await thesus.Search(x)).ToList());
-
-        List<List<string>> synonyms = (await Task.WhenAll(synonymTasks)).ToList();
-
-        //add original terms as a group
-        synonyms.Add(searchTerm.Split(' ').ToList());
-
-        minimumHitCount = (int)(synonyms.Count() * 0.50);
-
-        queryMatches.AddRange(await tmdb.QueryWithGroupedTerms(synonyms.ToList(), minimumHitCount));
-
-        queryMatches.Should().NotBeNullOrEmpty();
     }
 
     #region IDisposable
     private int _disposed = 0;
 
-    protected virtual void Dispose(bool disposing)
+    protected override void Dispose(bool disposing)
     {
-        if (Interlocked.CompareExchange(ref _disposed, 1, 0) == 0)
+        try
         {
-            if (disposing)
+            if (Interlocked.CompareExchange(ref _disposed, 1, 0) == 0)
             {
-                base.Dispose(disposing);
-                DeleteDatabase();
+                if (disposing)
+                {
+                    DeleteDatabase();
+                }
             }
+        }
+        finally
+        {
+            base.Dispose(disposing);
         }
     }
 
@@ -358,13 +379,14 @@ public class TMDB : BaseTest
         int attempt = 0;
         //Sqlite driver can be slow to release database file
 
-        if (!File.Exists(TmdbDatabasePath)) return;
+        if (!System.IO.File.Exists(TmdbDatabasePath)) return;
 
         while (attempt < deleteAttemptsMax)
         {
             try
             {
                 //we request GC so that SQLite.Data frees the database file.
+                SqliteConnection.ClearAllPools();
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
                 System.IO.File.Delete(TmdbDatabasePath);

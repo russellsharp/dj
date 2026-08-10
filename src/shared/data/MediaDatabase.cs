@@ -1,63 +1,26 @@
 using Microsoft.Data.Sqlite;
-using System.Runtime.CompilerServices;
 using System.Diagnostics;
-using System.Transactions;
 using Dapper;
-using Dapper.Contrib.Extensions;
 using System.Data;
 using System.Globalization;
-using System.Linq;
-using System.Reflection;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Xml.Linq;
-using Dapper.Logging;
-
+using System.Text;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
+using System.Runtime.CompilerServices;
+using shared.utility;
 
 namespace shared.data;
 
-using System;
-using System.Data;
-using System.Data.Common;
-using System.Reflection.Metadata;
-using System.Text;
-using Microsoft.Extensions.Options;
-
-public interface IDatabase
-{
-    void Connect();
-    void Create(CancellationToken? token = null);
-    void Dispose(bool disposing);
-    void Dispose();
-    Task<File?> File(string path, CancellationToken? token = null);
-    Task<bool> FileExists(string filePath, CancellationToken? token = null);
-    Task<IEnumerable<File>> Files(CancellationToken? token = null);
-    Task<IEnumerable<File>> Files(IEnumerable<string> paths, CancellationToken? token = null);
-    Task<IEnumerable<File>> FilesByDirectory(IEnumerable<string> paths, CancellationToken? token = null);
-    Task<IEnumerable<File>> FilesByExtensions(IEnumerable<string> extensions, CancellationToken? token = null);
-    Task Insert(File file, CancellationToken? token = null);
-    Task InsertOrUpdate(IEnumerable<File> testData, CancellationToken? token = null);
-    Task Truncate(CancellationToken? token = null);
-}
-
 public class DatabaseNotConnected : Exception { }
 
-public class Database : IDisposable, IDatabase
+public class MediaDatabase : IDisposable, IMediaDatabase
 {
     private static readonly ConcurrentDictionary<string, object> s_databaseLocks = new();
-    private readonly DatabaseConfiguration _config;
-    private int _commandTimeoutSeconds = 20;
+    private readonly IDatabaseConfiguration _config;
+    private readonly ILogger<MediaDatabase> _logger;
+    private const int _commandTimeoutSeconds = 20;
     private CancellationTokenSource _cts;
-
-    private string DatabasePath
-    {
-        get
-        {
-            var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
-            var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
-            return Path.GetFullPath(Path.Combine(rootDir, _config.DataFile));
-        }
-    }
 
     private string ConnectionStringReadOnly
     {
@@ -65,7 +28,7 @@ public class Database : IDisposable, IDatabase
         {
             var builder = new SqliteConnectionStringBuilder
             {
-                DataSource = DatabasePath,
+                DataSource = _config.DatabasePath,
                 Mode = SqliteOpenMode.ReadOnly,
                 Cache = SqliteCacheMode.Shared
             };
@@ -80,7 +43,7 @@ public class Database : IDisposable, IDatabase
         {
             var builder = new SqliteConnectionStringBuilder
             {
-                DataSource = DatabasePath,
+                DataSource = _config.DatabasePath,
                 Mode = SqliteOpenMode.ReadWriteCreate,
                 Cache = SqliteCacheMode.Shared
             };
@@ -92,20 +55,20 @@ public class Database : IDisposable, IDatabase
     {
         get
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(DatabasePath) ?? throw new InvalidOperationException("Unable to determine database directory"));
+            Directory.CreateDirectory(Path.GetDirectoryName(_config.DatabasePath) ?? throw new InvalidOperationException("Unable to determine database directory"));
 
-            if (!System.IO.File.Exists(DatabasePath))
+            if (!System.IO.File.Exists(_config.DatabasePath))
             {
-                Console.WriteLine($"Database file does not exist and will be created: {DatabasePath}");
+                _logger.LogInformation($"Database file does not exist and will be created: {_config.DatabasePath}");
             }
 
-            var lockObject = s_databaseLocks.GetOrAdd(DatabasePath, _ => new object());
+            var lockObject = s_databaseLocks.GetOrAdd(_config.DatabasePath, _ => new object());
             lock (lockObject)
             {
                 var connection = new SqliteConnection(ConnectionStringReadWrite);
 
                 //uses its own connection with write permissions
-                Create();
+                Create().GetAwaiter().GetResult();
 
                 connection.Open();
 
@@ -114,30 +77,11 @@ public class Database : IDisposable, IDatabase
         }
     }
 
-    private SqliteConnection ConnectionWrite
-    {
-        get
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(DatabasePath) ?? throw new InvalidOperationException("Unable to determine database directory"));
-
-            var lockObject = s_databaseLocks.GetOrAdd(DatabasePath, _ => new object());
-            lock (lockObject)
-            {
-                var connection = new SqliteConnection(ConnectionStringReadWrite);
-
-                //uses its own connection with write permissions
-                Create();
-
-                connection.Open();
-
-                return connection;
-            }
-        }
-    }
-
-    public Database(IOptions<DatabaseConfiguration> config, CancellationTokenSource cts)
+    public MediaDatabase(IOptions<MediaDatabaseConfiguration> config, ILogger<MediaDatabase> logger, CancellationTokenSource cts)
     {
         _config = config.Value;
+
+        _logger = logger;
 
         _cts = cts;
 
@@ -149,21 +93,21 @@ public class Database : IDisposable, IDatabase
     /// </summary>
     public void Connect()
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(DatabasePath) ?? throw new InvalidOperationException("Unable to determine database directory"));
+        Directory.CreateDirectory(Path.GetDirectoryName(_config.DatabasePath) ?? throw new InvalidOperationException("Unable to determine database directory"));
 
-        var lockObject = s_databaseLocks.GetOrAdd(DatabasePath, _ => new object());
+        var lockObject = s_databaseLocks.GetOrAdd(_config.DatabasePath, _ => new object());
         lock (lockObject)
         {
             using var connection = new SqliteConnection(ConnectionStringReadWrite);
 
             //uses its own connection with write permissions
-            Create();
+            Create().GetAwaiter().GetResult();
 
             connection.Open();
         }
     }
 
-    public void Create(CancellationToken? token = null)
+    public Task Create(CancellationToken? token = null)
     {
         token ??= _cts.Token;
 
@@ -187,6 +131,7 @@ public class Database : IDisposable, IDatabase
                 throw;
             }
         }
+        return Task.CompletedTask;
     }
 
     public async Task Insert(File file, CancellationToken? token = null)
@@ -231,14 +176,14 @@ public class Database : IDisposable, IDatabase
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error while inserting file record: {ex}");
+                _logger.LogError($"Error while inserting file record: {ex}");
                 transaction.Rollback();
                 throw;
             }
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"WHAT {ex}");
+            _logger.LogError($"WHAT {ex}");
             throw;
         }
     }
@@ -290,13 +235,14 @@ public class Database : IDisposable, IDatabase
             try
             {
                 var command = new CommandDefinition(sql, batchedParameters, transaction, _commandTimeoutSeconds, CommandType.Text, CommandFlags.Buffered, token.Value);
+
                 await connection.ExecuteAsync(command);
 
                 await transaction.CommitAsync(token.Value);
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error while inserting file record: {ex}");
+                _logger.LogError($"Error while inserting file record: {ex}");
                 transaction.Rollback();
                 throw;
             }
@@ -307,7 +253,7 @@ public class Database : IDisposable, IDatabase
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"WHAT {ex}");
+            _logger.LogError($"WHAT {ex}");
             throw;
         }
     }
@@ -330,7 +276,7 @@ public class Database : IDisposable, IDatabase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Exception while checking for file entry: {ex}");
+            _logger.LogError($"Exception while checking for file entry: {ex}");
             throw;
         }
     }
@@ -354,7 +300,7 @@ public class Database : IDisposable, IDatabase
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Error while querying file record: {ex}");
+            _logger.LogError($"Error while querying file record: {ex}");
             throw;
         }
 
@@ -377,7 +323,7 @@ public class Database : IDisposable, IDatabase
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Error while querying file record: {ex}");
+            _logger.LogError($"Error while querying file record: {ex}");
             throw;
         }
     }
@@ -402,7 +348,7 @@ public class Database : IDisposable, IDatabase
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Error while querying file record: {ex}");
+            _logger.LogError($"Error while querying file record: {ex}");
             throw;
         }
 
@@ -427,7 +373,7 @@ public class Database : IDisposable, IDatabase
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Error while querying file record: {ex}");
+            _logger.LogError($"Error while querying file record: {ex}");
             throw;
         }
 
@@ -448,7 +394,6 @@ public class Database : IDisposable, IDatabase
         var conditions = new List<string>();
         var parameters = new DynamicParameters();
         var searchTerms = paths.Select(x => Path.GetDirectoryName(x) ?? string.Empty).ToList();
-        Console.WriteLine(string.Join(", ", searchTerms));
 
         for (int i = 0; i < paths.Count(); i++)
         {
@@ -469,7 +414,7 @@ public class Database : IDisposable, IDatabase
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Error while querying file record: {ex}");
+            _logger.LogError($"Error while querying file record: {ex}");
             throw;
         }
 
@@ -505,7 +450,7 @@ public class Database : IDisposable, IDatabase
     private string GetQueryFromResource(string resourceName)
     {
         //find embedded resources in shared library
-        var assembly = typeof(shared.data.Database).Assembly;
+        var assembly = typeof(shared.data.MediaDatabase).Assembly;
 
         string? query = null;
 
@@ -543,7 +488,7 @@ public class Database : IDisposable, IDatabase
         GC.SuppressFinalize(this);
     }
 
-    ~Database()
+    ~MediaDatabase()
     {
         Dispose();
     }
@@ -562,16 +507,6 @@ public static class DateTimeExtensions
     {
         return DateTime.Parse(dateText, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal);
     }
-}
-
-public static class Queries
-{
-    public static string InsertFile = @";alskdjf;";
-    public static string InsertFiles = @"aslkdjf";
-    public static string FileByPathHash = @"a;sldfj";
-    public static string FIlesByExtensions = @"asdf";
-    public static string FilesByParentDirectory = @";alksdjf";
-    public static string Files = @"";
 }
 
 internal static class QueryFiles

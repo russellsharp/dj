@@ -8,6 +8,7 @@ using shared.data;
 using Newtonsoft.Json;
 using shared.thesaurus;
 using System.Security.Cryptography.X509Certificates;
+using shared.utility;
 
 namespace dj.test;
 
@@ -56,9 +57,9 @@ public class ApplicationServices : BaseTest
 
         _builder.Services.AddSingleton(Options.Create(mediaConfig));
 
-        var databaseConfig = new DatabaseConfiguration
+        var databaseConfig = new MediaDatabaseConfiguration
         {
-            DataFile = "testdata/appservices.db",
+            DatabasePath = "testdata/appservices.db",
         };
 
         var thesaurusConfig = new ThesaurusConfiguration()

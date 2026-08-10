@@ -1,50 +1,27 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Data.Sqlite;
+using shared.data;
 
 namespace shared.http.security;
 
-public class OpenIdDictDatabaseConfiguration : IDatabaseConfiguration
+public class OpenIdDictDatabaseConfiguration : BaseDatabaseConfiguration
 {
-    private static string DatabasePathKey { get; } = "DJ_OPENIDDICT_DATABASE_PATH";
-    public static string SectionName { get; } = "OpenIdDict";
-    private string _dbFilePath = "";
-    public string DatabasePath
+    private static string PathKey { get; } = "DJ_OPENIDDICT_DATABASE_PATH";
+    public new static string SectionName => "OpenIdDict";
+    public new static string DefaultPath = "data/openiddict.db";
+    public override string DatabasePath
     {
         get
         {
             if (string.IsNullOrEmpty(_dbFilePath))
             {
-                _dbFilePath = Environment.GetEnvironmentVariable(DatabasePathKey) ?? "data/openiddict.db";
+                _dbFilePath = Environment.GetEnvironmentVariable(PathKey) ?? DefaultPath;
             }
-
-            var processPath = Environment.ProcessPath ?? throw new InvalidOperationException("Environment.ProcessPath is null");
-            var rootDir = Path.GetDirectoryName(processPath) ?? throw new InvalidOperationException("Unable to determine process directory");
-            return Path.GetFullPath(Path.Combine(rootDir, _dbFilePath));
+            return base.DatabasePath;
         }
         set
         {
             _dbFilePath = value;
-        }
-    }
-
-    public string ConnectionString
-    {
-        get
-        {
-            ArgumentNullException.ThrowIfNull(_dbFilePath);
-
-            var builder = new SqliteConnectionStringBuilder
-            {
-                DataSource = DatabasePath,
-                Mode = SqliteOpenMode.ReadWriteCreate,
-                Cache = SqliteCacheMode.Shared,
-                Pooling = true
-            };
-
-            return builder.ToString();
         }
     }
 }
