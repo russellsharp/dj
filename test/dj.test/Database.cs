@@ -26,13 +26,13 @@ public class Database : BaseTest, IDisposable
 
         File.WriteAllBytes(_dataConfig.DatabasePath, []);
 
-        _db.Connect();
+        // _db.Connect();
 
         _db.Create().GetAwaiter().GetResult();
 
         try
         {
-            _db.Truncate().GetAwaiter().GetResult();
+            // _db.Truncate().GetAwaiter().GetResult();
         }
         catch (Exception ex)
         {
