@@ -80,6 +80,8 @@ public class MediaDatabase : IDisposable, IMediaDatabase
     {
         Directory.CreateDirectory(Path.GetDirectoryName(_config.DatabasePath) ?? throw new InvalidOperationException("Unable to determine database directory"));
 
+        _logger.LogInformation($"Database directory: {Path.GetDirectoryName(_config.DatabasePath) ?? throw new InvalidOperationException("Unable to determine database directory")}");
+
         var lockObject = s_databaseLocks.GetOrAdd(_config.DatabasePath, _ => new object());
         lock (lockObject)
         {
