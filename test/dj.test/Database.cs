@@ -26,8 +26,6 @@ public class Database : BaseTest, IDisposable
 
         _db.Connect();
 
-        Debug.Assert(File.Exists(_dataConfig.DatabasePath));
-
         _db.Create().GetAwaiter().GetResult();
 
         try

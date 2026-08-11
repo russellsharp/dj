@@ -414,6 +414,8 @@ public class MediaDatabase : IDisposable, IMediaDatabase
 
         using var connection = new SqliteConnection(ConnectionStringReadWrite);
 
+        _logger.LogInformation($"Truncate: Connection String: {ConnectionStringReadWrite}");
+
         await connection.OpenAsync(token.Value);
 
         string query = GetQueryFromResource(QueryFiles.TruncateDatabase);
