@@ -2,6 +2,7 @@ using FluentAssertions;
 using shared.utility;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 
 namespace dj.test;
 
@@ -24,6 +25,9 @@ public class Database : BaseTest, IDisposable
         _db = new shared.data.MediaDatabase(optionsConfig, new LoggerFactory().CreateLogger<shared.data.MediaDatabase>(), _cts);
 
         _db.Connect();
+
+        Debug.Assert(File.Exists(_dataConfig.DatabasePath));
+
         _db.Create().GetAwaiter().GetResult();
 
         try
