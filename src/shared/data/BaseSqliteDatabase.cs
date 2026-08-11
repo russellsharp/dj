@@ -69,7 +69,9 @@ public class BaseSqliteDatabase : IDisposable
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"WHAT IS GOING ON {ex}");
+                Console.WriteLine($"Error while connecting to database: {ex}");
+                _connection.Close();
+                throw;
             }
         }
     }
@@ -84,14 +86,10 @@ public class BaseSqliteDatabase : IDisposable
         {
             string query = GetQueryFromResource(QueryAssemblyType, CreateQueryResource);
 
-            // is called from GetConnection, must use its own connection
-            using var connection = new SqliteConnection(_config.ConnectionString);
-            connection.Open();
-
-            var transaction = connection?.BeginTransaction() ?? throw new NullReferenceException("Null database connection or failure to create transaction");
+            var transaction = _connection!.BeginTransaction();
             try
             {
-                using var command = new SqliteCommand(query, connection, transaction);
+                using var command = new SqliteCommand(query, _connection, transaction);
                 command.ExecuteNonQuery();
                 transaction.Commit();
             }
@@ -100,14 +98,11 @@ public class BaseSqliteDatabase : IDisposable
                 transaction.Rollback();
                 throw;
             }
-            connection.Close();
-            connection.Dispose();
         }
     }
 
     public virtual async Task Truncate()
     {
-
         EnsureConnected();
 
         lock (GetLock())
