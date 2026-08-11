@@ -2,6 +2,7 @@ using System.Diagnostics;
 using shared;
 using shared.TMDB;
 using shared.TMDB.Models;
+using shared.utility;
 
 namespace cli;
 
