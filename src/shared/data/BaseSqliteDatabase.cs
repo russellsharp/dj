@@ -57,10 +57,6 @@ public class BaseSqliteDatabase : IDisposable
             try
             {
                 _connection.Open();
-                // WAL mode allows one writer + multiple readers concurrently across connections.
-                // busy_timeout tells SQLite retry on a locked write for up to 5 s rather than
-                // immediately returning SQLITE_BUSY.
-                _connection.Execute("PRAGMA journal_mode=WAL;");
                 _connection.Execute("PRAGMA busy_timeout=5000;");
 
                 Debug.Assert(_connection.Database == "main", $"Expected main, found: {_connection.Database}");
@@ -86,7 +82,7 @@ public class BaseSqliteDatabase : IDisposable
         {
             string query = GetQueryFromResource(QueryAssemblyType, CreateQueryResource);
 
-            var transaction = _connection!.BeginTransaction();
+            var transaction = _connection!.BeginTransaction(IsolationLevel.Serializable);
             try
             {
                 using var command = new SqliteCommand(query, _connection, transaction);
