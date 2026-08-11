@@ -22,6 +22,7 @@ public class MediaDatabase : IDisposable, IMediaDatabase
     {
         return s_databaseLocks.GetOrAdd(_config.DatabasePath, _ => new Lock());
     }
+    private static readonly ConcurrentDictionary<string, bool> s_databaseCreated = new();
 
     private SqliteConnection? _connection = null;
     private readonly IDatabaseConfiguration _config;
@@ -67,9 +68,6 @@ public class MediaDatabase : IDisposable, IMediaDatabase
 
                 var connection = new SqliteConnection(builder.ToString());
 
-                //uses its own connection with write permissions
-                Create().GetAwaiter().GetResult();
-
                 connection.Open();
 
                 return connection;
@@ -88,29 +86,6 @@ public class MediaDatabase : IDisposable, IMediaDatabase
         SqlMapper.AddTypeHandler(new UtcDateTimeHandler());
     }
 
-    /// <summary>
-    /// Connects to the database file.  Will create the file and directory path if necessary.
-    /// </summary>
-    private void Connect([CallerMemberName] string caller = "")
-    {
-        Directory.CreateDirectory(Path.GetDirectoryName(_config.DatabasePath) ?? throw new InvalidOperationException("Unable to determine database directory"));
-
-        _logger.LogInformation($"{caller}: Connecting: Database directory: {Path.GetDirectoryName(_config.DatabasePath)}");
-
-        var lockObject = GetLock();
-        lock (lockObject)
-        {
-
-            _connection = new SqliteConnection(ConnectionStringReadWrite);
-
-            //uses its own connection with write permissions
-            Create().GetAwaiter().GetResult();
-
-            _connection.Open();
-        }
-    }
-
-
     [MemberNotNull(nameof(_connection))]
     private void EnsureConnected()
     {
@@ -119,10 +94,13 @@ public class MediaDatabase : IDisposable, IMediaDatabase
             _connection = new SqliteConnection(ConnectionStringReadWrite);
         }
 
+        Create().GetAwaiter().GetResult();
+
         if (_connection.State != ConnectionState.Open)
         {
             lock (GetLock())
             {
+                Directory.CreateDirectory(PathUtilities.GetDirectory(_config.DatabasePath));
 
                 _connection = new SqliteConnection(ConnectionStringReadWrite);
 
@@ -135,28 +113,31 @@ public class MediaDatabase : IDisposable, IMediaDatabase
                 _connection.Execute("PRAGMA busy_timeout=5000;");
 
                 Debug.Assert(_connection.Database == "main", $"Expected main, found: {_connection.Database}");
-
-                Create().GetAwaiter().GetResult();
             }
         }
     }
 
+    // should never call EnsureConnected or any other method that uses a lock for the database
     public Task Create(CancellationToken? token = null, [CallerMemberName] string caller = "")
     {
-        token ??= _cts.Token;
+        if (s_databaseCreated.GetOrAdd(_config.DatabasePath, _ => false)) return Task.CompletedTask;
 
-        EnsureConnected();
+        token ??= _cts.Token;
 
         lock (GetLock())
         {
             string query = GetQueryFromResource(QueryFiles.CreateDatabase);
 
-            using (var transaction = _connection?.BeginTransaction() ?? throw new NullReferenceException("Null database connection or failure to create transaction"))
+            var connection = new SqliteConnection(ConnectionStringReadWrite);
+
+            connection.Open();
+
+            using (var transaction = connection.BeginTransaction() ?? throw new NullReferenceException("Null database connection or failure to create transaction"))
             {
                 try
                 {
                     var command = new CommandDefinition(query, null, transaction, _commandTimeoutSeconds, CommandType.Text, CommandFlags.None, token.Value);
-                    _connection.Execute(command);
+                    connection.Execute(command);
                     transaction.Commit();
                 }
                 catch
@@ -165,7 +146,11 @@ public class MediaDatabase : IDisposable, IMediaDatabase
                     throw;
                 }
             }
+            connection.Dispose();
         }
+
+        s_databaseCreated.GetOrAdd(_config.DatabasePath, _ => true);
+
         return Task.CompletedTask;
     }
 
