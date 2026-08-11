@@ -36,31 +36,31 @@ public class MediaDatabase : IDisposable, IMediaDatabase
         }
     }
 
-    private SqliteConnection ConnectionRead
-    {
-        get
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(_config.DatabasePath) ?? throw new InvalidOperationException("Unable to determine database directory"));
+    // private SqliteConnection ConnectionRead
+    // {
+    //     get
+    //     {
+    //         Directory.CreateDirectory(Path.GetDirectoryName(_config.DatabasePath) ?? throw new InvalidOperationException("Unable to determine database directory"));
 
-            if (!System.IO.File.Exists(_config.DatabasePath))
-            {
-                _logger.LogInformation($"Database file does not exist and will be created: {_config.DatabasePath}");
-            }
+    //         if (!System.IO.File.Exists(_config.DatabasePath))
+    //         {
+    //             _logger.LogInformation($"Database file does not exist and will be created: {_config.DatabasePath}");
+    //         }
 
-            var lockObject = s_databaseLocks.GetOrAdd(_config.DatabasePath, _ => new object());
-            lock (lockObject)
-            {
-                var connection = new SqliteConnection(ConnectionStringReadWrite);
+    //         var lockObject = s_databaseLocks.GetOrAdd(_config.DatabasePath, _ => new object());
+    //         lock (lockObject)
+    //         {
+    //             var connection = new SqliteConnection(ConnectionStringReadWrite);
 
-                //uses its own connection with write permissions
-                Create().GetAwaiter().GetResult();
+    //             //uses its own connection with write permissions
+    //             Create().GetAwaiter().GetResult();
 
-                connection.Open();
+    //             connection.Open();
 
-                return connection;
-            }
-        }
-    }
+    //             return connection;
+    //         }
+    //     }
+    // }
 
     public MediaDatabase(IOptions<MediaDatabaseConfiguration> config, ILogger<MediaDatabase> logger, CancellationTokenSource cts)
     {
@@ -253,7 +253,7 @@ public class MediaDatabase : IDisposable, IMediaDatabase
 
         try
         {
-            using (var connection = ConnectionRead)
+            using (var connection = new SqliteConnection(ConnectionStringReadWrite))
             {
                 await connection.OpenAsync(token.Value);
                 const string sql = @"SELECT EXISTS (SELECT 1 FROM file WHERE path_hash = @path_hash)";
@@ -412,7 +412,7 @@ public class MediaDatabase : IDisposable, IMediaDatabase
 
     public async Task Truncate(CancellationToken? token = null, [CallerMemberName] string caller = "")
     {
-        _logger.LogInformation($"{caller}: Truncate: Before open:  Connection String: {ConnectionStringReadWrite}");
+        _logger.LogError($"{caller}: Truncate: Before open:  Connection String: {ConnectionStringReadWrite}");
 
         token ??= _cts.Token;
 
