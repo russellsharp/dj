@@ -26,9 +26,7 @@ public class Database : BaseTest, IDisposable
 
         Directory.CreateDirectory(Path.GetDirectoryName(_dataConfig.DatabasePath));
 
-        File.WriteAllBytes(_dataConfig.DatabasePath, []);
-
-        // _db.Connect();
+        _db.Connect();
 
         try
         {

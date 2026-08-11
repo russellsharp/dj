@@ -80,7 +80,7 @@ public class MediaDatabase : IDisposable, IMediaDatabase
     {
         Directory.CreateDirectory(Path.GetDirectoryName(_config.DatabasePath) ?? throw new InvalidOperationException("Unable to determine database directory"));
 
-        _logger.LogInformation($"{caller} Database directory: {Path.GetDirectoryName(_config.DatabasePath)}");
+        _logger.LogInformation($"{caller}: Connecting: Database directory: {Path.GetDirectoryName(_config.DatabasePath)}");
 
         var lockObject = s_databaseLocks.GetOrAdd(_config.DatabasePath, _ => new object());
         lock (lockObject)
@@ -121,6 +121,35 @@ public class MediaDatabase : IDisposable, IMediaDatabase
             }
         }
         return Task.CompletedTask;
+    }
+
+    public async Task Truncate(CancellationToken? token = null, [CallerMemberName] string caller = "")
+    {
+        _logger.LogError($"{caller}: Truncate: Before open:  Connection String: {ConnectionStringReadWrite}");
+
+        token ??= _cts.Token;
+
+        using var connection = new SqliteConnection(ConnectionStringReadWrite);
+
+        _logger.LogInformation($"{caller}: Truncate: Connection String: {ConnectionStringReadWrite}");
+
+        await connection.OpenAsync(token.Value);
+
+        string query = GetQueryFromResource(QueryFiles.TruncateDatabase);
+        using (var transaction = connection?.BeginTransaction() ?? throw new NullReferenceException("Null database connection or failure to create transaction"))
+        {
+            try
+            {
+                using var command = new SqliteCommand(query, connection, transaction);
+                command.ExecuteNonQuery();
+                transaction.Commit();
+            }
+            catch
+            {
+                transaction.Rollback();
+                throw;
+            }
+        }
     }
 
     public async Task Insert(File file, CancellationToken? token = null)
@@ -408,35 +437,6 @@ public class MediaDatabase : IDisposable, IMediaDatabase
         }
 
         return files;
-    }
-
-    public async Task Truncate(CancellationToken? token = null, [CallerMemberName] string caller = "")
-    {
-        _logger.LogError($"{caller}: Truncate: Before open:  Connection String: {ConnectionStringReadWrite}");
-
-        token ??= _cts.Token;
-
-        using var connection = new SqliteConnection(ConnectionStringReadWrite);
-
-        _logger.LogInformation($"{caller}: Truncate: Connection String: {ConnectionStringReadWrite}");
-
-        await connection.OpenAsync(token.Value);
-
-        string query = GetQueryFromResource(QueryFiles.TruncateDatabase);
-        using (var transaction = connection?.BeginTransaction() ?? throw new NullReferenceException("Null database connection or failure to create transaction"))
-        {
-            try
-            {
-                using var command = new SqliteCommand(query, connection, transaction);
-                command.ExecuteNonQuery();
-                transaction.Commit();
-            }
-            catch
-            {
-                transaction.Rollback();
-                throw;
-            }
-        }
     }
 
     private string GetQueryFromResource(string resourceName)
