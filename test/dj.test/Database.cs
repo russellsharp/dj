@@ -25,7 +25,27 @@ public class Database : BaseTest, IDisposable
 
         _db.Connect();
         _db.Create().GetAwaiter().GetResult();
-        _db.Truncate().GetAwaiter().GetResult();
+
+        try
+        {
+            _db.Truncate().GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            log(
+                $@"
+            
+                Error while truncating database: 
+                {ex}
+                Connection String: {_dataConfig.ConnectionString}
+                File: {_dataConfig.DatabasePath}
+                Write: {shared.utility.FileHelper.CanAccessFile(_dataConfig.DatabasePath, FileAccess.Write)}
+                Read: {shared.utility.FileHelper.CanAccessFile(_dataConfig.DatabasePath, FileAccess.Read)}
+            "
+            );
+
+            throw;
+        }
     }
 
     [Fact]

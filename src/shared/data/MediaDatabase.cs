@@ -22,21 +22,6 @@ public class MediaDatabase : IDisposable, IMediaDatabase
     private const int _commandTimeoutSeconds = 20;
     private CancellationTokenSource _cts;
 
-    private string ConnectionStringReadOnly
-    {
-        get
-        {
-            var builder = new SqliteConnectionStringBuilder
-            {
-                DataSource = _config.DatabasePath,
-                Mode = SqliteOpenMode.ReadOnly,
-                Cache = SqliteCacheMode.Shared
-            };
-            return builder.ConnectionString;
-        }
-    }
-
-
     private string ConnectionStringReadWrite
     {
         get
@@ -423,7 +408,6 @@ public class MediaDatabase : IDisposable, IMediaDatabase
 
     public async Task Truncate(CancellationToken? token = null)
     {
-
         token ??= _cts.Token;
 
         using var connection = new SqliteConnection(ConnectionStringReadWrite);
