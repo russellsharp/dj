@@ -100,9 +100,10 @@ public class MediaCollection : BaseTest, IDisposable
     {
         var (repo, tmdb, db, media) = BuildServices(_cts);
 
-        await media.UpdateRepos(BasicMediaOptions.Value.BaseDirectory, false, _cts.Token);
 
         await media.Initialize(_cts.Token);
+
+        await media.UpdateRepos(BasicMediaOptions.Value.BaseDirectory, false, _cts.Token);
 
         var localMovies = await media.Files(MediaType.Video);
 
