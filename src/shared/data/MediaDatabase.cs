@@ -294,7 +294,7 @@ public class MediaDatabase : IDisposable, IMediaDatabase
         }
         catch (Exception ex)
         {
-            _logger.LogError($"Exception while checking for file entry: {ex}");
+            _logger.LogError($"Exception while checking for file entry:\r\n\t{ex}\r\n\tConnectionString: {ConnectionStringReadWrite}");
             throw;
         }
     }
