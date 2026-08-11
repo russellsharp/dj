@@ -1,10 +1,11 @@
+using System.Runtime.CompilerServices;
+
 namespace shared.data;
 
 public interface IMediaDatabase
 {
-    void Connect();
-    Task Create(CancellationToken? token = null);
-    Task Truncate(CancellationToken? token = null);
+    Task Create(CancellationToken? token = null, [CallerMemberName] string caller = "");
+    Task Truncate(CancellationToken? token = null, [CallerMemberName] string caller = "");
     void Dispose(bool disposing);
     void Dispose();
     Task<File?> File(string path, CancellationToken? token = null);

@@ -2,6 +2,9 @@ using FluentAssertions;
 using shared.utility;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
+using Xunit;
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
 
 namespace dj.test;
 
@@ -16,23 +19,62 @@ public class Database : BaseTest, IDisposable
     {
         _dataConfig = new shared.data.MediaDatabaseConfiguration()
         {
-            DatabasePath = Path.GetFullPath("testdata/database.db")
+            DatabasePath = Path.GetFullPath($"testdata/{Guid.NewGuid()}.db")
         };
 
         var optionsConfig = Options.Create(_dataConfig);
 
         _db = new shared.data.MediaDatabase(optionsConfig, new LoggerFactory().CreateLogger<shared.data.MediaDatabase>(), _cts);
 
-        _db.Connect();
-        _db.Create().GetAwaiter().GetResult();
-        _db.Truncate().GetAwaiter().GetResult();
-    }
+        Directory.CreateDirectory(Path.GetDirectoryName(_dataConfig.DatabasePath));
 
-    [Fact]
-    public async Task Connect()
-    {
-        var act = () => _db.Connect();
-        act.Should().NotThrow();
+        try
+        {
+            _db.Create().GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            log(
+                $@"
+            
+                Error while truncating database: 
+                {ex}
+                Connection String: {_dataConfig.ConnectionString}
+                File: {_dataConfig.DatabasePath}
+                Directory {Path.GetDirectoryName(_dataConfig.DatabasePath)}
+                FileExists: {File.Exists(_dataConfig.DatabasePath)}
+                PathExists: {Path.Exists(Path.GetDirectoryName(_dataConfig.DatabasePath))}
+                Write: {shared.utility.FileHelper.CanAccessFile(_dataConfig.DatabasePath, FileAccess.Write)}
+                Read: {shared.utility.FileHelper.CanAccessFile(_dataConfig.DatabasePath, FileAccess.Read)}
+            "
+            );
+
+            throw;
+        }
+
+        try
+        {
+            _db.Truncate().GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            log(
+                $@"
+            
+                Error while truncating database: 
+                {ex}
+                Connection String: {_dataConfig.ConnectionString}
+                File: {_dataConfig.DatabasePath}
+                Directory {Path.GetDirectoryName(_dataConfig.DatabasePath)}
+                FileExists: {File.Exists(_dataConfig.DatabasePath)}
+                PathExists: {Path.Exists(Path.GetDirectoryName(_dataConfig.DatabasePath))}
+                Write: {shared.utility.FileHelper.CanAccessFile(_dataConfig.DatabasePath, FileAccess.Write)}
+                Read: {shared.utility.FileHelper.CanAccessFile(_dataConfig.DatabasePath, FileAccess.Read)}
+            "
+            );
+
+            throw;
+        }
     }
 
     [Fact]
@@ -40,13 +82,12 @@ public class Database : BaseTest, IDisposable
     {
         await _db.Create();
 
-        System.IO.File.Exists(Path.GetFullPath(_dataConfig.DatabasePath)).Should().BeTrue();
+        System.IO.File.Exists(Path.GetFullPath(_dataConfig.DatabasePath)).Should().BeTrue("{0}", _dataConfig.DatabasePath);
     }
 
     [Fact]
     public async Task CreateAndTruncateDatabase()
     {
-        _db.Connect();
         await _db.Truncate();
         await _db.Create();
         await _db.Truncate();

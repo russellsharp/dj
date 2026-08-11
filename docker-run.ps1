@@ -15,6 +15,10 @@ docker run `
     -e "ASPNETCORE_Kestrel__Certificates__Default__Password=$env:ASPNETCORE_Kestrel__Certificates__Default__Password" `
     -e "ASPNETCORE_Kestrel__Certificates__Default__Path=/root/https/aspnetapp.pfx" `
     -e "DJ_HOST_ALLOWED_CORS_URL=127.0.0.1" `
+    -e "DJ_MEDIA_DATABASE_PATH": "data/media.db", `
+    -e "DJ_OPENIDDICT_DATABASE_PATH": "data/openiddict.db", `
+    -e "DJ_USER_DATABASE_PATH": "data/testusers.db", `
+    -e "TMDB:DatabasePath": "data/tmdb.db", `
     -d `
     -p 7132:7132 `
     -p 5282:5282 `

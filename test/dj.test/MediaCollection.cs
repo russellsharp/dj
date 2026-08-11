@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using shared;
@@ -49,7 +50,19 @@ public class MediaCollection : BaseTest, IDisposable
         }
     }
 
-    private static (IRepo repo, ITMDB tmdb, IMediaDatabase db, IMediaCollection medai) BuildServices(CancellationTokenSource cts)
+    private record ServiceBundle(IRepo Repo, ITMDB Tmdb, IMediaDatabase Db, IMediaCollection Media) : IDisposable
+    {
+        public void Dispose()
+        {
+            Media.Dispose();
+            Repo.Dispose();
+            Db.Dispose();
+        }
+    }
+
+    private ServiceBundle? _activeServices;
+
+    private static (IRepo repo, ITMDB tmdb, IMediaDatabase db, IMediaCollection media) BuildServices(CancellationTokenSource cts)
     {
         IRepo repo = new shared.TMDB.Repo(BasicEndpointOptions, new Cache(BasicEndpointOptions, new LoggerFactory().CreateLogger<ICache>(), cts), new LoggerFactory().CreateLogger<IRepo>(), cts);
         ITMDB tmdb = new shared.TMDB.TMDB(repo, cts);
@@ -63,91 +76,69 @@ public class MediaCollection : BaseTest, IDisposable
     public async Task MatchLocalFiles()
     {
         var (repo, tmdb, db, media) = BuildServices(_cts);
+        using (_activeServices = new ServiceBundle((IRepo)repo, (ITMDB)tmdb, (IMediaDatabase)db, (IMediaCollection)media))
+        {
+            await media.Initialize(_cts.Token);
 
-        await media.Initialize(_cts.Token);
+            await media.UpdateRepos(BasicMediaOptions.Value.BaseDirectory, false, _cts.Token);
 
-        await media.UpdateRepos(BasicMediaOptions.Value.BaseDirectory, false, _cts.Token);
+            var keywords = SearchHelpers.SanitizeForSearch("Trainingwah wahDay wee", _cts.Token, false);
 
-        var keywords = SearchHelpers.SanitizeForSearch("Trainingwah wahDay wee", _cts.Token, false);
+            var matches = (await media.FindInPath<shared.data.File>(keywords, null, _cts.Token)).Select(x => x.Details);
 
-        var matches = (await media.FindInPath<shared.data.File>(keywords, null, _cts.Token)).Select(x => x.Details);
+            matches.Should().BeEmpty();
 
-        matches.Should().BeEmpty();
+            keywords = SearchHelpers.SanitizeForSearch("Inglourious Basterds", _cts.Token, true);
 
-        keywords = SearchHelpers.SanitizeForSearch("Inglourious Basterds", _cts.Token, true);
+            var matcheScores = (await media.FindInPath<shared.data.File>(keywords, null, _cts.Token)).ToList();
 
-        var matcheScores = (await media.FindInPath<shared.data.File>(keywords, null, _cts.Token)).ToList();
-
-        matcheScores.Should().NotBeEmpty();
+            matcheScores.Should().NotBeEmpty();
+        }
     }
 
     [Fact]
     public async Task MatchLocalFilesDictionaryAction()
     {
         var (repo, tmdb, db, media) = BuildServices(_cts);
+        using (_activeServices = new ServiceBundle((IRepo)repo, (ITMDB)tmdb, (IMediaDatabase)db, (IMediaCollection)media))
+        {
+            await media.Initialize(_cts.Token);
 
-        await media.Initialize(_cts.Token);
+            var keywords = SearchHelpers.SanitizeForSearch("Inglourious Basterds", _cts.Token, false);
 
-        var keywords = SearchHelpers.SanitizeForSearch("Inglourious Basterds", _cts.Token, false);
+            var matcheScores = (await media.FindInPath<shared.data.File>(keywords, null, _cts.Token)).ToList();
 
-        var matcheScores = (await media.FindInPath<shared.data.File>(keywords, null, _cts.Token)).ToList();
-
-        matcheScores.Should().NotBeEmpty();
+            matcheScores.Should().NotBeEmpty();
+        }
     }
 
     [Fact]
     public async Task MatchLocalFilesToTmdb()
     {
         var (repo, tmdb, db, media) = BuildServices(_cts);
-
-        await media.UpdateRepos(BasicMediaOptions.Value.BaseDirectory, false, _cts.Token);
-
-        await media.Initialize(_cts.Token);
-
-        var localMovies = await media.Files(MediaType.Video);
-
-        localMovies.Should().NotBeNullOrEmpty();
-
-        var movieTitle = "Training Day";
-
-        //sanitize the path to find simple titles
-        var movieKeywords = SearchHelpers.SanitizeString(movieTitle);
-        var localMovie = localMovies.FirstOrDefault(x => SearchHelpers.SanitizeString(x.path).Contains(movieKeywords));
-
-        if (localMovie is null)
+        using (_activeServices = new ServiceBundle((IRepo)repo, (ITMDB)tmdb, (IMediaDatabase)db, (IMediaCollection)media))
         {
-            movieKeywords = SearchHelpers.SanitizeString(movieTitle);
-            log(movieKeywords.ToString());
-            localMovie = localMovies.FirstOrDefault(x => SearchHelpers.SanitizeString(x.path).Contains(movieKeywords));
-        }
+            await media.Initialize(_cts.Token);
 
-        localMovie.Should().NotBeNull();
+            await media.UpdateRepos(BasicMediaOptions.Value.BaseDirectory, false, _cts.Token);
 
-        var context = new MatchingContext
-        {
-            MinimumScore = 100,
-            PathDepthMin = 1,
-            PathDepthMax = 2
-        };
+            var localMovies = await media.Files(MediaType.Video);
 
-        var bestMatches = await tmdb.PathToTmdb(localMovie.path ?? string.Empty, context, true, _cts.Token);
+            localMovies.Should().NotBeNullOrEmpty();
 
-        bestMatches.Should().NotBeNull();
-    }
+            var movieTitle = "Training Day";
 
-    [Fact]
-    public async Task Match100LocalFilesToTmdb()
-    {
-        var (repo, tmdb, db, media) = BuildServices(_cts);
+            //sanitize the path to find simple titles
+            var movieKeywords = SearchHelpers.SanitizeString(movieTitle);
+            var localMovie = localMovies.FirstOrDefault(x => SearchHelpers.SanitizeString(x.path).Contains(movieKeywords));
 
-        await media.Initialize(_cts.Token);
+            if (localMovie is null)
+            {
+                movieKeywords = SearchHelpers.SanitizeString(movieTitle);
+                log(movieKeywords.ToString());
+                localMovie = localMovies.FirstOrDefault(x => SearchHelpers.SanitizeString(x.path).Contains(movieKeywords));
+            }
 
-        await media.UpdateRepos(BasicMediaOptions.Value.BaseDirectory, false, _cts.Token);
-
-        var movieFiles = (await media.Files(MediaType.Video)).Take(100);
-
-        foreach (var localMovie in movieFiles)
-        {
             localMovie.Should().NotBeNull();
 
             var context = new MatchingContext
@@ -164,22 +155,55 @@ public class MediaCollection : BaseTest, IDisposable
     }
 
     [Fact]
+    public async Task Match100LocalFilesToTmdb()
+    {
+        var (repo, tmdb, db, media) = BuildServices(_cts);
+        using (_activeServices = new ServiceBundle((IRepo)repo, (ITMDB)tmdb, (IMediaDatabase)db, (IMediaCollection)media))
+        {
+            await media.Initialize(_cts.Token);
+
+            await media.UpdateRepos(BasicMediaOptions.Value.BaseDirectory, false, _cts.Token);
+
+            var movieFiles = (await media.Files(MediaType.Video)).Take(100);
+
+            foreach (var localMovie in movieFiles)
+            {
+                localMovie.Should().NotBeNull();
+
+                var context = new MatchingContext
+                {
+                    MinimumScore = 100,
+                    PathDepthMin = 1,
+                    PathDepthMax = 2
+                };
+
+                var bestMatches = await tmdb.PathToTmdb(localMovie.path ?? string.Empty, context, true, _cts.Token);
+
+                bestMatches.Should().NotBeNull();
+            }
+        }
+    }
+
+    [Fact]
     public async Task UpdateRepos_HandlesNonExistentDirectory()
     {
         // Arrange: Use a base directory that is guaranteed not to exist
         var nonExistentPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
 
         var (repo, tmdb, db, media) = BuildServices(_cts);
+        using (_activeServices = new ServiceBundle((IRepo)repo, (ITMDB)tmdb, (IMediaDatabase)db, (IMediaCollection)media))
+        {
 
-        // Initialize first to ensure the DB is ready for updates/checks
-        await media.Initialize(_cts.Token);
+            // Initialize first to ensure the DB is ready for updates/checks
+            await media.Initialize(_cts.Token);
 
-        // Act: Call UpdateRepos with a path that doesn't exist
-        // We expect it to handle this gracefully without throwing an exception related to file system access.
-        var updateTask = () => media.UpdateRepos(nonExistentPath, false, _cts.Token);
+            // Act: Call UpdateRepos with a path that doesn't exist
+            // We expect it to handle this gracefully without throwing an exception related to file system access.
+            var updateTask = () => media.UpdateRepos(nonExistentPath, false, _cts.Token);
 
-        // Assert: No exceptions should be thrown, and the internal state should remain consistent (or at least not crash).
-        await updateTask.Should().NotThrowAsync();
+            // Assert: No exceptions should be thrown, and the internal state should remain consistent (or at least not crash).
+            await updateTask.Should().NotThrowAsync();
+        }
     }
 
     [Fact]
@@ -189,11 +213,13 @@ public class MediaCollection : BaseTest, IDisposable
         var nonExistentPath = "C:/media/definitely/not/in/db.mp4";
 
         var (repo, tmdb, db, media) = BuildServices(_cts);
+        using (_activeServices = new ServiceBundle((IRepo)repo, (ITMDB)tmdb, (IMediaDatabase)db, (IMediaCollection)media))
+        {
+            await media.Initialize(_cts.Token);
 
-        await media.Initialize(_cts.Token);
-
-        // Act & Assert: Expect a specific exception (e.g., KeyNotFoundException or custom DB exception)
-        await Assert.ThrowsAsync<FileLoadException>(() => media.File(nonExistentPath));
+            // Act & Assert: Expect a specific exception (e.g., KeyNotFoundException or custom DB exception)
+            await Assert.ThrowsAsync<FileLoadException>(() => media.File(nonExistentPath));
+        }
     }
 
     [Fact]
@@ -203,14 +229,16 @@ public class MediaCollection : BaseTest, IDisposable
         var nonExistentPattern = "non_existent_pattern";
 
         var (repo, tmdb, db, media) = BuildServices(_cts);
+        using (_activeServices = new ServiceBundle((IRepo)repo, (ITMDB)tmdb, (IMediaDatabase)db, (IMediaCollection)media))
+        {
+            await media.Initialize(_cts.Token);
 
-        await media.Initialize(_cts.Token);
+            // Act: Call the method under test with a non-matching pattern
+            var matches = await media.Search(new[] { nonExistentPattern }, _cts.Token);
 
-        // Act: Call the method under test with a non-matching pattern
-        var matches = await media.Search(new[] { nonExistentPattern }, _cts.Token);
-
-        // Assert: Expect an empty list of results
-        matches.Should().BeEmpty();
+            // Assert: Expect an empty list of results
+            matches.Should().BeEmpty();
+        }
     }
 
     #region IDisposable
@@ -224,6 +252,8 @@ public class MediaCollection : BaseTest, IDisposable
             {
                 if (disposing)
                 {
+                    _activeServices?.Dispose();
+                    _activeServices = null;
                     RestoreDatabase();
                 }
             }
@@ -238,24 +268,31 @@ public class MediaCollection : BaseTest, IDisposable
     {
         var overwriteAttemptMax = 10;
         int attempt = 0;
-        //Sqlite driver can be slow to release database file
-        while (attempt < overwriteAttemptMax)
+
+        SqliteConnection.ClearAllPools();
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+
+        Directory.CreateDirectory(Path.GetDirectoryName(MediaDatabasePath)!);
+
+        string[] filePairs = [ReferenceDatabasePath, MediaDatabasePath, ReferenceTmdbDatabasePath, TmdbDatabasePath];
+
+        for (int i = 0; i < filePairs.Length; i += 2)
         {
-            try
+            attempt = 0;
+            while (attempt < overwriteAttemptMax)
             {
-                var directoryCreated = Directory.CreateDirectory(Path.GetDirectoryName(MediaDatabasePath)!);
-                //we request GC so that SQLite.Data frees the database file.
-                GC.Collect();
-                GC.WaitForPendingFinalizers();
-                System.IO.File.Copy(ReferenceDatabasePath, MediaDatabasePath, true);
-                System.IO.File.Copy(ReferenceTmdbDatabasePath, TmdbDatabasePath, true);
-                break;
-            }
-            catch (Exception ex)
-            {
-                log($"Database failed to overwrite.  Will retry in 1 second.\r\n\t{MediaDatabasePath}\r\n\tDirectory path: {Path.GetDirectoryName(MediaDatabasePath)}\r\n\t{ex}");
-                Task.Delay(TimeSpan.FromSeconds(1).Milliseconds);
-                attempt++;
+                try
+                {
+                    System.IO.File.Copy(filePairs[i], filePairs[i + 1], true);
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    log($"Database failed to overwrite.  Will retry in 1 second.\r\n\t{filePairs[i + 1]}\r\n\t{ex}");
+                    Task.Delay(TimeSpan.FromSeconds(1).Milliseconds).GetAwaiter().GetResult();
+                    attempt++;
+                }
             }
         }
     }

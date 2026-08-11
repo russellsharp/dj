@@ -1,4 +1,6 @@
+using System.Collections.Concurrent;
 using System.Data;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
@@ -15,7 +17,6 @@ public interface ICache
 {
     bool Get<ResponseType>(string tmdb_request_url, out ResponseType? response, CancellationToken? token = null);
     Task Store<ResponseType>(string requestUrl, string? content, CancellationToken? token = null);
-    IAsyncEnumerable<ContentType?> GetAllStream<ContentType>(CancellationToken? token = null);
     Task<IEnumerable<MatchScore<ResponseType>>> FindQueryHits<ResponseType>(IEnumerable<string> keywords, uint minimumHits, CancellationToken? token = null) where ResponseType : class;
     Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryOverviews(IEnumerable<string> keywords, uint minimumHits, CancellationToken? token = null);
     Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryWithGroupedTerms(IEnumerable<IEnumerable<string>> keywords, uint minimumHits, CancellationToken? token = null);
@@ -45,40 +46,42 @@ public class Cache : BaseSqliteDatabase, ICache
     {
         token ??= _tokenSource.Token;
 
-        using var connection = GetConnection();
-        connection.Open();
+        EnsureConnected();
 
-        var sql = $"SELECT response FROM tmdb_cache WHERE url_hash = @request_hash AND response_type = @type";
-
-        var requestHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(tmdb_request_url)));
-
-        try
+        lock (GetLock())
         {
-            var parameters = new { request_hash = requestHash, type = typeof(ResponseType).ToString() };
-            var command = new CommandDefinition(sql, parameters, null, _commandTimeoutMs, CommandType.Text, CommandFlags.None, token.Value);
-            var result = connection.ExecuteScalar<string>(command);
+            var sql = $"SELECT response FROM tmdb_cache WHERE url_hash = @request_hash AND response_type = @type";
 
-            if (result != null)
+            var requestHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(tmdb_request_url)));
+
+            try
             {
-                var json = Convert.ToString(result);
-                response = !string.IsNullOrWhiteSpace(json)
-                    ? JsonSerializer.Deserialize<ResponseType>(json)
-                    : default;
+                var parameters = new { request_hash = requestHash, type = typeof(ResponseType).ToString() };
+                var command = new CommandDefinition(sql, parameters, null, _commandTimeoutMs, CommandType.Text, CommandFlags.None, token.Value);
+                var result = _connection.ExecuteScalar<string>(command);
 
-                return true;
+                if (result != null)
+                {
+                    var json = Convert.ToString(result);
+                    response = !string.IsNullOrWhiteSpace(json)
+                        ? JsonSerializer.Deserialize<ResponseType>(json)
+                        : default;
+
+                    return true;
+                }
             }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug($"Error while executing sql: {sql}, {ex}");
+            catch (Exception ex)
+            {
+                _logger.LogDebug($"Error while executing sql: {sql}, {ex}");
+                response = default;
+                throw;
+            }
+            finally
+            {
+                _connection.Dispose();
+            }
             response = default;
-            throw;
         }
-        finally
-        {
-            connection.Dispose();
-        }
-        response = default;
         return false;
     }
 
@@ -86,37 +89,24 @@ public class Cache : BaseSqliteDatabase, ICache
     {
         token ??= _tokenSource.Token;
 
-        using var connection = GetConnection();
-        connection.Open();
+        EnsureConnected();
 
-        var sql = "INSERT INTO tmdb_cache (url_hash, url, response, response_type) VALUES (@request_hash, @request, @response, @response_type) ON CONFLICT(url_hash) DO UPDATE SET response = excluded.response, response_type = excluded.response_type";
-
-        var requestHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(requestUrl)));
-        using var command = new SqliteCommand(sql, connection);
-        command.Parameters.AddWithValue("request_hash", requestHash);
-        command.Parameters.AddWithValue("response", content);
-        command.Parameters.AddWithValue("response_type", typeof(ResponseType).ToString());
-        command.Parameters.AddWithValue("request", requestUrl);
-
-        //TODO: Implement typed data store if useful
-        // await StoreTypedData(JsonSerializer.Deserialize<ResponseType>(content));
-
-        await command.ExecuteNonQueryAsync(token.Value);
-    }
-
-    public async IAsyncEnumerable<ContentType?> GetAllStream<ContentType>([EnumeratorCancellation] CancellationToken? token = null)
-    {
-        token ??= _tokenSource.Token;
-
-        using var connection = GetConnection() ?? throw new InvalidOperationException("Cache is not connected.");
-        const string sql = "SELECT * FROM tmdb_cache";
-        var dataSet = connection.QueryUnbufferedAsync<(string hash, string response)>(sql);
-
-        await foreach (var row in dataSet.WithCancellation(token.Value))
+        lock (GetLock())
         {
-            if (string.IsNullOrEmpty(row.response)) continue;
 
-            yield return JsonSerializer.Deserialize<ContentType>(row.response);
+            var sql = "INSERT INTO tmdb_cache (url_hash, url, response, response_type) VALUES (@request_hash, @request, @response, @response_type) ON CONFLICT(url_hash) DO UPDATE SET response = excluded.response, response_type = excluded.response_type";
+
+            var requestHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(requestUrl)));
+            using var command = new SqliteCommand(sql, _connection);
+            command.Parameters.AddWithValue("request_hash", requestHash);
+            command.Parameters.AddWithValue("response", content);
+            command.Parameters.AddWithValue("response_type", typeof(ResponseType).ToString());
+            command.Parameters.AddWithValue("request", requestUrl);
+
+            //TODO: Implement typed data store if useful
+            // await StoreTypedData(JsonSerializer.Deserialize<ResponseType>(content));
+
+            command.ExecuteNonQuery();
         }
     }
 
@@ -133,32 +123,35 @@ public class Cache : BaseSqliteDatabase, ICache
 
         token ??= _tokenSource.Token;
 
-        try
-        {
-            const string sqlPrefix = "SELECT response as Details, ";
-            string suffix = $" AS Hits \n FROM tmdb_cache \n WHERE Hits >= {minimumHits} AND response_type = '{typeof(ResponseType)}' \n ORDER BY Hits;";
-            var caseStatements = keywords.Where(x => !string.IsNullOrEmpty(x)).Select(x => $"CASE WHEN response LIKE '%{x}%' THEN 1 ELSE 0 END");
-            string sql = $"{sqlPrefix} ({string.Join(" + \n", caseStatements)}) {suffix}";
+        EnsureConnected();
 
-            using var connection = GetConnection() ?? throw new InvalidOperationException("Cache is not connected.");
-            var matches = await connection.QueryAsync(new CommandDefinition(sql, cancellationToken: token.Value));
-            var typedMatches = matches.Select(x =>
+        lock (GetLock())
+        {
+            try
             {
-                var json = x.Details as string;
-                return new MatchScore<ResponseType>()
-                {
-                    Hits = x.Hits,
-                    Details = !string.IsNullOrWhiteSpace(json) ? JsonSerializer.Deserialize<ResponseType>(json) : null
-                };
-            });
-            return typedMatches;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug($"Error while building hit list: {ex}");
-            throw;
-        }
+                const string sqlPrefix = "SELECT response as Details, ";
+                string suffix = $" AS Hits \n FROM tmdb_cache \n WHERE Hits >= {minimumHits} AND response_type = '{typeof(ResponseType)}' \n ORDER BY Hits;";
+                var caseStatements = keywords.Where(x => !string.IsNullOrEmpty(x)).Select(x => $"CASE WHEN response LIKE '%{x}%' THEN 1 ELSE 0 END");
+                string sql = $"{sqlPrefix} ({string.Join(" + \n", caseStatements)}) {suffix}";
 
+                var matches = _connection.Query(sql);
+                var typedMatches = matches.Select(x =>
+                {
+                    var json = x.Details as string;
+                    return new MatchScore<ResponseType>()
+                    {
+                        Hits = x.Hits,
+                        Details = !string.IsNullOrWhiteSpace(json) ? JsonSerializer.Deserialize<ResponseType>(json) : null
+                    };
+                });
+                return typedMatches;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug($"Error while building hit list: {ex}");
+                throw;
+            }
+        }
     }
 
     public async Task<IEnumerable<MatchScore<MovieDetailsResponse>>> QueryOverviews(IEnumerable<string> keywords, uint minimumHits, CancellationToken? token = null)
@@ -173,31 +166,35 @@ public class Cache : BaseSqliteDatabase, ICache
 
         token ??= _tokenSource.Token;
 
-        try
+        EnsureConnected();
+
+        lock (GetLock())
         {
-            const string sqlPrefix = "SELECT response as details, ";
-            string suffix = $" AS Hits \n FROM tmdb_cache \n WHERE response_type = '{typeof(MovieDetailsResponse)}' AND Hits >= {minimumHits} \n ORDER BY Hits;";
-            var caseStatements = keywords.Where(x => !string.IsNullOrEmpty(x)).Select(x => $"CASE WHEN response LIKE '%{x}%' THEN 1 ELSE 0 END");
-            string sql = $"{sqlPrefix} ({string.Join(" + \n", caseStatements)}) {suffix}";
-
-            if (!caseStatements.Any()) return new List<MatchScore<MovieDetailsResponse>>();
-
-            using var connection = GetConnection() ?? throw new InvalidOperationException("Cache is not connected.");
-            var matches = await connection.QueryAsync(new CommandDefinition(sql, cancellationToken: token.Value));
-            return matches.Select(x =>
+            try
             {
-                var json = x.details as string;
-                return new MatchScore<MovieDetailsResponse>()
+                const string sqlPrefix = "SELECT response as details, ";
+                string suffix = $" AS Hits \n FROM tmdb_cache \n WHERE response_type = '{typeof(MovieDetailsResponse)}' AND Hits >= {minimumHits} \n ORDER BY Hits;";
+                var caseStatements = keywords.Where(x => !string.IsNullOrEmpty(x)).Select(x => $"CASE WHEN response LIKE '%{x}%' THEN 1 ELSE 0 END");
+                string sql = $"{sqlPrefix} ({string.Join(" + \n", caseStatements)}) {suffix}";
+
+                if (!caseStatements.Any()) return new List<MatchScore<MovieDetailsResponse>>();
+
+                var matches = _connection.Query(sql);
+                return matches.Select(x =>
                 {
-                    Hits = x.Hits,
-                    Details = !string.IsNullOrWhiteSpace(json) ? JsonSerializer.Deserialize<MovieDetailsResponse>(json) : null
-                };
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug($"Error while building hit list: {ex}");
-            throw;
+                    var json = x.details as string;
+                    return new MatchScore<MovieDetailsResponse>()
+                    {
+                        Hits = x.Hits,
+                        Details = !string.IsNullOrWhiteSpace(json) ? JsonSerializer.Deserialize<MovieDetailsResponse>(json) : null
+                    };
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug($"Error while building hit list: {ex}");
+                throw;
+            }
         }
     }
 
@@ -205,38 +202,42 @@ public class Cache : BaseSqliteDatabase, ICache
     {
         token ??= _tokenSource.Token;
 
-        try
+        EnsureConnected();
+
+        lock (GetLock())
         {
-            List<string> cases = new();
-            foreach (var group in keywordsWithSynonyms)
+            try
             {
-                var groupedLikes = string.Join(" OR ", group.Where(x => !string.IsNullOrEmpty(x)).Select(x => $"response LIKE '%{x}%'"));
-                cases.Add(groupedLikes);
-            }
-
-            if (!cases.Any(x => !string.IsNullOrEmpty(x))) return new List<MatchScore<MovieDetailsResponse>>();
-
-            const string sqlPrefix = "SELECT response as details, ";
-            string suffix = $" AS Hits \n FROM tmdb_cache \n WHERE response_type = '{typeof(MovieDetailsResponse)}' AND Hits >= {minimumHits} \n ORDER BY Hits;";
-            var caseStatements = cases.Where(x => !string.IsNullOrEmpty(x)).Select(x => $"(CASE WHEN {x} THEN 1 ELSE 0 END)");
-            string sql = $"{sqlPrefix} ({string.Join(" + \n", caseStatements)}) {suffix}";
-
-            using var connection = GetConnection() ?? throw new InvalidOperationException("Cache is not connected.");
-            var matches = await connection.QueryAsync(new CommandDefinition(sql, cancellationToken: token.Value));
-            return matches.Select(x =>
-            {
-                var json = x.details as string;
-                return new MatchScore<MovieDetailsResponse>()
+                List<string> cases = new();
+                foreach (var group in keywordsWithSynonyms)
                 {
-                    Hits = x.Hits,
-                    Details = !string.IsNullOrWhiteSpace(json) ? JsonSerializer.Deserialize<MovieDetailsResponse>(json) : null
-                };
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError($"Error while building hit list: {ex}");
-            throw;
+                    var groupedLikes = string.Join(" OR ", group.Where(x => !string.IsNullOrEmpty(x)).Select(x => $"response LIKE '%{x}%'"));
+                    cases.Add(groupedLikes);
+                }
+
+                if (!cases.Any(x => !string.IsNullOrEmpty(x))) return new List<MatchScore<MovieDetailsResponse>>();
+
+                const string sqlPrefix = "SELECT response as details, ";
+                string suffix = $" AS Hits \n FROM tmdb_cache \n WHERE response_type = '{typeof(MovieDetailsResponse)}' AND Hits >= {minimumHits} \n ORDER BY Hits;";
+                var caseStatements = cases.Where(x => !string.IsNullOrEmpty(x)).Select(x => $"(CASE WHEN {x} THEN 1 ELSE 0 END)");
+                string sql = $"{sqlPrefix} ({string.Join(" + \n", caseStatements)}) {suffix}";
+
+                var matches = _connection.Query(sql);
+                return matches.Select(x =>
+                {
+                    var json = x.details as string;
+                    return new MatchScore<MovieDetailsResponse>()
+                    {
+                        Hits = x.Hits,
+                        Details = !string.IsNullOrWhiteSpace(json) ? JsonSerializer.Deserialize<MovieDetailsResponse>(json) : null
+                    };
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error while building hit list: {ex}");
+                throw;
+            }
         }
     }
 
@@ -252,25 +253,31 @@ public class Cache : BaseSqliteDatabase, ICache
 
         throw new NotImplementedException();
 
-        using var connection = GetConnection() ?? throw new InvalidOperationException("Cache is not connected.");
-        const string sql = "INSERT INTO movie_details (id, details, title, overview) VALUES (@id, @Details, @title, @overview) ON CONFLICT(id) DO UPDATE SET details = EXCLUDED.details";
-        var detailString = JsonSerializer.Serialize(details);
-        using var command = new SqliteCommand(sql, connection);
-        command.Parameters.AddWithValue("id", details.id);
-        command.Parameters.AddWithValue("details", detailString);
-        command.Parameters.AddWithValue("overview", details.overview);
-        command.Parameters.AddWithValue("title", details.title);
 
-        await command.ExecuteNonQueryAsync();
+        EnsureConnected();
+
+        lock (GetLock())
+        {
+            const string sql = "INSERT INTO movie_details (id, details, title, overview) VALUES (@id, @Details, @title, @overview) ON CONFLICT(id) DO UPDATE SET details = EXCLUDED.details";
+            var detailString = JsonSerializer.Serialize(details);
+            using var command = new SqliteCommand(sql, _connection);
+            command.Parameters.AddWithValue("id", details.id);
+            command.Parameters.AddWithValue("details", detailString);
+            command.Parameters.AddWithValue("overview", details.overview);
+            command.Parameters.AddWithValue("title", details.title);
+
+            command.ExecuteNonQuery();
+        }
     }
 
     public async Task StoreMovieQuery(MovieQueryResponse result, CancellationToken? token = null)
     {
-        using var connection = GetConnection();
+        EnsureConnected();
 
-        await connection.OpenAsync();
-
-        throw new NotImplementedException();
+        lock (GetLock())
+        {
+            throw new NotImplementedException();
+        }
     }
 
     internal static class QueryFiles

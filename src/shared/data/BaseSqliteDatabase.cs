@@ -4,24 +4,41 @@ using Dapper;
 using System.Diagnostics;
 using System.Collections.Concurrent;
 using shared.utility;
+using Microsoft.Extensions.Logging;
+using System.Diagnostics.CodeAnalysis;
 
 namespace shared.data;
 
 public class BaseSqliteDatabase : IDisposable
 {
     protected IDatabaseConfiguration? _config { get; set; } = null;
-    protected static readonly ConcurrentDictionary<string, object> s_databaseLocks = new();
+    protected static readonly ConcurrentDictionary<string, Lock> s_databaseLocks = new();
+    protected Lock GetLock()
+    {
+        return s_databaseLocks.GetOrAdd(DatabasePath, _ => new Lock());
+    }
     protected const int _commandTimeoutMs = 2000;
     protected virtual string CreateQueryResource => throw new NotImplementedException();
     protected virtual string TruncateQueryResource => throw new NotImplementedException();
     protected virtual Type QueryAssemblyType => throw new NotImplementedException();
     public virtual string SectionName => throw new NotImplementedException();
-
     protected string DatabasePath => Path.GetFullPath(_config.DatabasePath);
+    protected SqliteConnection? _connection = null;
 
-    public SqliteConnection GetConnection()
+    [MemberNotNull(nameof(_connection))]
+    protected void EnsureConnected()
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(DatabasePath) ?? throw new InvalidOperationException("Unable to determine database directory"));
+        if (_connection is null)
+        {
+            _connection = new SqliteConnection(_config.ConnectionString);
+        }
+
+        if (_connection.State == ConnectionState.Open) return;
+
+        var logger = new LoggerFactory().CreateLogger<BaseSqliteDatabase>();
+        logger.LogInformation($"Creating database directory: {PathUtilities.GetDirectory(DatabasePath)}");
+
+        Directory.CreateDirectory(PathUtilities.GetDirectory(DatabasePath) ?? throw new InvalidOperationException("Unable to determine database directory"));
 
         if (!System.IO.File.Exists(DatabasePath))
         {
@@ -35,31 +52,23 @@ public class BaseSqliteDatabase : IDisposable
             throw new FieldAccessException(FileHelper.AccessMessage(access, DatabasePath, FileAccess.ReadWrite));
         }
 
-        var lockObject = s_databaseLocks.GetOrAdd(DatabasePath, _ => new object());
-        lock (lockObject)
+        lock (GetLock())
         {
             try
             {
-                var connection = new SqliteConnection(_config.ConnectionString);
+                _connection.Open();
+                _connection.Execute("PRAGMA busy_timeout=5000;");
 
-                connection.Open();
-                // WAL mode allows one writer + multiple readers concurrently across connections.
-                // busy_timeout tells SQLite retry on a locked write for up to 5 s rather than
-                // immediately returning SQLITE_BUSY.
-                connection.Execute("PRAGMA journal_mode=WAL;");
-                connection.Execute("PRAGMA busy_timeout=5000;");
-
-                Debug.Assert(connection.Database == "main", $"Expected main, found: {connection.Database}");
+                Debug.Assert(_connection.Database == "main", $"Expected main, found: {_connection.Database}");
 
                 Create();
-
-                return connection;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"WHAT IS GOING ON {ex}");
+                Console.WriteLine($"Error while connecting to database: {ex}");
+                _connection.Close();
+                throw;
             }
-            return null;
         }
     }
 
@@ -67,45 +76,49 @@ public class BaseSqliteDatabase : IDisposable
     {
         ArgumentNullException.ThrowIfNull(CreateQueryResource);
 
-        string query = GetQueryFromResource(QueryAssemblyType, CreateQueryResource);
+        EnsureConnected();
 
-        // is called from GetConnection, must use its own connection
-        using var connection = new SqliteConnection(_config.ConnectionString);
-        connection.Open();
+        lock (GetLock())
+        {
+            string query = GetQueryFromResource(QueryAssemblyType, CreateQueryResource);
 
-        var transaction = connection?.BeginTransaction() ?? throw new NullReferenceException("Null database connection or failure to create transaction");
-        try
-        {
-            using var command = new SqliteCommand(query, connection, transaction);
-            command.ExecuteNonQuery();
-            transaction.Commit();
-        }
-        catch
-        {
-            transaction.Rollback();
-            throw;
+            var transaction = _connection!.BeginTransaction(IsolationLevel.Serializable);
+            try
+            {
+                using var command = new SqliteCommand(query, _connection, transaction);
+                command.ExecuteNonQuery();
+                transaction.Commit();
+            }
+            catch
+            {
+                transaction.Rollback();
+                throw;
+            }
         }
     }
 
     public virtual async Task Truncate()
     {
-        using var connection = GetConnection();
+        EnsureConnected();
 
-        ArgumentNullException.ThrowIfNull(TruncateQueryResource);
-
-        string query = GetQueryFromResource(QueryAssemblyType, TruncateQueryResource);
-
-        var transaction = connection?.BeginTransaction() ?? throw new NullReferenceException("Null database connection or failure to create transaction");
-        try
+        lock (GetLock())
         {
-            using var command = new SqliteCommand(query, connection, transaction);
-            command.ExecuteNonQuery();
-            transaction.Commit();
-        }
-        catch
-        {
-            transaction.Rollback();
-            throw;
+            ArgumentNullException.ThrowIfNull(TruncateQueryResource);
+
+            string query = GetQueryFromResource(QueryAssemblyType, TruncateQueryResource);
+
+            var transaction = _connection?.BeginTransaction() ?? throw new NullReferenceException("Null database connection or failure to create transaction");
+            try
+            {
+                using var command = new SqliteCommand(query, _connection, transaction);
+                command.ExecuteNonQuery();
+                transaction.Commit();
+            }
+            catch
+            {
+                transaction.Rollback();
+                throw;
+            }
         }
     }
 
@@ -133,12 +146,14 @@ public class BaseSqliteDatabase : IDisposable
 
     public virtual void Dispose(bool disposing)
     {
-        if (Interlocked.CompareExchange(ref _disposed, 1, 0) == 1) return;
+        if (Interlocked.Exchange(ref _disposed, 1) == 1) return;
 
         if (disposing)
         {
             // dispose managed objects
         }
+        _connection?.Dispose();
+        _connection = null;
 
         // force sqlite to close all connections and file references
         Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();

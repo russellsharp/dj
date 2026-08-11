@@ -232,8 +232,7 @@ public class TMDB : BaseTest
 
     public (Repo repo, ITMDB tmdb) GetComponents()
     {
-
-        using Repo repo = new(BasicOptions, new Cache(BasicOptions, new LoggerFactory().CreateLogger<ICache>(), _cts), new LoggerFactory().CreateLogger<IRepo>(), _cts);
+        var repo = new Repo(BasicOptions, new Cache(BasicOptions, new LoggerFactory().CreateLogger<ICache>(), _cts), new LoggerFactory().CreateLogger<IRepo>(), _cts);
         ITMDB tmdb = new shared.TMDB.TMDB(repo, _cts);
         return (repo, tmdb);
     }
@@ -242,6 +241,7 @@ public class TMDB : BaseTest
     public async Task MatchByOverview()
     {
         var (repo, tmdb) = GetComponents();
+        using (tmdb)
         using (repo)
         {
 
@@ -272,6 +272,7 @@ public class TMDB : BaseTest
     public async Task MatchKeywordsByAll()
     {
         var (repo, tmdb) = GetComponents();
+        using (tmdb)
         using (repo)
         {
             var movies = await tmdb.QueryTitle("Training Day");
@@ -316,6 +317,7 @@ public class TMDB : BaseTest
     public async Task MatchKeywordsCollection()
     {
         var (repo, tmdb) = GetComponents();
+        using (tmdb)
         using (repo)
         {
             var movies = await tmdb.QueryTitle("Inglourious Basterds");
@@ -359,11 +361,11 @@ public class TMDB : BaseTest
     {
         try
         {
-            if (Interlocked.CompareExchange(ref _disposed, 1, 0) == 0)
+            if (Interlocked.Exchange(ref _disposed, 1) == 0)
             {
                 if (disposing)
                 {
-                    DeleteDatabase();
+                    DeleteDatabase().GetAwaiter().GetResult();
                 }
             }
         }
@@ -373,36 +375,45 @@ public class TMDB : BaseTest
         }
     }
 
-    private void DeleteDatabase()
+    private async Task DeleteDatabase()
     {
         var deleteAttemptsMax = 10;
         int attempt = 0;
         //Sqlite driver can be slow to release database file
 
-        if (!System.IO.File.Exists(TmdbDatabasePath)) return;
+        SqliteConnection.ClearAllPools();
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
 
-        while (attempt < deleteAttemptsMax)
-        {
-            try
-            {
-                //we request GC so that SQLite.Data frees the database file.
-                SqliteConnection.ClearAllPools();
-                GC.Collect();
-                GC.WaitForPendingFinalizers();
-                System.IO.File.Delete(TmdbDatabasePath);
-                break;
-            }
-            catch (Exception ex)
-            {
-                log($"Failed to delete: {TmdbDatabasePath}\r\nDirectory path: {Path.GetDirectoryName(TmdbDatabasePath)}\r\n{ex}");
-                Task.Delay(TimeSpan.FromSeconds(1).Milliseconds);
-                attempt++;
-            }
-        }
+        string[] filesToDelete = [
+            TmdbDatabasePath,
+            TmdbDatabasePath + "-wal",
+            TmdbDatabasePath + "-shm"
+        ];
 
-        if (attempt >= deleteAttemptsMax)
+        foreach (var file in filesToDelete.Where(System.IO.File.Exists))
         {
-            throw new InvalidOperationException("Failed to delete TMDB database.");
+            while (attempt < deleteAttemptsMax)
+            {
+                try
+                {
+                    System.IO.File.Delete(file);
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    log($"Failed to delete: {file}\r\n{ex}");
+                    await Task.Delay(1000);
+                    attempt++;
+                }
+            }
+
+            if (attempt >= deleteAttemptsMax)
+            {
+                throw new InvalidOperationException($"Failed to delete TMDB database file: {file}");
+            }
+
+            attempt = 0;
         }
     }
     #endregion IDisposable
