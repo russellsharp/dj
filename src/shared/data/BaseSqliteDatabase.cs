@@ -155,7 +155,7 @@ public class BaseSqliteDatabase : IDisposable
 
     public virtual void Dispose(bool disposing)
     {
-        if (Interlocked.CompareExchange(ref _disposed, 1, 0) == 1) return;
+        if (Interlocked.Exchange(ref _disposed, 1) == 1) return;
 
         if (disposing)
         {

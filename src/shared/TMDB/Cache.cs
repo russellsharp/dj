@@ -170,7 +170,6 @@ public class Cache : BaseSqliteDatabase, ICache
 
         lock (GetLock())
         {
-
             try
             {
                 const string sqlPrefix = "SELECT response as details, ";
@@ -207,7 +206,6 @@ public class Cache : BaseSqliteDatabase, ICache
 
         lock (GetLock())
         {
-
             try
             {
                 List<string> cases = new();
