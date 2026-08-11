@@ -2,9 +2,9 @@ namespace shared.data;
 
 public interface IMediaDatabase
 {
-    void Connect();
-    Task Create(CancellationToken? token = null);
-    Task Truncate(CancellationToken? token = null);
+    void Connect(string caller = "");
+    Task Create(CancellationToken? token = null, string caller = "");
+    Task Truncate(CancellationToken? token = null, string caller = "");
     void Dispose(bool disposing);
     void Dispose();
     Task<File?> File(string path, CancellationToken? token = null);

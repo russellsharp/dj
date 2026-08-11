@@ -76,11 +76,11 @@ public class MediaDatabase : IDisposable, IMediaDatabase
     /// <summary>
     /// Connects to the database file.  Will create the file and directory path if necessary.
     /// </summary>
-    public void Connect()
+    public void Connect([CallerMemberName] string caller = "")
     {
         Directory.CreateDirectory(Path.GetDirectoryName(_config.DatabasePath) ?? throw new InvalidOperationException("Unable to determine database directory"));
 
-        _logger.LogInformation($"Database directory: {Path.GetDirectoryName(_config.DatabasePath) ?? throw new InvalidOperationException("Unable to determine database directory")}");
+        _logger.LogInformation($"{caller} Database directory: {Path.GetDirectoryName(_config.DatabasePath)}");
 
         var lockObject = s_databaseLocks.GetOrAdd(_config.DatabasePath, _ => new object());
         lock (lockObject)
@@ -94,11 +94,13 @@ public class MediaDatabase : IDisposable, IMediaDatabase
         }
     }
 
-    public Task Create(CancellationToken? token = null)
+    public Task Create(CancellationToken? token = null, [CallerMemberName] string caller = "")
     {
         token ??= _cts.Token;
 
         using var connection = new SqliteConnection(ConnectionStringReadWrite);
+
+        _logger.LogInformation($"{caller} Database directory: {Path.GetDirectoryName(_config.DatabasePath)}");
 
         connection.Open();
 
@@ -408,13 +410,13 @@ public class MediaDatabase : IDisposable, IMediaDatabase
         return files;
     }
 
-    public async Task Truncate(CancellationToken? token = null)
+    public async Task Truncate(CancellationToken? token = null, [CallerMemberName] string caller = "")
     {
         token ??= _cts.Token;
 
         using var connection = new SqliteConnection(ConnectionStringReadWrite);
 
-        _logger.LogInformation($"Truncate: Connection String: {ConnectionStringReadWrite}");
+        _logger.LogInformation($"{caller}: Truncate: Connection String: {ConnectionStringReadWrite}");
 
         await connection.OpenAsync(token.Value);
 
