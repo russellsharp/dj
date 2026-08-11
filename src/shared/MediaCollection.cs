@@ -58,8 +58,6 @@ public class MediaCollection : IMediaCollection
 
     public async Task Initialize(CancellationToken token)
     {
-        _db.Connect();
-
         await _db.Create();
 
         await LoadDatabase(token);

@@ -4,7 +4,6 @@ namespace shared.data;
 
 public interface IMediaDatabase
 {
-    void Connect([CallerMemberName] string caller = "");
     Task Create(CancellationToken? token = null, [CallerMemberName] string caller = "");
     Task Truncate(CancellationToken? token = null, [CallerMemberName] string caller = "");
     void Dispose(bool disposing);

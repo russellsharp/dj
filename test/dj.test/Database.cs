@@ -8,10 +8,6 @@ using System.Runtime.CompilerServices;
 
 namespace dj.test;
 
-[CollectionDefinition("NoParallelCollection", DisableParallelization = true)]
-public class NonParallelCollectionDefinition { }
-
-[Collection("NoParallelCollection")]
 public class Database : BaseTest, IDisposable
 {
     private shared.data.MediaDatabase _db;
@@ -31,8 +27,6 @@ public class Database : BaseTest, IDisposable
         _db = new shared.data.MediaDatabase(optionsConfig, new LoggerFactory().CreateLogger<shared.data.MediaDatabase>(), _cts);
 
         Directory.CreateDirectory(Path.GetDirectoryName(_dataConfig.DatabasePath));
-
-        _db.Connect();
 
         try
         {
@@ -84,13 +78,6 @@ public class Database : BaseTest, IDisposable
     }
 
     [Fact]
-    public async Task Connect()
-    {
-        var act = () => _db.Connect();
-        act.Should().NotThrow();
-    }
-
-    [Fact]
     public async Task Create()
     {
         await _db.Create();
@@ -101,7 +88,6 @@ public class Database : BaseTest, IDisposable
     [Fact]
     public async Task CreateAndTruncateDatabase()
     {
-        _db.Connect();
         await _db.Truncate();
         await _db.Create();
         await _db.Truncate();
