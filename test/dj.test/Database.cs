@@ -24,6 +24,8 @@ public class Database : BaseTest, IDisposable
 
         _db = new shared.data.MediaDatabase(optionsConfig, new LoggerFactory().CreateLogger<shared.data.MediaDatabase>(), _cts);
 
+        File.WriteAllBytes(_dataConfig.DatabasePath, []);
+
         _db.Connect();
 
         _db.Create().GetAwaiter().GetResult();
