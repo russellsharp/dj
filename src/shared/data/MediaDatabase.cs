@@ -125,7 +125,7 @@ public class MediaDatabase : IDisposable, IMediaDatabase
 
     public async Task Truncate(CancellationToken? token = null, [CallerMemberName] string caller = "")
     {
-        _logger.LogError($"{caller}: Truncate: Before open:  Connection String: {ConnectionStringReadWrite}");
+        _logger.LogInformation($"{caller}: Truncate: Before open:  Connection String: {ConnectionStringReadWrite}");
 
         token ??= _cts.Token;
 

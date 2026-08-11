@@ -2,10 +2,16 @@ using FluentAssertions;
 using shared.utility;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
+using Xunit;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 
 namespace dj.test;
 
+[CollectionDefinition("NoParallelCollection", DisableParallelization = true)]
+public class NonParallelCollectionDefinition { }
+
+[Collection("NoParallelCollection")]
 public class Database : BaseTest, IDisposable
 {
     private shared.data.MediaDatabase _db;
@@ -54,7 +60,7 @@ public class Database : BaseTest, IDisposable
 
         try
         {
-            // _db.Truncate().GetAwaiter().GetResult();
+            _db.Truncate().GetAwaiter().GetResult();
         }
         catch (Exception ex)
         {
