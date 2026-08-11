@@ -242,6 +242,7 @@ public class TMDB : BaseTest
     public async Task MatchByOverview()
     {
         var (repo, tmdb) = GetComponents();
+        using (tmdb)
         using (repo)
         {
 
@@ -272,6 +273,7 @@ public class TMDB : BaseTest
     public async Task MatchKeywordsByAll()
     {
         var (repo, tmdb) = GetComponents();
+        using (tmdb)
         using (repo)
         {
             var movies = await tmdb.QueryTitle("Training Day");
@@ -316,6 +318,7 @@ public class TMDB : BaseTest
     public async Task MatchKeywordsCollection()
     {
         var (repo, tmdb) = GetComponents();
+        using (tmdb)
         using (repo)
         {
             var movies = await tmdb.QueryTitle("Inglourious Basterds");
@@ -359,7 +362,7 @@ public class TMDB : BaseTest
     {
         try
         {
-            if (Interlocked.CompareExchange(ref _disposed, 1, 0) == 0)
+            if (Interlocked.Exchange(ref _disposed, 1) == 0)
             {
                 if (disposing)
                 {
