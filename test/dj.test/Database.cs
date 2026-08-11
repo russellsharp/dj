@@ -19,7 +19,7 @@ public class Database : BaseTest, IDisposable
     {
         _dataConfig = new shared.data.MediaDatabaseConfiguration()
         {
-            DatabasePath = Path.GetFullPath("testdata/a.db")
+            DatabasePath = Path.GetFullPath($"testdata/{Guid.NewGuid()}.db")
         };
 
         var optionsConfig = Options.Create(_dataConfig);

@@ -365,7 +365,7 @@ public class TMDB : BaseTest
             {
                 if (disposing)
                 {
-                    DeleteDatabase();
+                    DeleteDatabase().GetAwaiter().GetResult();
                 }
             }
         }

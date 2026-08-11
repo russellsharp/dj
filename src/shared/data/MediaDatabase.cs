@@ -22,7 +22,14 @@ public class MediaDatabase : IDisposable, IMediaDatabase
     {
         return s_databaseLocks.GetOrAdd(_config.DatabasePath, _ => new Lock());
     }
-    private static readonly ConcurrentDictionary<string, bool> s_databaseCreated = new();
+    private static readonly ConcurrentDictionary<string, DatabaseCreationState> s_databaseCreated = new();
+
+    private enum DatabaseCreationState
+    {
+        Not,
+        Creating,
+        Created
+    }
 
     private SqliteConnection? _connection = null;
     private readonly IDatabaseConfiguration _config;
@@ -38,8 +45,9 @@ public class MediaDatabase : IDisposable, IMediaDatabase
             {
                 DataSource = _config.DatabasePath,
                 Mode = SqliteOpenMode.ReadWriteCreate,
-                Cache = SqliteCacheMode.Shared
+                Pooling = false
             };
+
             return builder.ConnectionString;
         }
     }
@@ -84,7 +92,11 @@ public class MediaDatabase : IDisposable, IMediaDatabase
         _cts = cts;
 
         SqlMapper.AddTypeHandler(new UtcDateTimeHandler());
+
+        s_databaseCreated.GetOrAdd(_config.DatabasePath, _ => DatabaseCreationState.Not);
     }
+
+    private static readonly Lock _dbFileLock = new Lock();
 
     [MemberNotNull(nameof(_connection))]
     private void EnsureConnected()
@@ -94,25 +106,40 @@ public class MediaDatabase : IDisposable, IMediaDatabase
             _connection = new SqliteConnection(ConnectionStringReadWrite);
         }
 
-        Create().GetAwaiter().GetResult();
+        Directory.CreateDirectory(PathUtilities.GetDirectory(_config.DatabasePath));
 
-        if (_connection.State != ConnectionState.Open)
+        // Statically synchronize the opening phase
+        lock (_dbFileLock)
         {
-            lock (GetLock())
+            if (_connection.State != ConnectionState.Open)
             {
-                Directory.CreateDirectory(PathUtilities.GetDirectory(_config.DatabasePath));
-
-                _connection = new SqliteConnection(ConnectionStringReadWrite);
-
+                _logger.LogInformation($"Connect: {_connection.State.ToString()}");
                 _connection.Open();
 
                 // WAL mode allows one writer + multiple readers concurrently across connections.
                 // busy_timeout tells SQLite retry on a locked write for up to 5 s rather than
                 // immediately returning SQLITE_BUSY.
-                _connection.Execute("PRAGMA journal_mode=WAL;");
-                _connection.Execute("PRAGMA busy_timeout=5000;");
+                // _connection.Execute("PRAGMA journal_mode=WAL;");
+                // _connection.Execute("PRAGMA busy_timeout=5000;");
+
+                _connection.DefaultTimeout = 30;
+
+                // Turn on WAL mode securely right after opening
+                // This will execute safely because the connection is now guarded by DefaultTimeout
+                using (var command = _connection.CreateCommand())
+                {
+                    command.CommandText = "PRAGMA journal_mode=WAL;";
+                    command.ExecuteNonQuery();
+                }
+
+                using (var command = _connection.CreateCommand())
+                {
+                    command.CommandText = "PRAGMA busy_timeout=30000;";
+                    command.ExecuteNonQuery();
+                }
 
                 Debug.Assert(_connection.Database == "main", $"Expected main, found: {_connection.Database}");
+                Debug.Assert(_connection.State == ConnectionState.Open);
             }
         }
     }
@@ -120,24 +147,24 @@ public class MediaDatabase : IDisposable, IMediaDatabase
     // should never call EnsureConnected or any other method that uses a lock for the database
     public Task Create(CancellationToken? token = null, [CallerMemberName] string caller = "")
     {
-        if (s_databaseCreated.GetOrAdd(_config.DatabasePath, _ => false)) return Task.CompletedTask;
+        if (s_databaseCreated.GetOrAdd(_config.DatabasePath, _ => DatabaseCreationState.Creating) != DatabaseCreationState.Not) return Task.CompletedTask;
+
+        s_databaseCreated[_config.DatabasePath] = DatabaseCreationState.Creating;
 
         token ??= _cts.Token;
+
+        EnsureConnected();
 
         lock (GetLock())
         {
             string query = GetQueryFromResource(QueryFiles.CreateDatabase);
 
-            var connection = new SqliteConnection(ConnectionStringReadWrite);
-
-            connection.Open();
-
-            using (var transaction = connection.BeginTransaction() ?? throw new NullReferenceException("Null database connection or failure to create transaction"))
+            using (var transaction = _connection?.BeginTransaction(System.Data.IsolationLevel.Serializable) ?? throw new NullReferenceException("Null database connection or failure to create transaction"))
             {
                 try
                 {
                     var command = new CommandDefinition(query, null, transaction, _commandTimeoutSeconds, CommandType.Text, CommandFlags.None, token.Value);
-                    connection.Execute(command);
+                    _connection.Execute(command);
                     transaction.Commit();
                 }
                 catch
@@ -146,10 +173,9 @@ public class MediaDatabase : IDisposable, IMediaDatabase
                     throw;
                 }
             }
-            connection.Dispose();
-        }
 
-        s_databaseCreated.GetOrAdd(_config.DatabasePath, _ => true);
+            s_databaseCreated[_config.DatabasePath] = DatabaseCreationState.Created;
+        }
 
         return Task.CompletedTask;
     }
@@ -165,7 +191,7 @@ public class MediaDatabase : IDisposable, IMediaDatabase
             _logger.LogInformation($"{caller}: Truncate: Connection String: {ConnectionStringReadWrite}");
 
             string query = GetQueryFromResource(QueryFiles.TruncateDatabase);
-            using (var transaction = _connection?.BeginTransaction() ?? throw new NullReferenceException("Null database connection or failure to create transaction"))
+            using (var transaction = _connection?.BeginTransaction(System.Data.IsolationLevel.Serializable) ?? throw new NullReferenceException("Null database connection or failure to create transaction"))
             {
                 try
                 {
@@ -192,7 +218,7 @@ public class MediaDatabase : IDisposable, IMediaDatabase
         {
             try
             {
-                using var transaction = _connection.BeginTransaction();
+                using var transaction = _connection.BeginTransaction(System.Data.IsolationLevel.Serializable);
                 const string sql = @"
             INSERT INTO file (
                 path_hash, path, date_modified, date_created, 
@@ -249,7 +275,7 @@ public class MediaDatabase : IDisposable, IMediaDatabase
             {
                 token.Value.ThrowIfCancellationRequested();
 
-                using var transaction = _connection.BeginTransaction();
+                using var transaction = _connection.BeginTransaction(System.Data.IsolationLevel.Serializable);
 
                 const string sql = @"
             INSERT INTO file (
@@ -502,20 +528,17 @@ public class MediaDatabase : IDisposable, IMediaDatabase
     {
         if (Interlocked.Exchange(ref _disposed, 1) == 0)
         {
+            // close connection in both paths: finalizer won't close it otherwise,
+            // leaving the file locked for the next test's RestoreDatabase copy.
+            var conn = _connection;
+            _connection = null;
+            conn?.Close();
+            conn?.Dispose();
+
             if (disposing)
             {
-                lock (GetLock())
-                {
-                    var conn = _connection;
-                    if (conn is not null)
-                    {
-                        conn?.Dispose();
-                        _connection = null;
-                    }
-                }
+                // dispose other managed objects here
             }
-
-            //dispose unmanaged objects
         }
     }
 

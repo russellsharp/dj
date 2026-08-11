@@ -27,9 +27,10 @@ public interface IMediaCollection
     Task<IEnumerable<shared.data.File>> Files(MediaType type);
     Task<IEnumerable<string>> Search(IEnumerable<string> patterns, CancellationToken? token);
     Task<IEnumerable<MatchScore<ResponseType>>> FindInPath<ResponseType>(IEnumerable<string> keywords, int? minimumHits = null, CancellationToken? token = null) where ResponseType : class;
+    void Dispose();
 }
 
-public class MediaCollection : IMediaCollection
+public class MediaCollection : IMediaCollection, IDisposable
 {
     private readonly MediaCollectionConfiguration _configuration;
 
@@ -365,4 +366,34 @@ public class MediaCollection : IMediaCollection
 
         return files;
     }
+
+
+    #region IDisposable
+    private int _disposed = 0;
+
+    public virtual void Dispose(bool disposing)
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) == 0)
+        {
+            _db.Dispose();
+
+            if (disposing)
+            {
+                // dispose other managed objects here
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    ~MediaCollection()
+    {
+        Dispose();
+    }
+
+    #endregion IDisposable
 }

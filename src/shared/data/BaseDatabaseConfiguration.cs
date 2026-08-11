@@ -39,7 +39,7 @@ public class BaseDatabaseConfiguration : IDatabaseConfiguration
             {
                 DataSource = DatabasePath,
                 Mode = SqliteOpenMode.ReadWriteCreate,
-                Cache = SqliteCacheMode.Shared,
+                // Cache = SqliteCacheMode.Shared,
                 Pooling = true
             };
 
