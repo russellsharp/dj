@@ -82,7 +82,7 @@ public class Database : BaseTest, IDisposable
     {
         await _db.Create();
 
-        System.IO.File.Exists(Path.GetFullPath(_dataConfig.DatabasePath)).Should().BeTrue();
+        System.IO.File.Exists(Path.GetFullPath(_dataConfig.DatabasePath)).Should().BeTrue("{0}", _dataConfig.DatabasePath);
     }
 
     [Fact]

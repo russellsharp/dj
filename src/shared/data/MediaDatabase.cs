@@ -151,8 +151,6 @@ public class MediaDatabase : IDisposable, IMediaDatabase
         {
             _logger.LogInformation($"{caller} Database directory: {Path.GetDirectoryName(_config.DatabasePath)}");
 
-            _connection.Open();
-
             string query = GetQueryFromResource(QueryFiles.CreateDatabase);
 
             using (var transaction = _connection?.BeginTransaction() ?? throw new NullReferenceException("Null database connection or failure to create transaction"))
