@@ -412,6 +412,8 @@ public class MediaDatabase : IDisposable, IMediaDatabase
 
     public async Task Truncate(CancellationToken? token = null, [CallerMemberName] string caller = "")
     {
+        _logger.LogInformation($"{caller}: Truncate: Before open:  Connection String: {ConnectionStringReadWrite}");
+
         token ??= _cts.Token;
 
         using var connection = new SqliteConnection(ConnectionStringReadWrite);
