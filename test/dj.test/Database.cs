@@ -39,6 +39,9 @@ public class Database : BaseTest, IDisposable
                 {ex}
                 Connection String: {_dataConfig.ConnectionString}
                 File: {_dataConfig.DatabasePath}
+                Directory {Path.GetDirectoryName(_dataConfig.DatabasePath)}
+                FileExists: {File.Exists(_dataConfig.DatabasePath)}
+                PathExists: {Path.Exists(Path.GetDirectoryName(_dataConfig.DatabasePath))}
                 Write: {shared.utility.FileHelper.CanAccessFile(_dataConfig.DatabasePath, FileAccess.Write)}
                 Read: {shared.utility.FileHelper.CanAccessFile(_dataConfig.DatabasePath, FileAccess.Read)}
             "
